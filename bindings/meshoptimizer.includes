@@ -1,0 +1,18 @@
+# Curated jextract include list for meshoptimizer 1.2 (DESIGN §6.4, TASKS M6-01): welding, cache,
+# overdraw and fetch optimization, simplification for LODs and statistics for the cook report.
+--include-function meshopt_analyzeOverdraw
+--include-function meshopt_analyzeVertexCache
+--include-function meshopt_generateVertexRemap
+--include-function meshopt_optimizeOverdraw
+--include-function meshopt_optimizeVertexCache
+--include-function meshopt_optimizeVertexFetch
+--include-function meshopt_remapIndexBuffer
+--include-function meshopt_remapVertexBuffer
+--include-function meshopt_simplify
+--include-function meshopt_simplifyScale
+--include-function meshopt_simplifyWithAttributes
+--include-struct meshopt_OverdrawStatistics
+--include-struct meshopt_VertexCacheStatistics
+--include-constant meshopt_SimplifyErrorAbsolute
+--include-constant meshopt_SimplifyLockBorder
+--include-constant meshopt_SimplifySparse

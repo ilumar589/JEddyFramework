@@ -1,0 +1,8 @@
+{
+  "default": "data",
+  "level": 19,
+  "paks": [
+    {"name": "shared", "include": ["engine/**", "shaders/**", "config/**"]},
+    {"name": "yard", "include": ["models/yard/**", "models/yard.jscene"]}
+  ]
+}

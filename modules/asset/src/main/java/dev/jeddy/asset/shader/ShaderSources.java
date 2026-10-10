@@ -1,4 +1,4 @@
-package dev.jeddy.render.shader;
+package dev.jeddy.asset.shader;
 
 import java.io.IOException;
 import java.io.InputStream;

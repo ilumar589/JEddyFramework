@@ -333,7 +333,7 @@ public class SDL_GamepadSensorEvent {
      * }
      */
     public static float data(MemorySegment struct, long index0) {
-        return (float)data$ELEM_HANDLE.get(struct, 0L, index0);
+        return (float)data$ELEM_HANDLE.get(struct, data$OFFSET, index0);
     }
 
     /**
@@ -343,7 +343,7 @@ public class SDL_GamepadSensorEvent {
      * }
      */
     public static void data(MemorySegment struct, long index0, float fieldValue) {
-        data$ELEM_HANDLE.set(struct, 0L, index0, fieldValue);
+        data$ELEM_HANDLE.set(struct, data$OFFSET, index0, fieldValue);
     }
 
     private static final OfLong sensor_timestamp$LAYOUT = (OfLong)$LAYOUT.select(groupElement("sensor_timestamp"));

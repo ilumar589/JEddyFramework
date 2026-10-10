@@ -16,9 +16,14 @@ if ! command -v zstd > /dev/null; then
   echo "::warning title=zstd CLI::zstd is not installed"
   exit 0
 fi
-# zstd -b redraws its progress line with CR; keep the final line of each level.
-results=$( { zstd -b1 -i2 "$corpus"; zstd -b3 -i2 "$corpus"; zstd -b19 -i1 "$corpus"; } 2>&1 \
-  | tr '\r' '\n' | grep -E '^ *[0-9]+#.*MB/s' | awk -F'#' '{ last[$1 + 0] = $0 } END { for (k in last) print last[k] }' | sort -n)
+# zstd -b redraws its progress line with CR, and the final line starts with a spinner character
+# rather than the level, so run each level on its own and keep its last line with a speed.
+results=""
+for args in "-b1 -i2" "-b3 -i2" "-b19 -i1"; do
+  # shellcheck disable=SC2086
+  line=$(zstd $args "$corpus" 2>&1 | tr '\r' '\n' | grep -E 'MB/s|MiB/s' | tail -n 1)
+  results="${results}level ${args%% *}: ${line:-no result}"$'\n'
+done
 version=$(zstd --version 2>&1 | head -n 1)
-msg=$(printf '%s\n%s\n' "$version (MB = 10^6 bytes; compress, decompress)" "$results" | sed -e 's/%/%25/g' | awk 'BEGIN { ORS = "%0A" } { print }')
+msg=$(printf '%s\n%s' "$version (MB = 10^6 bytes; compress, decompress)" "$results" | sed -e 's/%/%25/g' | awk 'BEGIN { ORS = "%0A" } { print }')
 echo "::notice title=zstd CLI on the ZstdBench corpus::$msg"

@@ -2,6 +2,9 @@ package dev.jeddy.render.shader;
 
 import static dev.jeddy.gl.ffi.GL46.*;
 
+import dev.jeddy.asset.shader.ShaderException;
+import dev.jeddy.asset.shader.ShaderPreprocessor;
+import dev.jeddy.asset.shader.ShaderSources;
 import dev.jeddy.core.collections.LongIntMap;
 import dev.jeddy.core.log.Log;
 import dev.jeddy.core.log.Logger;

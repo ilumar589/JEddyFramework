@@ -1,4 +1,4 @@
-package dev.jeddy.render.shader;
+package dev.jeddy.asset.shader;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -10,7 +10,8 @@ import java.util.Set;
  * Expands {@code #include "path"} (relative to the including file), honours {@code #pragma once},
  * and injects {@code #define}s after the {@code #version} line (TASKS M5-05, DESIGN §9.2). {@code
  * #line} directives keep compiler messages pointing at the right file and line: the second number
- * is an index into {@link Result#files()}.
+ * is an index into {@link Result#files()}. Shared by the runtime ({@code render}, dev builds) and
+ * the cooker, which flattens shaders at cook time.
  *
  * <p>Thread ownership: one thread per instance; cold path.
  */

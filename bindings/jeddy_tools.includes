@@ -1,0 +1,4 @@
+# jextract include list for the cooker's native shim (natives/shim, DESIGN §6.1): MikkTSpace
+# tangent generation.
+--include-function jeddy_mikk_generate_tangents
+--include-function jeddy_tools_native_version

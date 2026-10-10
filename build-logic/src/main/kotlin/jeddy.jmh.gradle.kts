@@ -20,9 +20,11 @@ dependencies {
     "runtimeOnly"(project(":natives-" + dev.jeddy.gradle.JeddyPlatforms.current()))
 }
 
-// JMH-generated sources are not ours to keep warning-free.
+// JMH-generated sources are not ours to keep warning-free, and FFM benchmarks call restricted
+// methods by design.
 tasks.withType<JavaCompile>().configureEach {
     options.compilerArgs.removeAll { it == "-Werror" }
+    options.compilerArgs.add("-Xlint:-restricted")
 }
 
 tasks.register<JavaExec>("jmh") {

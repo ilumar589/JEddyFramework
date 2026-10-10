@@ -8,3 +8,6 @@
 *.glb binary
 *.dll binary
 *.so binary
+*.hdr binary
+*.bin binary
+*.jpak binary

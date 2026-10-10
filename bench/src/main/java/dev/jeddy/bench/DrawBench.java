@@ -103,7 +103,7 @@ public class DrawBench {
         device = new GpuDevice(caps);
         meshes = new MeshRegistry(device, null, 1 << 16, 1 << 16);
         var engine =
-                dev.jeddy.render.shader.ShaderSources.classpath(
+                dev.jeddy.asset.shader.ShaderSources.classpath(
                         MeshRegistry.class, "/dev/jeddy/render/shaders");
         programs =
                 new ProgramCache(

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.jeddy.asset.format.MeshData;
 import dev.jeddy.asset.format.MeshWriter;
+import dev.jeddy.asset.shader.ShaderSources;
 import dev.jeddy.core.job.JobSystem;
 import dev.jeddy.gl.GLDebug;
 import dev.jeddy.math.AffineOps;
@@ -20,7 +21,6 @@ import dev.jeddy.render.gpu.UploadRing;
 import dev.jeddy.render.mesh.MeshRegistry;
 import dev.jeddy.render.shader.ProgramCache;
 import dev.jeddy.render.shader.ShaderFeatures;
-import dev.jeddy.render.shader.ShaderSources;
 import dev.jeddy.testing.Allocations;
 
 import org.junit.jupiter.api.AfterAll;

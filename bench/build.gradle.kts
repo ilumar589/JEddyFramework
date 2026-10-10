@@ -11,4 +11,5 @@ dependencies {
     implementation(project(":asset"))
     implementation(project(":scene"))
     implementation(project(":render"))
+    implementation(project(":cooker"))
 }

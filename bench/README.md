@@ -68,3 +68,15 @@ Local runs, 2-core sandbox, Mesa llvmpipe (hand-timed, not JMH):
 | `DrawBench.cullAndBuild`, 20k instances | 1.7 ms (warm) |
 | `DrawBench.cullBuildSubmit`, 20k instances (llvmpipe does vertex work on the calling thread) | 8.6 ms |
 | `TextureBindingBench`: rebind per draw / texture array (256 materials) | 3.5 / 2.6 ms |
+
+### Cooker numbers (M6)
+
+Local runs, 2-core sandbox (hand-timed; CI runs `TextureCookBench` on its 4-core runner):
+
+| Operation | Result |
+|---|---|
+| 2048² color texture: Kaiser mips (parallel rows), sRGB encode | 0.14 s |
+| 2048² color texture: whole cook (mips, UASTC level 0, BC7, zstd 10, PSNR/SSIM) | 1.8 s, 52.4 dB, SSIM 0.997 |
+| Same texture at UASTC level 1 | 5.0 s encode, 53.0 dB |
+| Sample assets (glTF scene, 6 textures, HDR environment, material, shaders) cold cook | 1.2 s |
+| Same, served from the cooker cache | 10 ms |
