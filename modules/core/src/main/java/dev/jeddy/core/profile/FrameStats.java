@@ -1,6 +1,5 @@
 package dev.jeddy.core.profile;
 
-import java.util.Arrays;
 import jdk.jfr.Category;
 import jdk.jfr.Description;
 import jdk.jfr.Event;
@@ -9,10 +8,12 @@ import jdk.jfr.Label;
 import jdk.jfr.Name;
 import jdk.jfr.Timespan;
 
+import java.util.Arrays;
+
 /**
  * Rolling frame-time statistics over the last N frames (average, minimum, maximum, percentiles).
- * Also emits a {@code dev.jeddy.Frame} JFR event per frame while a JFR recording has it enabled,
- * so frame times line up with GC and allocation data in JDK Mission Control.
+ * Also emits a {@code dev.jeddy.Frame} JFR event per frame while a JFR recording has it enabled, so
+ * frame times line up with GC and allocation data in JDK Mission Control.
  *
  * <p>Thread ownership: single owner thread (normally the main loop).
  */

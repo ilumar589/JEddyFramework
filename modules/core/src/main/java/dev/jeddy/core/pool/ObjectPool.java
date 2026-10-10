@@ -40,7 +40,10 @@ public final class ObjectPool<T> {
         this.items = new Object[Math.min(16, maxPooled)];
     }
 
-    /** Creates objects until {@code count} are pooled, so later {@link #obtain()} calls don't allocate. */
+    /**
+     * Creates objects until {@code count} are pooled, so later {@link #obtain()} calls don't
+     * allocate.
+     */
     public void prefill(int count) {
         int target = Math.min(count, maxPooled);
         while (size < target) {

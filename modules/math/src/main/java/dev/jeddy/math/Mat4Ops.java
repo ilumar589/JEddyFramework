@@ -1,8 +1,8 @@
 package dev.jeddy.math;
 
 /**
- * 4×4 matrix kernels over {@code float[]} with offsets, column-major (element {@code [c * 4 +
- * r]}). Allocation-free; inputs and output may not overlap unless stated (DESIGN §8.1).
+ * 4×4 matrix kernels over {@code float[]} with offsets, column-major (element {@code [c * 4 + r]}).
+ * Allocation-free; inputs and output may not overlap unless stated (DESIGN §8.1).
  *
  * <p>Thread ownership: stateless, callable from any thread.
  */
@@ -25,8 +25,10 @@ public final class Mat4Ops {
             float b3 = b[bo + c * 4 + 3];
             out[o + c * 4] = a[ao] * b0 + a[ao + 4] * b1 + a[ao + 8] * b2 + a[ao + 12] * b3;
             out[o + c * 4 + 1] = a[ao + 1] * b0 + a[ao + 5] * b1 + a[ao + 9] * b2 + a[ao + 13] * b3;
-            out[o + c * 4 + 2] = a[ao + 2] * b0 + a[ao + 6] * b1 + a[ao + 10] * b2 + a[ao + 14] * b3;
-            out[o + c * 4 + 3] = a[ao + 3] * b0 + a[ao + 7] * b1 + a[ao + 11] * b2 + a[ao + 15] * b3;
+            out[o + c * 4 + 2] =
+                    a[ao + 2] * b0 + a[ao + 6] * b1 + a[ao + 10] * b2 + a[ao + 14] * b3;
+            out[o + c * 4 + 3] =
+                    a[ao + 3] * b0 + a[ao + 7] * b1 + a[ao + 11] * b2 + a[ao + 15] * b3;
         }
     }
 
@@ -43,8 +45,10 @@ public final class Mat4Ops {
             float b3 = c == 3 ? 1 : 0;
             out[o + c * 4] = m[mo] * b0 + m[mo + 4] * b1 + m[mo + 8] * b2 + m[mo + 12] * b3;
             out[o + c * 4 + 1] = m[mo + 1] * b0 + m[mo + 5] * b1 + m[mo + 9] * b2 + m[mo + 13] * b3;
-            out[o + c * 4 + 2] = m[mo + 2] * b0 + m[mo + 6] * b1 + m[mo + 10] * b2 + m[mo + 14] * b3;
-            out[o + c * 4 + 3] = m[mo + 3] * b0 + m[mo + 7] * b1 + m[mo + 11] * b2 + m[mo + 15] * b3;
+            out[o + c * 4 + 2] =
+                    m[mo + 2] * b0 + m[mo + 6] * b1 + m[mo + 10] * b2 + m[mo + 14] * b3;
+            out[o + c * 4 + 3] =
+                    m[mo + 3] * b0 + m[mo + 7] * b1 + m[mo + 11] * b2 + m[mo + 15] * b3;
         }
     }
 
@@ -139,7 +143,8 @@ public final class Mat4Ops {
     }
 
     /** Writes an infinite reversed-Z perspective projection (see {@link Mat4f}). */
-    public static void perspectiveReversedZ(float fovY, float aspect, float near, float[] out, int o) {
+    public static void perspectiveReversedZ(
+            float fovY, float aspect, float near, float[] out, int o) {
         float f = (float) (1.0 / Math.tan(fovY * 0.5));
         for (int i = 0; i < 16; i++) {
             out[o + i] = 0;
@@ -152,7 +157,14 @@ public final class Mat4Ops {
 
     /** Writes a reversed-Z orthographic projection (see {@link Mat4f}). */
     public static void orthoReversedZ(
-            float left, float right, float bottom, float top, float near, float far, float[] out, int o) {
+            float left,
+            float right,
+            float bottom,
+            float top,
+            float near,
+            float far,
+            float[] out,
+            int o) {
         for (int i = 0; i < 16; i++) {
             out[o + i] = 0;
         }
@@ -170,8 +182,17 @@ public final class Mat4Ops {
 
     /** Writes a right-handed look-at view matrix. */
     public static void lookAt(
-            float ex, float ey, float ez, float tx, float ty, float tz, float ux, float uy, float uz,
-            float[] out, int o) {
+            float ex,
+            float ey,
+            float ez,
+            float tx,
+            float ty,
+            float tz,
+            float ux,
+            float uy,
+            float uz,
+            float[] out,
+            int o) {
         float fx = tx - ex;
         float fy = ty - ey;
         float fz = tz - ez;

@@ -26,12 +26,14 @@ public final class Segments {
     private Segments() {}
 
     /** Copies {@code count} floats from {@code src[srcIndex..]} to {@code dst} at byte offset. */
-    public static void copy(float[] src, int srcIndex, MemorySegment dst, long dstOffset, int count) {
+    public static void copy(
+            float[] src, int srcIndex, MemorySegment dst, long dstOffset, int count) {
         MemorySegment.copy(src, srcIndex, dst, FLOAT, dstOffset, count);
     }
 
     /** Copies {@code count} floats from {@code src} at byte offset into {@code dst[dstIndex..]}. */
-    public static void copy(MemorySegment src, long srcOffset, float[] dst, int dstIndex, int count) {
+    public static void copy(
+            MemorySegment src, long srcOffset, float[] dst, int dstIndex, int count) {
         MemorySegment.copy(src, FLOAT, srcOffset, dst, dstIndex, count);
     }
 
@@ -46,22 +48,26 @@ public final class Segments {
     }
 
     /** Copies {@code count} longs from {@code src[srcIndex..]} to {@code dst} at byte offset. */
-    public static void copy(long[] src, int srcIndex, MemorySegment dst, long dstOffset, int count) {
+    public static void copy(
+            long[] src, int srcIndex, MemorySegment dst, long dstOffset, int count) {
         MemorySegment.copy(src, srcIndex, dst, LONG, dstOffset, count);
     }
 
     /** Copies {@code count} shorts from {@code src[srcIndex..]} to {@code dst} at byte offset. */
-    public static void copy(short[] src, int srcIndex, MemorySegment dst, long dstOffset, int count) {
+    public static void copy(
+            short[] src, int srcIndex, MemorySegment dst, long dstOffset, int count) {
         MemorySegment.copy(src, srcIndex, dst, SHORT, dstOffset, count);
     }
 
     /** Copies {@code count} bytes from {@code src[srcIndex..]} to {@code dst} at byte offset. */
-    public static void copy(byte[] src, int srcIndex, MemorySegment dst, long dstOffset, int count) {
+    public static void copy(
+            byte[] src, int srcIndex, MemorySegment dst, long dstOffset, int count) {
         MemorySegment.copy(src, srcIndex, dst, ValueLayout.JAVA_BYTE, dstOffset, count);
     }
 
     /** Copies {@code count} bytes from {@code src} at byte offset into {@code dst[dstIndex..]}. */
-    public static void copy(MemorySegment src, long srcOffset, byte[] dst, int dstIndex, int count) {
+    public static void copy(
+            MemorySegment src, long srcOffset, byte[] dst, int dstIndex, int count) {
         MemorySegment.copy(src, ValueLayout.JAVA_BYTE, srcOffset, dst, dstIndex, count);
     }
 

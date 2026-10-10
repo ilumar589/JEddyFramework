@@ -1,8 +1,8 @@
 package dev.jeddy.math;
 
 /**
- * Vector kernels on struct-of-arrays data ({@code float[] x, y, z}). Simple counted loops so C2
- * can vectorize them. Allocation-free.
+ * Vector kernels on struct-of-arrays data ({@code float[] x, y, z}). Simple counted loops so C2 can
+ * vectorize them. Allocation-free.
  *
  * <p>Thread ownership: stateless, callable from any thread.
  */
@@ -11,7 +11,15 @@ public final class Vec3Ops {
 
     /** {@code p[i] += v[i] * dt} for {@code [start, end)}: integrate positions by velocities. */
     public static void addScaled(
-            float[] px, float[] py, float[] pz, float[] vx, float[] vy, float[] vz, float dt, int start, int end) {
+            float[] px,
+            float[] py,
+            float[] pz,
+            float[] vx,
+            float[] vy,
+            float[] vz,
+            float dt,
+            int start,
+            int end) {
         for (int i = start; i < end; i++) {
             px[i] += vx[i] * dt;
             py[i] += vy[i] * dt;
@@ -21,7 +29,15 @@ public final class Vec3Ops {
 
     /** {@code out[i] = |p[i] - (cx, cy, cz)|²} for {@code [start, end)}. */
     public static void distanceSquared(
-            float[] px, float[] py, float[] pz, float cx, float cy, float cz, float[] out, int start, int end) {
+            float[] px,
+            float[] py,
+            float[] pz,
+            float cx,
+            float cy,
+            float cz,
+            float[] out,
+            int start,
+            int end) {
         for (int i = start; i < end; i++) {
             float dx = px[i] - cx;
             float dy = py[i] - cy;
@@ -43,7 +59,15 @@ public final class Vec3Ops {
 
     /** {@code out[i] = a[i] · b[i]} for {@code [start, end)}. */
     public static void dot(
-            float[] ax, float[] ay, float[] az, float[] bx, float[] by, float[] bz, float[] out, int start, int end) {
+            float[] ax,
+            float[] ay,
+            float[] az,
+            float[] bx,
+            float[] by,
+            float[] bz,
+            float[] out,
+            int start,
+            int end) {
         for (int i = start; i < end; i++) {
             out[i] = ax[i] * bx[i] + ay[i] * by[i] + az[i] * bz[i];
         }
@@ -51,8 +75,18 @@ public final class Vec3Ops {
 
     /** {@code out[i] = a[i] + (b[i] - a[i]) * t} for {@code [start, end)}. */
     public static void lerp(
-            float[] ax, float[] ay, float[] az, float[] bx, float[] by, float[] bz, float t,
-            float[] ox, float[] oy, float[] oz, int start, int end) {
+            float[] ax,
+            float[] ay,
+            float[] az,
+            float[] bx,
+            float[] by,
+            float[] bz,
+            float t,
+            float[] ox,
+            float[] oy,
+            float[] oz,
+            int start,
+            int end) {
         for (int i = start; i < end; i++) {
             ox[i] = ax[i] + (bx[i] - ax[i]) * t;
             oy[i] = ay[i] + (by[i] - ay[i]) * t;
@@ -65,8 +99,12 @@ public final class Vec3Ops {
      * minZ, maxX, maxY, maxZ}. Empty ranges produce an inverted (empty) box.
      */
     public static void bounds(float[] x, float[] y, float[] z, int start, int end, float[] out) {
-        float minX = Float.POSITIVE_INFINITY, minY = Float.POSITIVE_INFINITY, minZ = Float.POSITIVE_INFINITY;
-        float maxX = Float.NEGATIVE_INFINITY, maxY = Float.NEGATIVE_INFINITY, maxZ = Float.NEGATIVE_INFINITY;
+        float minX = Float.POSITIVE_INFINITY,
+                minY = Float.POSITIVE_INFINITY,
+                minZ = Float.POSITIVE_INFINITY;
+        float maxX = Float.NEGATIVE_INFINITY,
+                maxY = Float.NEGATIVE_INFINITY,
+                maxZ = Float.NEGATIVE_INFINITY;
         for (int i = start; i < end; i++) {
             minX = Math.min(minX, x[i]);
             minY = Math.min(minY, y[i]);

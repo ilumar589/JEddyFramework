@@ -28,10 +28,22 @@ package dev.jeddy.math;
  * @param m33 column 3 row 3
  */
 public record Mat4f(
-        float m00, float m01, float m02, float m03,
-        float m10, float m11, float m12, float m13,
-        float m20, float m21, float m22, float m23,
-        float m30, float m31, float m32, float m33) {
+        float m00,
+        float m01,
+        float m02,
+        float m03,
+        float m10,
+        float m11,
+        float m12,
+        float m13,
+        float m20,
+        float m21,
+        float m22,
+        float m23,
+        float m30,
+        float m31,
+        float m32,
+        float m33) {
 
     /** The identity matrix. */
     public static final Mat4f IDENTITY = new Mat4f(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
@@ -39,10 +51,22 @@ public record Mat4f(
     /** Reads 16 column-major floats starting at {@code offset}. */
     public static Mat4f fromArray(float[] a, int offset) {
         return new Mat4f(
-                a[offset], a[offset + 1], a[offset + 2], a[offset + 3],
-                a[offset + 4], a[offset + 5], a[offset + 6], a[offset + 7],
-                a[offset + 8], a[offset + 9], a[offset + 10], a[offset + 11],
-                a[offset + 12], a[offset + 13], a[offset + 14], a[offset + 15]);
+                a[offset],
+                a[offset + 1],
+                a[offset + 2],
+                a[offset + 3],
+                a[offset + 4],
+                a[offset + 5],
+                a[offset + 6],
+                a[offset + 7],
+                a[offset + 8],
+                a[offset + 9],
+                a[offset + 10],
+                a[offset + 11],
+                a[offset + 12],
+                a[offset + 13],
+                a[offset + 14],
+                a[offset + 15]);
     }
 
     /** Writes 16 column-major floats starting at {@code offset}. */
@@ -103,10 +127,22 @@ public record Mat4f(
         float wy = w * y;
         float wz = w * z;
         return new Mat4f(
-                (1 - 2 * (yy + zz)) * s.x(), 2 * (xy + wz) * s.x(), 2 * (xz - wy) * s.x(), 0,
-                2 * (xy - wz) * s.y(), (1 - 2 * (xx + zz)) * s.y(), 2 * (yz + wx) * s.y(), 0,
-                2 * (xz + wy) * s.z(), 2 * (yz - wx) * s.z(), (1 - 2 * (xx + yy)) * s.z(), 0,
-                t.x(), t.y(), t.z(), 1);
+                (1 - 2 * (yy + zz)) * s.x(),
+                2 * (xy + wz) * s.x(),
+                2 * (xz - wy) * s.x(),
+                0,
+                2 * (xy - wz) * s.y(),
+                (1 - 2 * (xx + zz)) * s.y(),
+                2 * (yz + wx) * s.y(),
+                0,
+                2 * (xz + wy) * s.z(),
+                2 * (yz - wx) * s.z(),
+                (1 - 2 * (xx + yy)) * s.z(),
+                0,
+                t.x(),
+                t.y(),
+                t.z(),
+                1);
     }
 
     /**
@@ -123,15 +159,28 @@ public record Mat4f(
     }
 
     /** Returns a reversed-Z orthographic projection: depth 1 at {@code near}, 0 at {@code far}. */
-    public static Mat4f orthoReversedZ(float left, float right, float bottom, float top, float near, float far) {
+    public static Mat4f orthoReversedZ(
+            float left, float right, float bottom, float top, float near, float far) {
         float rl = 1 / (right - left);
         float tb = 1 / (top - bottom);
         float fn = 1 / (far - near);
         return new Mat4f(
-                2 * rl, 0, 0, 0,
-                0, 2 * tb, 0, 0,
-                0, 0, fn, 0,
-                -(right + left) * rl, -(top + bottom) * tb, far * fn, 1);
+                2 * rl,
+                0,
+                0,
+                0,
+                0,
+                2 * tb,
+                0,
+                0,
+                0,
+                0,
+                fn,
+                0,
+                -(right + left) * rl,
+                -(top + bottom) * tb,
+                far * fn,
+                1);
     }
 
     /** Returns a right-handed view matrix looking from {@code eye} at {@code target}. */
@@ -140,10 +189,22 @@ public record Mat4f(
         Vec3f r = f.cross(up).normalize();
         Vec3f u = r.cross(f);
         return new Mat4f(
-                r.x(), u.x(), -f.x(), 0,
-                r.y(), u.y(), -f.y(), 0,
-                r.z(), u.z(), -f.z(), 0,
-                -r.dot(eye), -u.dot(eye), f.dot(eye), 1);
+                r.x(),
+                u.x(),
+                -f.x(),
+                0,
+                r.y(),
+                u.y(),
+                -f.y(),
+                0,
+                r.z(),
+                u.z(),
+                -f.z(),
+                0,
+                -r.dot(eye),
+                -u.dot(eye),
+                f.dot(eye),
+                1);
     }
 
     /** Returns {@code this * o}. */
@@ -189,7 +250,8 @@ public record Mat4f(
 
     /** Returns the transpose. */
     public Mat4f transpose() {
-        return new Mat4f(m00, m10, m20, m30, m01, m11, m21, m31, m02, m12, m22, m32, m03, m13, m23, m33);
+        return new Mat4f(
+                m00, m10, m20, m30, m01, m11, m21, m31, m02, m12, m22, m32, m03, m13, m23, m33);
     }
 
     /** Returns the determinant. */

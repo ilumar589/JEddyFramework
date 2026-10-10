@@ -5,10 +5,10 @@ import java.lang.invoke.VarHandle;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * Low-overhead CPU scope profiler (DESIGN §4.7). {@link #begin(int)} and {@link #end(int)} append
- * a timestamped record to the calling thread's ring buffer: two array stores and a release write,
- * no allocation. A reader (the overlay or a dump) periodically {@linkplain #drain drains} all
- * threads into a {@link ScopeStats}.
+ * Low-overhead CPU scope profiler (DESIGN §4.7). {@link #begin(int)} and {@link #end(int)} append a
+ * timestamped record to the calling thread's ring buffer: two array stores and a release write, no
+ * allocation. A reader (the overlay or a dump) periodically {@linkplain #drain drains} all threads
+ * into a {@link ScopeStats}.
  *
  * <pre>{@code
  * static final int PHYSICS = ScopeIds.register("physics");
@@ -24,7 +24,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public final class Profiler {
     private static final int BUFFER_SIZE = 1 << 15;
     private static final CopyOnWriteArrayList<ThreadBuffer> BUFFERS = new CopyOnWriteArrayList<>();
-    private static final ThreadLocal<ThreadBuffer> LOCAL = ThreadLocal.withInitial(Profiler::newBuffer);
+    private static final ThreadLocal<ThreadBuffer> LOCAL =
+            ThreadLocal.withInitial(Profiler::newBuffer);
     private static volatile boolean enabled;
 
     private Profiler() {}
@@ -74,7 +75,9 @@ public final class Profiler {
 
         static {
             try {
-                WRITTEN = MethodHandles.lookup().findVarHandle(ThreadBuffer.class, "written", long.class);
+                WRITTEN =
+                        MethodHandles.lookup()
+                                .findVarHandle(ThreadBuffer.class, "written", long.class);
             } catch (ReflectiveOperationException e) {
                 throw new ExceptionInInitializerError(e);
             }

@@ -1,6 +1,7 @@
 package dev.jeddy.core.natives;
 
 import dev.jeddy.core.json.Json;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -42,7 +43,8 @@ import java.util.Set;
  */
 public final class NativeLoader {
     /** One library from the manifest. */
-    public record Library(String name, String file, String sha256, boolean runtime, List<String> depends) {}
+    public record Library(
+            String name, String file, String sha256, boolean runtime, List<String> depends) {}
 
     private static List<Library> manifest;
     private static Path directory;
@@ -99,7 +101,8 @@ public final class NativeLoader {
         return directory;
     }
 
-    private static void addWithDependencies(String name, Map<String, Library> byName, Set<String> out) {
+    private static void addWithDependencies(
+            String name, Map<String, Library> byName, Set<String> out) {
         Library l = byName.get(name);
         if (l == null) {
             throw new IllegalArgumentException(
@@ -123,7 +126,8 @@ public final class NativeLoader {
                 Path dir = Path.of(dirProperty).toAbsolutePath();
                 Path json = dir.resolve("natives.json");
                 if (!Files.isRegularFile(json)) {
-                    throw new IllegalStateException("jeddy.natives.dir=" + dir + " has no natives.json");
+                    throw new IllegalStateException(
+                            "jeddy.natives.dir=" + dir + " has no natives.json");
                 }
                 List<Library> libs = parse(Files.readAllBytes(json), platform);
                 for (Library l : libs) {
@@ -184,7 +188,8 @@ public final class NativeLoader {
         }
         URL url = findResource(resource);
         if (url == null) {
-            throw new IllegalStateException("natives.json lists " + resource + " but the file is missing");
+            throw new IllegalStateException(
+                    "natives.json lists " + resource + " but the file is missing");
         }
         Path tmp = Files.createTempFile(dir, lib.file(), ".tmp");
         try {
@@ -193,7 +198,11 @@ public final class NativeLoader {
             }
             verify(tmp, lib);
             try {
-                Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                Files.move(
+                        tmp,
+                        target,
+                        StandardCopyOption.ATOMIC_MOVE,
+                        StandardCopyOption.REPLACE_EXISTING);
             } catch (AtomicMoveNotSupportedException e) {
                 Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
             }
@@ -209,7 +218,12 @@ public final class NativeLoader {
         String actual = hex(sha256(file));
         if (!actual.equals(lib.sha256())) {
             throw new IllegalStateException(
-                    "SHA-256 mismatch for " + file + ": expected " + lib.sha256() + ", got " + actual);
+                    "SHA-256 mismatch for "
+                            + file
+                            + ": expected "
+                            + lib.sha256()
+                            + ", got "
+                            + actual);
         }
     }
 

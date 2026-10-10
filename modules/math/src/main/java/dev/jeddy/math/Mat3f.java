@@ -1,8 +1,8 @@
 package dev.jeddy.math;
 
 /**
- * Immutable 3×3 matrix, column-major ({@code mCR} = column C, row R). Used for rotations and
- * normal matrices (value type, DESIGN §8.1).
+ * Immutable 3×3 matrix, column-major ({@code mCR} = column C, row R). Used for rotations and normal
+ * matrices (value type, DESIGN §8.1).
  *
  * <p>Thread ownership: immutable.
  *
@@ -17,9 +17,15 @@ package dev.jeddy.math;
  * @param m22 column 2 row 2
  */
 public record Mat3f(
-        float m00, float m01, float m02,
-        float m10, float m11, float m12,
-        float m20, float m21, float m22) {
+        float m00,
+        float m01,
+        float m02,
+        float m10,
+        float m11,
+        float m12,
+        float m20,
+        float m21,
+        float m22) {
 
     /** The identity matrix. */
     public static final Mat3f IDENTITY = new Mat3f(1, 0, 0, 0, 1, 0, 0, 0, 1);
@@ -27,17 +33,19 @@ public record Mat3f(
     /** Returns the rotation matrix of a unit quaternion. */
     public static Mat3f rotation(Quatf q) {
         Mat4f r = Mat4f.rotation(q);
-        return new Mat3f(r.m00(), r.m01(), r.m02(), r.m10(), r.m11(), r.m12(), r.m20(), r.m21(), r.m22());
+        return new Mat3f(
+                r.m00(), r.m01(), r.m02(), r.m10(), r.m11(), r.m12(), r.m20(), r.m21(), r.m22());
     }
 
     /** Returns the upper-left 3×3 of {@code m}. */
     public static Mat3f of(Mat4f m) {
-        return new Mat3f(m.m00(), m.m01(), m.m02(), m.m10(), m.m11(), m.m12(), m.m20(), m.m21(), m.m22());
+        return new Mat3f(
+                m.m00(), m.m01(), m.m02(), m.m10(), m.m11(), m.m12(), m.m20(), m.m21(), m.m22());
     }
 
     /**
-     * Returns the normal matrix of {@code model}: the inverse transpose of its upper-left 3×3, which
-     * keeps normals perpendicular under non-uniform scale.
+     * Returns the normal matrix of {@code model}: the inverse transpose of its upper-left 3×3,
+     * which keeps normals perpendicular under non-uniform scale.
      */
     public static Mat3f normalMatrix(Mat4f model) {
         return of(model).invert().transpose();
@@ -72,7 +80,9 @@ public record Mat3f(
 
     /** Returns the determinant. */
     public float determinant() {
-        return m00 * (m11 * m22 - m21 * m12) - m10 * (m01 * m22 - m21 * m02) + m20 * (m01 * m12 - m11 * m02);
+        return m00 * (m11 * m22 - m21 * m12)
+                - m10 * (m01 * m22 - m21 * m02)
+                + m20 * (m01 * m12 - m11 * m02);
     }
 
     /** Returns the inverse. Throws {@link ArithmeticException} if singular. */

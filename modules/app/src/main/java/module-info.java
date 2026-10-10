@@ -1,4 +1,7 @@
-/** Application lifecycle, main and game thread loops, system scheduler, settings and crash handling. See §13.2 of docs/DESIGN.md. */
+/**
+ * Application lifecycle, main and game thread loops, system scheduler, settings and crash handling.
+ * See §13.2 of docs/DESIGN.md.
+ */
 module dev.jeddy.app {
     requires transitive dev.jeddy.core;
     requires transitive dev.jeddy.math;
@@ -11,6 +14,6 @@ module dev.jeddy.app {
     requires transitive dev.jeddy.asset;
     requires dev.jeddy.sdl;
 
-    // Exported together with the first public type (javac rejects exporting a package with no types):
-    // exports dev.jeddy.app;
+// Exported together with the first public type (javac rejects exporting a package with no types):
+// exports dev.jeddy.app;
 }

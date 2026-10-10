@@ -3,9 +3,9 @@ package dev.jeddy.core.collections;
 import java.util.Arrays;
 
 /**
- * Open-addressing hash map from {@code int} to {@code int}: linear probing, backward-shift
- * deletion (no tombstones), no boxing. Lookups of absent keys return the {@linkplain
- * #missingValue() missing value} chosen at construction.
+ * Open-addressing hash map from {@code int} to {@code int}: linear probing, backward-shift deletion
+ * (no tombstones), no boxing. Lookups of absent keys return the {@linkplain #missingValue() missing
+ * value} chosen at construction.
  *
  * <p>Iterate without allocating:
  *

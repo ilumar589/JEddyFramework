@@ -1,6 +1,5 @@
 package dev.jeddy.bench;
 
-import java.util.concurrent.TimeUnit;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -11,9 +10,11 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
+import java.util.concurrent.TimeUnit;
+
 /**
- * Measures the harness floor on this machine. Every other benchmark result is read relative to
- * it. Run with {@code ./gradlew :bench:jmh -Pjmh.includes=Baseline}.
+ * Measures the harness floor on this machine. Every other benchmark result is read relative to it.
+ * Run with {@code ./gradlew :bench:jmh -Pjmh.includes=Baseline}.
  */
 @State(Scope.Thread)
 @BenchmarkMode(Mode.AverageTime)

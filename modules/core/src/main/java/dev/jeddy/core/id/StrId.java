@@ -11,7 +11,9 @@ package dev.jeddy.core.id;
  * <p>Thread ownership: stateless, callable from any thread.
  */
 public final class StrId {
-    /** The id of no string. FNV-1a never produces 0 for real input in practice, and we reserve it. */
+    /**
+     * The id of no string. FNV-1a never produces 0 for real input in practice, and we reserve it.
+     */
     public static final long NONE = 0L;
 
     private static final long OFFSET = 0xcbf29ce484222325L;
@@ -30,7 +32,9 @@ public final class StrId {
             } else if (c < 0x800) {
                 h = (h ^ (0xC0 | (c >> 6))) * PRIME;
                 h = (h ^ (0x80 | (c & 0x3F))) * PRIME;
-            } else if (Character.isHighSurrogate(c) && i + 1 < n && Character.isLowSurrogate(s.charAt(i + 1))) {
+            } else if (Character.isHighSurrogate(c)
+                    && i + 1 < n
+                    && Character.isLowSurrogate(s.charAt(i + 1))) {
                 int cp = Character.toCodePoint(c, s.charAt(++i));
                 h = (h ^ (0xF0 | (cp >> 18))) * PRIME;
                 h = (h ^ (0x80 | ((cp >> 12) & 0x3F))) * PRIME;

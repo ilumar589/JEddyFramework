@@ -9,7 +9,8 @@ public final class QuatOps {
     private QuatOps() {}
 
     /** Normalizes quaternions {@code [start, end)} in place (identity if zero). */
-    public static void normalize(float[] qx, float[] qy, float[] qz, float[] qw, int start, int end) {
+    public static void normalize(
+            float[] qx, float[] qy, float[] qz, float[] qw, int start, int end) {
         for (int i = start; i < end; i++) {
             float n = qx[i] * qx[i] + qy[i] * qy[i] + qz[i] * qz[i] + qw[i] * qw[i];
             if (n > 0) {
@@ -32,11 +33,21 @@ public final class QuatOps {
      * [start, end)}. Good enough for animation blending between close keys.
      */
     public static void nlerp(
-            float[] ax, float[] ay, float[] az, float[] aw,
-            float[] bx, float[] by, float[] bz, float[] bw,
+            float[] ax,
+            float[] ay,
+            float[] az,
+            float[] aw,
+            float[] bx,
+            float[] by,
+            float[] bz,
+            float[] bw,
             float t,
-            float[] ox, float[] oy, float[] oz, float[] ow,
-            int start, int end) {
+            float[] ox,
+            float[] oy,
+            float[] oz,
+            float[] ow,
+            int start,
+            int end) {
         float s = 1 - t;
         for (int i = start; i < end; i++) {
             float d = ax[i] * bx[i] + ay[i] * by[i] + az[i] * bz[i] + aw[i] * bw[i];
@@ -58,7 +69,15 @@ public final class QuatOps {
      * quaternion.
      */
     public static void rotate(
-            float[] qx, float[] qy, float[] qz, float[] qw, float[] vx, float[] vy, float[] vz, int start, int end) {
+            float[] qx,
+            float[] qy,
+            float[] qz,
+            float[] qw,
+            float[] vx,
+            float[] vy,
+            float[] vz,
+            int start,
+            int end) {
         for (int i = start; i < end; i++) {
             float x = qx[i];
             float y = qy[i];
@@ -80,7 +99,8 @@ public final class QuatOps {
      * Writes the yaw rotation {@code (0, sin(a/2), 0, cos(a/2))} for each angle in {@code [start,
      * end)}, the common case for characters turning on the ground.
      */
-    public static void fromYaw(float[] radians, float[] qx, float[] qy, float[] qz, float[] qw, int start, int end) {
+    public static void fromYaw(
+            float[] radians, float[] qx, float[] qy, float[] qz, float[] qw, int start, int end) {
         for (int i = start; i < end; i++) {
             float h = radians[i] * 0.5f;
             qx[i] = 0;

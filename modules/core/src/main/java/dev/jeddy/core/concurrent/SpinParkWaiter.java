@@ -3,8 +3,8 @@ package dev.jeddy.core.concurrent;
 import java.util.concurrent.locks.LockSupport;
 
 /**
- * Idle strategy for threads waiting on lock-free state: spin with {@link Thread#onSpinWait()},
- * then yield, then park briefly. Low wake-up latency without burning idle cores (DESIGN §4.5).
+ * Idle strategy for threads waiting on lock-free state: spin with {@link Thread#onSpinWait()}, then
+ * yield, then park briefly. Low wake-up latency without burning idle cores (DESIGN §4.5).
  *
  * <pre>{@code
  * int idle = 0;

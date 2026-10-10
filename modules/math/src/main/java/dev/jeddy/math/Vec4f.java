@@ -56,6 +56,7 @@ public record Vec4f(float x, float y, float z, float w) {
 
     /** Returns {@code this + (o - this) * t}. */
     public Vec4f lerp(Vec4f o, float t) {
-        return new Vec4f(x + (o.x - x) * t, y + (o.y - y) * t, z + (o.z - z) * t, w + (o.w - w) * t);
+        return new Vec4f(
+                x + (o.x - x) * t, y + (o.y - y) * t, z + (o.z - z) * t, w + (o.w - w) * t);
     }
 }

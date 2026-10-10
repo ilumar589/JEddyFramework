@@ -17,5 +17,11 @@ public interface LogSink {
      * @param message formatted message
      * @param error attached exception, or {@code null}
      */
-    void write(long epochMillis, LogLevel level, String logger, String thread, String message, Throwable error);
+    void write(
+            long epochMillis,
+            LogLevel level,
+            String logger,
+            String thread,
+            String message,
+            Throwable error);
 }

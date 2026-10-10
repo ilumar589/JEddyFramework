@@ -6,8 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.Random;
 import org.junit.jupiter.api.Test;
+
+import java.util.Random;
 
 class GeometryAndUtilTest {
     private static final float MISS = Intersect.MISS;
@@ -24,27 +25,40 @@ class GeometryAndUtilTest {
     @Test
     void rayTriangleHitsAndBarycentrics() {
         float[] bary = new float[3];
-        float t = Intersect.rayTriangle(0.2f, 5, 0.2f, 0, -1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 100, bary);
+        float t =
+                Intersect.rayTriangle(
+                        0.2f, 5, 0.2f, 0, -1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 100, bary);
         assertEquals(5f, t, 1e-5f);
         assertEquals(0.6f, bary[0], 1e-5f);
         assertEquals(0.2f, bary[1], 1e-5f);
         assertEquals(0.2f, bary[2], 1e-5f);
         // Back side is hit too (two-sided).
-        assertEquals(5f, Intersect.rayTriangle(0.2f, -5, 0.2f, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 100, null), 1e-5f);
-        assertEquals(MISS, Intersect.rayTriangle(2, 5, 2, 0, -1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 100, null));
-        assertEquals(MISS, Intersect.rayTriangle(0.2f, 5, 0.2f, 0, -1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 4, null));
+        assertEquals(
+                5f,
+                Intersect.rayTriangle(
+                        0.2f, -5, 0.2f, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 100, null),
+                1e-5f);
+        assertEquals(
+                MISS,
+                Intersect.rayTriangle(2, 5, 2, 0, -1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 100, null));
+        assertEquals(
+                MISS,
+                Intersect.rayTriangle(0.2f, 5, 0.2f, 0, -1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 4, null));
     }
 
     @Test
     void rayTriangleIsWatertightOnSharedEdges() {
-        // Two triangles share the diagonal of a unit quad; rays exactly on the diagonal must hit one.
+        // Two triangles share the diagonal of a unit quad; rays exactly on the diagonal must hit
+        // one.
         Random r = new Random(3);
         for (int i = 0; i < 10_000; i++) {
             float s = r.nextFloat();
             float ox = s;
             float oz = s; // on the diagonal x == z
-            float t1 = Intersect.rayTriangle(ox, 3, oz, 0, -1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 10, null);
-            float t2 = Intersect.rayTriangle(ox, 3, oz, 0, -1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 10, null);
+            float t1 =
+                    Intersect.rayTriangle(ox, 3, oz, 0, -1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 10, null);
+            float t2 =
+                    Intersect.rayTriangle(ox, 3, oz, 0, -1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 10, null);
             assertTrue(t1 != MISS || t2 != MISS, "gap at " + s);
         }
     }
@@ -55,12 +69,20 @@ class GeometryAndUtilTest {
         assertEquals(0f, Intersect.raySphere(0, 0, 0, 1, 0, 0, 0, 0, 0, 1));
         assertEquals(MISS, Intersect.raySphere(-5, 2, 0, 1, 0, 0, 0, 0, 0, 1));
         // Vertical cylinder radius 0.5 at (3, 0), height 0..2.
-        assertEquals(2.5f, Intersect.rayVerticalCylinder(0, 1, 0, 1, 0, 0, 3, 0, 0.5f, 0, 2), 1e-5f);
+        assertEquals(
+                2.5f, Intersect.rayVerticalCylinder(0, 1, 0, 1, 0, 0, 3, 0, 0.5f, 0, 2), 1e-5f);
         assertEquals(MISS, Intersect.rayVerticalCylinder(0, 3, 0, 1, 0, 0, 3, 0, 0.5f, 0, 2));
-        assertEquals(2f, Intersect.rayVerticalCylinder(3, 4, 0, 0, -1, 0, 3, 0, 0.5f, 0, 2), 1e-5f); // top cap
+        assertEquals(
+                2f,
+                Intersect.rayVerticalCylinder(3, 4, 0, 0, -1, 0, 3, 0, 0.5f, 0, 2),
+                1e-5f); // top cap
         // Capsule from (0,0,0) to (0,2,0), radius 0.5.
-        assertEquals(4.5f, Intersect.rayCapsule(-5, 1, 0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 0.5f) * 2, 1e-4f);
-        assertEquals(4.5f, Intersect.rayCapsule(0, 7, 0, 0, -1, 0, 0, 0, 0, 0, 2, 0, 0.5f), 1e-4f); // cap
+        assertEquals(
+                4.5f, Intersect.rayCapsule(-5, 1, 0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 0.5f) * 2, 1e-4f);
+        assertEquals(
+                4.5f,
+                Intersect.rayCapsule(0, 7, 0, 0, -1, 0, 0, 0, 0, 0, 2, 0, 0.5f),
+                1e-4f); // cap
         assertEquals(MISS, Intersect.rayCapsule(-5, 5, 0, 1, 0, 0, 0, 0, 0, 0, 2, 0, 0.5f));
         assertEquals(3f, Intersect.rayPlane(0, 3, 0, 0, -1, 0, 0, 1, 0, 0), 1e-6f);
         assertEquals(MISS, Intersect.rayPlane(0, 3, 0, 1, 0, 0, 0, 1, 0, 0));
@@ -123,7 +145,9 @@ class GeometryAndUtilTest {
         Random r = new Random(9);
         float[] n = new float[3];
         for (int i = 0; i < 5000; i++) {
-            Vec3f v = new Vec3f(r.nextFloat() * 2 - 1, r.nextFloat() * 2 - 1, r.nextFloat() * 2 - 1).normalize();
+            Vec3f v =
+                    new Vec3f(r.nextFloat() * 2 - 1, r.nextFloat() * 2 - 1, r.nextFloat() * 2 - 1)
+                            .normalize();
             Packing.unpackOctahedral16(Packing.packOctahedral16(v.x(), v.y(), v.z()), n, 0);
             assertTrue(new Vec3f(n[0], n[1], n[2]).dot(v) > 0.99999f, "oct error at " + v);
         }
@@ -200,7 +224,10 @@ class GeometryAndUtilTest {
     void scalarHelpers() {
         assertEquals(-MathF.PI + 0.5f, MathF.wrapAngle(MathF.PI + 0.5f), 1e-5f);
         assertEquals(MathF.PI, MathF.wrapAngle(MathF.PI), 1e-6f);
-        assertEquals(MathF.PI - 0.05f, Math.abs(MathF.lerpAngle(MathF.PI - 0.1f, -MathF.PI + 0.1f, 0.25f)), 1e-4f);
+        assertEquals(
+                MathF.PI - 0.05f,
+                Math.abs(MathF.lerpAngle(MathF.PI - 0.1f, -MathF.PI + 0.1f, 0.25f)),
+                1e-4f);
         assertEquals(10f, MathF.damp(0, 10, 100, 10), 1e-3f);
         assertEquals(3f, MathF.moveTowards(0, 10, 3));
         assertEquals(10f, MathF.moveTowards(9, 10, 3));

@@ -21,7 +21,10 @@ public final class Jeddy {
         int feature = Runtime.version().feature();
         if (feature < REQUIRED_JAVA_FEATURE) {
             throw new IllegalStateException(
-                    "Jeddy needs Java " + REQUIRED_JAVA_FEATURE + " or newer, but is running on " + Runtime.version());
+                    "Jeddy needs Java "
+                            + REQUIRED_JAVA_FEATURE
+                            + " or newer, but is running on "
+                            + Runtime.version());
         }
     }
 }

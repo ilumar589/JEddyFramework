@@ -208,7 +208,8 @@ public final class Settings {
                         sb.append('\n');
                     }
                     sb.append('[').append(section).append("]\n");
-                    entries.forEach((k, v) -> sb.append(k).append(" = ").append(format(v)).append('\n'));
+                    entries.forEach(
+                            (k, v) -> sb.append(k).append(" = ").append(format(v)).append('\n'));
                 });
         return sb.toString();
     }
@@ -256,7 +257,10 @@ public final class Settings {
         }
         String num = raw.replace("_", "");
         try {
-            if (num.contains(".") || num.toLowerCase(Locale.ROOT).contains("e") || num.contains("inf") || num.contains("nan")) {
+            if (num.contains(".")
+                    || num.toLowerCase(Locale.ROOT).contains("e")
+                    || num.contains("inf")
+                    || num.contains("nan")) {
                 return Double.parseDouble(num);
             }
             return Long.parseLong(num);

@@ -3,8 +3,8 @@ package dev.jeddy.core.pool;
 import java.util.function.IntFunction;
 
 /**
- * One instance of {@code T} per job-system thread slot, indexed by the {@code threadIndex} that
- * job kernels receive (DESIGN §4.5). Gives every worker its own scratch buffers, query contexts or
+ * One instance of {@code T} per job-system thread slot, indexed by the {@code threadIndex} that job
+ * kernels receive (DESIGN §4.5). Gives every worker its own scratch buffers, query contexts or
  * pools with no synchronization and no {@code ThreadLocal} lookups.
  *
  * <p>Thread ownership: slot {@code i} belongs to the thread running with index {@code i}.

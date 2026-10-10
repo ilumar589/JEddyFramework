@@ -6,8 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.jeddy.testing.Allocations;
-import java.util.concurrent.atomic.AtomicLong;
+
 import org.junit.jupiter.api.Test;
+
+import java.util.concurrent.atomic.AtomicLong;
 
 class ConcurrencyTest {
 

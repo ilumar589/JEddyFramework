@@ -1,7 +1,8 @@
 package dev.jeddy.testing;
 
-import java.lang.management.ManagementFactory;
 import org.junit.jupiter.api.Assertions;
+
+import java.lang.management.ManagementFactory;
 
 /**
  * Allocation assertions for hot paths (DESIGN §4.2, §4.7): proves that code allocates 0 bytes once
@@ -11,9 +12,9 @@ import org.junit.jupiter.api.Assertions;
  * Allocations.assertNoAllocation("IntIntMap.get", () -> sink += map.get(key));
  * }</pre>
  *
- * Measurement uses the calling thread's allocated-bytes counter. Because compilation happens in
- * the background, the body runs in rounds of warm-up plus measurement until a round allocates
- * nothing, or the round limit is reached; the test fails with the smallest per-round amount seen.
+ * Measurement uses the calling thread's allocated-bytes counter. Because compilation happens in the
+ * background, the body runs in rounds of warm-up plus measurement until a round allocates nothing,
+ * or the round limit is reached; the test fails with the smallest per-round amount seen.
  *
  * <p>Thread ownership: call from the test thread; the body runs on that thread.
  */
@@ -36,7 +37,8 @@ public final class Allocations {
      * @param iterationsPerRound body calls per round
      * @param body the code under test
      */
-    public static void assertNoAllocation(String what, int maxRounds, int iterationsPerRound, Runnable body) {
+    public static void assertNoAllocation(
+            String what, int maxRounds, int iterationsPerRound, Runnable body) {
         long best = Long.MAX_VALUE;
         for (int round = 0; round < maxRounds; round++) {
             for (int i = 0; i < iterationsPerRound; i++) {

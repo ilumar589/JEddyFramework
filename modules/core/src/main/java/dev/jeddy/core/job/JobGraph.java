@@ -4,8 +4,7 @@ import java.util.Arrays;
 
 /**
  * A reusable DAG of jobs, built once and run every frame (DESIGN §4.5, §13.2). Nodes are added in
- * dependency order; each node may depend on any earlier nodes. Running the graph allocates
- * nothing.
+ * dependency order; each node may depend on any earlier nodes. Running the graph allocates nothing.
  *
  * <pre>{@code
  * JobGraph g = new JobGraph();

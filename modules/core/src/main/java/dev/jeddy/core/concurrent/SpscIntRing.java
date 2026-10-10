@@ -33,8 +33,8 @@ abstract class SpscIntPad2 extends SpscIntProducer {
  * the consumer never sees half a record. Used for input events (main to game thread) and the
  * main-thread command queue.
  *
- * <p>Thread ownership: exactly one producer thread calls {@code offer}; exactly one consumer
- * thread calls {@code poll}/{@code drain}. {@link #size()} may be called from either.
+ * <p>Thread ownership: exactly one producer thread calls {@code offer}; exactly one consumer thread
+ * calls {@code poll}/{@code drain}. {@link #size()} may be called from either.
  */
 public final class SpscIntRing extends SpscIntPad2 {
     private static final VarHandle HEAD;
@@ -116,8 +116,8 @@ public final class SpscIntRing extends SpscIntPad2 {
     }
 
     /**
-     * Consumer: removes {@code n} values into {@code dst[offset..]}. Returns {@code false},
-     * reading nothing, if fewer than {@code n} are available.
+     * Consumer: removes {@code n} values into {@code dst[offset..]}. Returns {@code false}, reading
+     * nothing, if fewer than {@code n} are available.
      */
     public boolean poll(int[] dst, int offset, int n) {
         long h = head;

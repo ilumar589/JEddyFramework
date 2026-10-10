@@ -4,8 +4,8 @@ package dev.jeddy.core.collections;
  * Least-significant-digit radix sort of 64-bit keys with an {@code int} payload, used for render
  * sort keys (DESIGN §9.2). Stable, O(n), allocation-free: the caller provides the scratch arrays.
  *
- * <p>Keys are compared as <em>unsigned</em> 64-bit values. Digit passes whose byte is identical
- * for every key are skipped, so short keys sort in fewer passes.
+ * <p>Keys are compared as <em>unsigned</em> 64-bit values. Digit passes whose byte is identical for
+ * every key are skipped, so short keys sort in fewer passes.
  *
  * <p>Thread ownership: stateless, callable from any thread on distinct arrays.
  */

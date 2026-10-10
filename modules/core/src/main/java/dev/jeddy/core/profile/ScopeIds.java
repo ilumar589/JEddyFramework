@@ -5,8 +5,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Registry of profiler scope names. Register once at startup ({@code static final int
- * SIM = ScopeIds.register("sim")}) and pass the int to {@link Profiler#begin(int)}.
+ * Registry of profiler scope names. Register once at startup ({@code static final int SIM =
+ * ScopeIds.register("sim")}) and pass the int to {@link Profiler#begin(int)}.
  *
  * <p>Thread ownership: thread-safe (registration is synchronized and rare).
  */

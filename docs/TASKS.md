@@ -2,7 +2,7 @@
 
 > This plan goes with [DESIGN.md](DESIGN.md); section references (§) point there.
 > **Sizes:** S ≤ 1 day · M = 2–4 days · L = 1–2 weeks · XL = split before starting.
-> **Done means:** code, unit tests, an allocation test for hot paths (§4.7), a JMH benchmark where the task says "bench",
+> **Done means:** code, unit tests, an allocation test for hot paths (`Allocations.assertNoAllocation`, §4.7), a JMH benchmark where the task says "bench",
 > Javadoc on public API, CI green on Windows and Linux, and the checkbox ticked here.
 > If you deviate from DESIGN.md, record it in DESIGN.md §17 (or an ADR in `docs/adr/`) in the same change.
 
@@ -42,29 +42,29 @@ The tracks are *mostly* independent. Dotted edges are the few late cross-track d
 - [x] **M0-02** `gradle/libs.versions.toml` with all versions pinned (JUnit 6.0.1, JMH 1.37; Spotless joins with M0-05, TwelveMonkeys with the cooker) · S · Deps: M0-01
 - [x] **M0-03** `build-logic` convention plugins: `jeddy.java-base` (toolchain 27, `--release 27`, `-Xlint:all,-module,-processing -Werror`, JUnit 6, test `--enable-native-access`, `jeddy-*` archive names), `jeddy.java-library`, `jeddy.native-library` (restricted lint off, D17), `jeddy.application`, `jeddy.jmh` (hand-wired JMH `jmh` task) · M · Deps: M0-02 · AC: module build scripts contain only a plugin id and dependencies (plus `application` main settings for runnable projects)
 - [x] **M0-04** `module-info.java` for every module with the §3.2 graph. Exports (including the qualified `sdl` exports) are declared as comments until each package has its first public type (DESIGN §17, D16) · S · Deps: M0-03 · AC: every module compiles in dependency order with `-Werror`. The launchers resolve the full graph
-- [ ] **M0-05** `.editorconfig` and `CONTRIBUTING.md` (perf rules summary linking §4). Then Spotless: add it, run `spotlessApply` once on a machine with Maven Central access, and enforce `spotlessCheck` in CI · S
+- [x] **M0-05** `.editorconfig` and `CONTRIBUTING.md` (perf rules summary linking §4). Then Spotless: add it, run `spotlessApply` once on a machine with Maven Central access, and enforce `spotlessCheck` in CI · S
 - [x] **M0-06** CI workflow: Windows and Linux matrix, Gradle cache, test reports, `SDL_VIDEO_DRIVER=dummy` for headless tests · M · Deps: M0-03 · Host: GitHub Actions on `ilumar589/JEddyFramework`
-- [ ] **M0-07** `natives/` CMake superbuild with pinned SDL3 3.4.18, SDL3_mixer 3.2.4 (Vorbis, WAV, FLAC, MP3, plus optional Opus), zstd 1.5.7, KTX-Software 4.4.2, meshoptimizer 1.2 (shared), mikktspace shim · L · AC: one command per OS produces all shared libraries. Linux libraries use `RPATH=$ORIGIN` and an old-glibc baseline. Licenses are collected
-- [ ] **M0-08** Natives packaging: `natives-windows-x64` and `natives-linux-x64` jars with `natives.json` (load order, SHA-256) · M · Deps: M0-07
-- [ ] **M0-09** CI job that builds natives on tag or manual dispatch and publishes the artifacts · M · Deps: M0-06, M0-08
+- [x] **M0-07** `natives/` CMake superbuild with pinned SDL3 3.4.18, SDL3_mixer 3.2.4 (Vorbis, WAV, FLAC, MP3, plus optional Opus), zstd 1.5.7, KTX-Software 4.4.2, meshoptimizer 1.2 (shared), mikktspace shim · L · AC: one command per OS produces all shared libraries. Linux libraries use `RPATH=$ORIGIN` and an old-glibc baseline. Licenses are collected
+- [x] **M0-08** Natives packaging: `natives-windows-x64` and `natives-linux-x64` jars with `natives.json` (load order, SHA-256) · M · Deps: M0-07
+- [x] **M0-09** CI job that builds natives on tag or manual dispatch and publishes the artifacts · M · Deps: M0-06, M0-08
 - [ ] **M0-10** `jeddy.ffm-bindings` convention plugin: `regenerateBindings` task (jextract from PATH or `-Pjextract.home`, include lists in `bindings/`, output to committed `src/ffi/java`), plus a Windows/Linux diff helper script · M · Deps: M0-03 · AC: regenerating zstd bindings works end to end on both OS · *Status: plugin and tasks in place (PR #1); the AC is exercised by the first real binding in M2-01 or M4-01*
 
 ## M1: Core and Math
-- [ ] **M1-01** `NativeLoader` + `Platform`: extract to the cache, verify the hash, rename atomically, `System.load` in order, `-Djeddy.natives.dir` override (§6.3) · M · Deps: M0-08 · AC: loads SDL3 and zstd on both OS. The second run skips extraction
-- [ ] **M1-02** Allocation-test JUnit extension (`@NoAllocation`, measures `getCurrentThreadAllocatedBytes` across N iterations after warm-up) · S · AC: catches a deliberate allocation in a sample test
-- [ ] **M1-03** Primitive collections: `IntList`, `LongList`, `FloatList`, `IntIntMap`, `LongIntMap`, `IntObjMap`, `IntSet`, `BitSet64`, `SparseSet`, `IntHeap` (decrease-key), `IntRing` · L · Deps: M1-02 · bench vs `HashMap<Integer,…>` · AC: no allocation after capacity is reached
-- [ ] **M1-04** Handles and pools: `HandlePool` (generational), `SlotMap`, `ObjectPool`, `PerWorker` · M · Deps: M1-03
-- [ ] **M1-05** Off-heap memory: `FrameAllocator` (bump `SegmentAllocator`, reset), `OffHeap` aligned allocation, `MemoryStats`, `CStrings` cache · M · bench
-- [ ] **M1-06** Concurrency: `SpscIntRing`, `SpscLongRing`, `MpmcIntQueue`, padded atomics, `SpinParkWaiter` · M · AC: stress tests (10⁸ ops, multiple threads) plus a JMH throughput bench
-- [ ] **M1-07** Job system v1: workers, `parallelFor` (atomic chunk claiming), job graph with dependency counters, help-while-waiting, `JobContext.workerIndex()` (§4.5) · L · Deps: M1-06 · bench · AC: `parallelFor` over 1M elements scales ≥ 6× on 8 cores. Dispatch allocates 0 B
-- [ ] **M1-08** Profiler: scope IDs, per-thread long rings, frame stats, text/JSON dump, JFR events in dev · M · Deps: M1-06
-- [ ] **M1-09** `Log` (async ring), `StrId` (FNV-1a/xxHash64) + `NameTable`, `Settings` (TOML subset), `Clock`, `FixedStepper` · M
-- [ ] **M1-10** Math value types (records): `Vec2f`, `Vec3f`, `Vec4f`, `Quatf`, `Mat3f`, `Mat4f`, `Aabb3f`, `Ray3f`, `Planef`, `Spheref`, `Capsulef` · M · AC: no identity use, ready for `value record`
-- [ ] **M1-11** Mutable scratch types: `MVec3f`, `MQuatf`, `MMat4f`, with reversed-Z perspective, ortho, lookAt and `IsoCamera` math · M
-- [ ] **M1-12** Bulk kernels: `Vec3Ops`, `QuatOps`, `AffineOps` (composeTRS, multiply, invert, 3×4), `CullOps` (spheres and AABBs vs frustum) · L · bench · AC: tested against a `double` reference, 0 B allocated, C2 vectorization confirmed with JMH `-prof perfasm` (or `-XX:+PrintAssembly` with hsdis) and noted in the bench README
-- [ ] **M1-13** Geometry and intersection suite (§8.3), including cone/AoE and 2D polygon utilities · L
-- [ ] **M1-14** Packing (half, octahedral, snorm/unorm, sRGB), `Rng` (xoshiro256**, SplitMix64, dice), easing, noise · M
-- [ ] **M1-15** `bench` module wired up, with baseline benchmarks committed and a results README · S · Deps: M0-03
+- [x] **M1-01** `NativeLoader` + `Platform`: extract to the cache, verify the hash, rename atomically, `System.load` in order, `-Djeddy.natives.dir` override (§6.3) · M · Deps: M0-08 · AC: loads SDL3 and zstd on both OS. The second run skips extraction
+- [x] **M1-02** Allocation assertion `Allocations.assertNoAllocation` in `:testing` (measures `getCurrentThreadAllocatedBytes` across rounds after warm-up, D18) · S · AC: catches a deliberate allocation in a sample test
+- [x] **M1-03** Primitive collections: `IntList`, `LongList`, `FloatList`, `IntIntMap`, `LongIntMap`, `IntObjMap`, `IntSet`, `BitSet64`, `SparseSet`, `IntHeap` (decrease-key), `IntRing` · L · Deps: M1-02 · bench vs `HashMap<Integer,…>` · AC: no allocation after capacity is reached
+- [x] **M1-04** Handles and pools: `HandlePool` (generational), `SlotMap`, `ObjectPool`, `PerWorker` · M · Deps: M1-03
+- [x] **M1-05** Off-heap memory: `FrameAllocator` (bump `SegmentAllocator`, reset), `OffHeap` aligned allocation, `MemoryStats`, `CStrings` cache · M · bench
+- [x] **M1-06** Concurrency: `SpscIntRing`, `SpscLongRing`, `MpmcIntQueue`, padded atomics, `SpinParkWaiter` · M · AC: stress tests (10⁸ ops, multiple threads) plus a JMH throughput bench
+- [x] **M1-07** Job system v1: workers, `parallelFor` (atomic chunk claiming), job graph with dependency counters, help-while-waiting, `JobContext.workerIndex()` (§4.5) · L · Deps: M1-06 · bench · AC: `parallelFor` over 1M elements scales ≥ 6× on 8 cores. Dispatch allocates 0 B
+- [x] **M1-08** Profiler: scope IDs, per-thread long rings, frame stats, text/JSON dump, JFR events in dev · M · Deps: M1-06
+- [x] **M1-09** `Log` (async ring), `StrId` (FNV-1a/xxHash64) + `NameTable`, `Settings` (TOML subset), `Clock`, `FixedStepper` · M
+- [x] **M1-10** Math value types (records): `Vec2f`, `Vec3f`, `Vec4f`, `Quatf`, `Mat3f`, `Mat4f`, `Aabb3f`, `Ray3f`, `Planef`, `Spheref`, `Capsulef` · M · AC: no identity use, ready for `value record`
+- [x] **M1-11** Mutable scratch types: `MVec3f`, `MQuatf`, `MMat4f`, with reversed-Z perspective, ortho, lookAt and `IsoCamera` math · M
+- [x] **M1-12** Bulk kernels: `Vec3Ops`, `QuatOps`, `AffineOps` (composeTRS, multiply, invert, 3×4), `CullOps` (spheres and AABBs vs frustum) · L · bench · AC: tested against a `double` reference, 0 B allocated, C2 vectorization confirmed with JMH `-prof perfasm` (or `-XX:+PrintAssembly` with hsdis) and noted in the bench README
+- [x] **M1-13** Geometry and intersection suite (§8.3), including cone/AoE and 2D polygon utilities · L
+- [x] **M1-14** Packing (half, octahedral, snorm/unorm, sRGB), `Rng` (xoshiro256**, SplitMix64, dice), easing, noise · M
+- [x] **M1-15** `bench` module wired up, with baseline benchmarks committed and a results README · S · Deps: M0-03
 
 ## M2: Platform (SDL3, window, input, app v0)
 - [ ] **M2-01** SDL3 and SDL3_mixer include lists. Generate with `regenerateBindings`, diff Windows vs Linux output, commit `src/ffi/java` (§6.4) · M · Deps: M0-10, M0-08

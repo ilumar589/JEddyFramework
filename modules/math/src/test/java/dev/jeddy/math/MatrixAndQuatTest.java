@@ -1,14 +1,15 @@
 package dev.jeddy.math;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.jeddy.testing.Allocations;
-import java.util.Random;
+
 import org.junit.jupiter.api.Test;
+
+import java.util.Random;
 
 class MatrixAndQuatTest {
     private static final float EPS = 1e-4f;
@@ -66,7 +67,14 @@ class MatrixAndQuatTest {
     @Test
     void inverseTimesMatrixIsIdentity() {
         for (int n = 0; n < 200; n++) {
-            Mat4f m = Mat4f.trs(randomVec(50), randomQuat(), new Vec3f(0.5f + random.nextFloat(), 0.5f + random.nextFloat(), 0.5f + random.nextFloat()));
+            Mat4f m =
+                    Mat4f.trs(
+                            randomVec(50),
+                            randomQuat(),
+                            new Vec3f(
+                                    0.5f + random.nextFloat(),
+                                    0.5f + random.nextFloat(),
+                                    0.5f + random.nextFloat()));
             assertTrue(m.mul(m.invert()).approxEquals(Mat4f.IDENTITY, 1e-4f));
         }
         assertThrows(ArithmeticException.class, () -> Mat4f.scaling(1, 0, 1).invert());
@@ -79,7 +87,8 @@ class MatrixAndQuatTest {
         Mat4f m = Mat4f.trs(new Vec3f(10, 0, 0), q, new Vec3f(2, 2, 2));
         // (1,0,0) scaled to (2,0,0), rotated 90° about Y to (0,0,-2), translated to (10,0,-2).
         assertTrue(m.transformPoint(Vec3f.UNIT_X).approxEquals(new Vec3f(10, 0, -2), EPS));
-        Mat4f composed = Mat4f.translation(10, 0, 0).mul(Mat4f.rotation(q)).mul(Mat4f.scaling(2, 2, 2));
+        Mat4f composed =
+                Mat4f.translation(10, 0, 0).mul(Mat4f.rotation(q)).mul(Mat4f.scaling(2, 2, 2));
         assertTrue(composed.approxEquals(m, EPS));
     }
 
@@ -126,8 +135,11 @@ class MatrixAndQuatTest {
             Vec3f sa = new Vec3f(1, 2, 0.5f);
             Vec3f tb = randomVec(20);
             Quatf qb = randomQuat();
-            AffineOps.composeTRS(ta.x(), ta.y(), ta.z(), qa.x(), qa.y(), qa.z(), qa.w(), sa.x(), sa.y(), sa.z(), a, 0);
-            AffineOps.composeTRS(tb.x(), tb.y(), tb.z(), qb.x(), qb.y(), qb.z(), qb.w(), 1, 1, 1, b, 0);
+            AffineOps.composeTRS(
+                    ta.x(), ta.y(), ta.z(), qa.x(), qa.y(), qa.z(), qa.w(), sa.x(), sa.y(), sa.z(),
+                    a, 0);
+            AffineOps.composeTRS(
+                    tb.x(), tb.y(), tb.z(), qb.x(), qb.y(), qb.z(), qb.w(), 1, 1, 1, b, 0);
             Mat4f ma = Mat4f.trs(ta, qa, sa);
             Mat4f mb = Mat4f.trs(tb, qb, Vec3f.ONE);
             AffineOps.toMat4(a, 0, m4, 0);
@@ -140,7 +152,9 @@ class MatrixAndQuatTest {
             assertTrue(Mat4f.fromArray(m4, 0).approxEquals(ma.invert(), 1e-3f));
             float[] p = new float[3];
             AffineOps.transformPoint(a, 0, 1, 2, 3, p, 0);
-            assertTrue(new Vec3f(p[0], p[1], p[2]).approxEquals(ma.transformPoint(new Vec3f(1, 2, 3)), 1e-3f));
+            assertTrue(
+                    new Vec3f(p[0], p[1], p[2])
+                            .approxEquals(ma.transformPoint(new Vec3f(1, 2, 3)), 1e-3f));
         }
     }
 
@@ -165,7 +179,14 @@ class MatrixAndQuatTest {
         AffineOps.transformAabb(m, 0, -1, -2, -3, 1, 2, 3, box, 0);
         float[] p = new float[3];
         for (int c = 0; c < 8; c++) {
-            AffineOps.transformPoint(m, 0, (c & 1) == 0 ? -1 : 1, (c & 2) == 0 ? -2 : 2, (c & 4) == 0 ? -3 : 3, p, 0);
+            AffineOps.transformPoint(
+                    m,
+                    0,
+                    (c & 1) == 0 ? -1 : 1,
+                    (c & 2) == 0 ? -2 : 2,
+                    (c & 4) == 0 ? -3 : 3,
+                    p,
+                    0);
             for (int k = 0; k < 3; k++) {
                 assertTrue(p[k] >= box[k] - EPS && p[k] <= box[3 + k] + EPS);
             }
@@ -181,7 +202,10 @@ class MatrixAndQuatTest {
             Vec3f byMat = Mat4f.rotation(q).transformDirection(v);
             assertTrue(byQuat.approxEquals(byMat, EPS));
             Mat4f r = Mat4f.rotation(q);
-            Quatf back = Quatf.fromMatrix(r.m00(), r.m10(), r.m20(), r.m01(), r.m11(), r.m21(), r.m02(), r.m12(), r.m22());
+            Quatf back =
+                    Quatf.fromMatrix(
+                            r.m00(), r.m10(), r.m20(), r.m01(), r.m11(), r.m21(), r.m02(), r.m12(),
+                            r.m22());
             assertTrue(back.approxEquals(q, 1e-5f));
             Quatf p = randomQuat();
             assertTrue(q.mul(p).rotate(v).approxEquals(q.rotate(p.rotate(v)), 1e-3f));
@@ -250,13 +274,16 @@ class MatrixAndQuatTest {
         cam.target.set(10, 0, -5);
         cam.update(16f / 9f);
         assertTrue(CullOps.sphereVisible(cam.frustumPlanes, 10, 0, -5, 0.5f));
-        assertFalse(CullOps.sphereVisible(cam.frustumPlanes, 10, 0, 500, 1f)); // far behind the camera
+        assertFalse(
+                CullOps.sphereVisible(cam.frustumPlanes, 10, 0, 500, 1f)); // far behind the camera
         assertFalse(CullOps.sphereVisible(cam.frustumPlanes, 500, 0, -5, 1f)); // far to the side
         assertTrue(CullOps.aabbVisible(cam.frustumPlanes, 9, -1, -6, 11, 1, -4));
         float[] origin = new float[3];
         float[] dir = new float[3];
         cam.screenRay(0, 0, origin, dir);
-        float t = Intersect.rayPlane(origin[0], origin[1], origin[2], dir[0], dir[1], dir[2], 0, 1, 0, 0);
+        float t =
+                Intersect.rayPlane(
+                        origin[0], origin[1], origin[2], dir[0], dir[1], dir[2], 0, 1, 0, 0);
         assertEquals(10f, origin[0] + dir[0] * t, 1e-2f);
         assertEquals(-5f, origin[2] + dir[2] * t, 1e-2f);
         cam.orthographic = true;
@@ -300,7 +327,9 @@ class MatrixAndQuatTest {
                     cam.update(1.5f);
                     AffineOps.concatenate(parent, local, world, 0, n);
                     sink += CullOps.spheres(cam.frustumPlanes, cx, cy, cz, r, 0, n, out, 0);
-                    sink += Intersect.rayTriangle(0, 1, 0, 0, -1, 0, -1, 0, -1, 1, 0, -1, 0, 0, 1, 10, null);
+                    sink +=
+                            Intersect.rayTriangle(
+                                    0, 1, 0, 0, -1, 0, -1, 0, -1, 1, 0, -1, 0, 0, 1, 10, null);
                 });
     }
 }

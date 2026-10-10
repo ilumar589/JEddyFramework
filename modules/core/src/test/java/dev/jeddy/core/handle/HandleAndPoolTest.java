@@ -11,9 +11,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.jeddy.core.pool.ObjectPool;
 import dev.jeddy.core.pool.PerWorker;
 import dev.jeddy.testing.Allocations;
+
+import org.junit.jupiter.api.Test;
+
 import java.util.HashSet;
 import java.util.Set;
-import org.junit.jupiter.api.Test;
 
 class HandleAndPoolTest {
 
@@ -95,10 +97,14 @@ class HandleAndPoolTest {
     @Test
     void objectPoolReusesAndResets() {
         int[] resets = {0};
-        ObjectPool<StringBuilder> pool = new ObjectPool<>(StringBuilder::new, sb -> {
-            sb.setLength(0);
-            resets[0]++;
-        }, 2);
+        ObjectPool<StringBuilder> pool =
+                new ObjectPool<>(
+                        StringBuilder::new,
+                        sb -> {
+                            sb.setLength(0);
+                            resets[0]++;
+                        },
+                        2);
         pool.prefill(2);
         assertEquals(2, pool.created());
         StringBuilder a = pool.obtain();

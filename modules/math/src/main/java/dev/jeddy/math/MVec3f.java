@@ -2,8 +2,8 @@ package dev.jeddy.math;
 
 /**
  * Mutable 3D vector for per-frame scratch work without allocation (DESIGN §8.1, layer 2). Methods
- * modify {@code this} and return it for chaining. Keep instances as fields of the system that
- * uses them.
+ * modify {@code this} and return it for chaining. Keep instances as fields of the system that uses
+ * them.
  *
  * <p>Thread ownership: single owner thread.
  */

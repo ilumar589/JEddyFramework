@@ -24,7 +24,12 @@ public final class NameTable {
         String previous = names.putIfAbsent(id, name);
         if (previous != null && !previous.equals(name)) {
             throw new IllegalStateException(
-                    "StrId collision: '" + previous + "' and '" + name + "' both hash to " + StrId.hex(id));
+                    "StrId collision: '"
+                            + previous
+                            + "' and '"
+                            + name
+                            + "' both hash to "
+                            + StrId.hex(id));
         }
         return id;
     }

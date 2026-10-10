@@ -20,6 +20,11 @@ val nativeAccessModules = listOf(
     "dev.jeddy.cooker",
 )
 
+dependencies {
+    // Native libraries of the platform running the build; distributions per platform come in M11.
+    "runtimeOnly"(project(":natives-" + dev.jeddy.gradle.JeddyPlatforms.current()))
+}
+
 extensions.configure<JavaApplication> {
     applicationDefaultJvmArgs = listOf(
         "--enable-native-access=" + nativeAccessModules.joinToString(","),

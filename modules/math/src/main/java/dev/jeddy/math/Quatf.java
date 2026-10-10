@@ -1,8 +1,8 @@
 package dev.jeddy.math;
 
 /**
- * Immutable rotation quaternion {@code (x, y, z, w)}, Hamilton convention: {@code a.mul(b)}
- * applies {@code b} first, then {@code a}. Value type (DESIGN §8.1).
+ * Immutable rotation quaternion {@code (x, y, z, w)}, Hamilton convention: {@code a.mul(b)} applies
+ * {@code b} first, then {@code a}. Value type (DESIGN §8.1).
  *
  * <p>Thread ownership: immutable.
  *
@@ -39,8 +39,8 @@ public record Quatf(float x, float y, float z, float w) {
     }
 
     /**
-     * Returns the rotation that turns -Z (the forward axis) towards {@code forward}, keeping
-     * {@code up} as close to +Y of the result as possible.
+     * Returns the rotation that turns -Z (the forward axis) towards {@code forward}, keeping {@code
+     * up} as close to +Y of the result as possible.
      */
     public static Quatf lookRotation(Vec3f forward, Vec3f up) {
         Vec3f f = forward.normalize();
@@ -55,7 +55,15 @@ public record Quatf(float x, float y, float z, float w) {
 
     /** Returns the quaternion of a rotation matrix given row by row ({@code mRC}). */
     public static Quatf fromMatrix(
-            float m00, float m01, float m02, float m10, float m11, float m12, float m20, float m21, float m22) {
+            float m00,
+            float m01,
+            float m02,
+            float m10,
+            float m11,
+            float m12,
+            float m20,
+            float m21,
+            float m22) {
         float trace = m00 + m11 + m22;
         float x;
         float y;
@@ -162,14 +170,16 @@ public record Quatf(float x, float y, float z, float w) {
             a = (float) (Math.sin((1 - t) * theta) / sin);
             b = (float) (Math.sin(t * theta) / sin);
         }
-        return new Quatf(a * x + b * ox, a * y + b * oy, a * z + b * oz, a * w + b * ow).normalize();
+        return new Quatf(a * x + b * ox, a * y + b * oy, a * z + b * oz, a * w + b * ow)
+                .normalize();
     }
 
     /** Normalized linear interpolation along the shortest arc (cheaper than slerp). */
     public Quatf nlerp(Quatf o, float t) {
         float a = 1 - t;
         float b = dot(o) < 0 ? -t : t;
-        return new Quatf(x * a + o.x * b, y * a + o.y * b, z * a + o.z * b, w * a + o.w * b).normalize();
+        return new Quatf(x * a + o.x * b, y * a + o.y * b, z * a + o.z * b, w * a + o.w * b)
+                .normalize();
     }
 
     /** Returns the rotation angle in radians, in {@code [0, π]}. */

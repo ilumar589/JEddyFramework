@@ -3,8 +3,8 @@ package dev.jeddy.math;
 /**
  * Kernels for affine transforms stored as <b>row-major 3×4</b> blocks of 12 floats: three rows
  * {@code [r0c0 r0c1 r0c2 tx | r1c0 r1c1 r1c2 ty | r2c0 r2c1 r2c2 tz]}. The same layout goes into
- * GPU instance buffers (three {@code vec4} rows), so world transforms are copied, never
- * converted (DESIGN §8.2, §9.2).
+ * GPU instance buffers (three {@code vec4} rows), so world transforms are copied, never converted
+ * (DESIGN §8.2, §9.2).
  *
  * <p>Batch methods work on struct-of-arrays inputs and are allocation-free.
  *
@@ -34,10 +34,18 @@ public final class AffineOps {
 
     /** Writes translation * rotation(quaternion) * scale. */
     public static void composeTRS(
-            float px, float py, float pz,
-            float qx, float qy, float qz, float qw,
-            float sx, float sy, float sz,
-            float[] out, int o) {
+            float px,
+            float py,
+            float pz,
+            float qx,
+            float qy,
+            float qz,
+            float qw,
+            float sx,
+            float sy,
+            float sz,
+            float[] out,
+            int o) {
         float xx = qx * qx;
         float yy = qy * qy;
         float zz = qz * qz;
@@ -66,12 +74,33 @@ public final class AffineOps {
      * {@code out[i * 12]}.
      */
     public static void composeTRS(
-            float[] px, float[] py, float[] pz,
-            float[] qx, float[] qy, float[] qz, float[] qw,
-            float[] sx, float[] sy, float[] sz,
-            int start, int end, float[] out) {
+            float[] px,
+            float[] py,
+            float[] pz,
+            float[] qx,
+            float[] qy,
+            float[] qz,
+            float[] qw,
+            float[] sx,
+            float[] sy,
+            float[] sz,
+            int start,
+            int end,
+            float[] out) {
         for (int i = start; i < end; i++) {
-            composeTRS(px[i], py[i], pz[i], qx[i], qy[i], qz[i], qw[i], sx[i], sy[i], sz[i], out, i * STRIDE);
+            composeTRS(
+                    px[i],
+                    py[i],
+                    pz[i],
+                    qx[i],
+                    qy[i],
+                    qz[i],
+                    qw[i],
+                    sx[i],
+                    sy[i],
+                    sz[i],
+                    out,
+                    i * STRIDE);
         }
     }
 
@@ -149,21 +178,24 @@ public final class AffineOps {
     }
 
     /** Transforms point {@code (x, y, z)} into {@code out[o..o+2]}. */
-    public static void transformPoint(float[] m, int mo, float x, float y, float z, float[] out, int o) {
+    public static void transformPoint(
+            float[] m, int mo, float x, float y, float z, float[] out, int o) {
         out[o] = m[mo] * x + m[mo + 1] * y + m[mo + 2] * z + m[mo + 3];
         out[o + 1] = m[mo + 4] * x + m[mo + 5] * y + m[mo + 6] * z + m[mo + 7];
         out[o + 2] = m[mo + 8] * x + m[mo + 9] * y + m[mo + 10] * z + m[mo + 11];
     }
 
     /** Transforms direction {@code (x, y, z)} (no translation) into {@code out[o..o+2]}. */
-    public static void transformDirection(float[] m, int mo, float x, float y, float z, float[] out, int o) {
+    public static void transformDirection(
+            float[] m, int mo, float x, float y, float z, float[] out, int o) {
         out[o] = m[mo] * x + m[mo + 1] * y + m[mo + 2] * z;
         out[o + 1] = m[mo + 4] * x + m[mo + 5] * y + m[mo + 6] * z;
         out[o + 2] = m[mo + 8] * x + m[mo + 9] * y + m[mo + 10] * z;
     }
 
     /** Transforms struct-of-arrays points {@code [start, end)} by one transform, in place. */
-    public static void transformPoints(float[] m, int mo, float[] xs, float[] ys, float[] zs, int start, int end) {
+    public static void transformPoints(
+            float[] m, int mo, float[] xs, float[] ys, float[] zs, int start, int end) {
         float m00 = m[mo], m01 = m[mo + 1], m02 = m[mo + 2], m03 = m[mo + 3];
         float m10 = m[mo + 4], m11 = m[mo + 5], m12 = m[mo + 6], m13 = m[mo + 7];
         float m20 = m[mo + 8], m21 = m[mo + 9], m22 = m[mo + 10], m23 = m[mo + 11];
@@ -182,8 +214,16 @@ public final class AffineOps {
      * out[o..o+5]} as {@code minX, minY, minZ, maxX, maxY, maxZ} (Arvo's method).
      */
     public static void transformAabb(
-            float[] m, int mo, float minX, float minY, float minZ, float maxX, float maxY, float maxZ,
-            float[] out, int o) {
+            float[] m,
+            int mo,
+            float minX,
+            float minY,
+            float minZ,
+            float maxX,
+            float maxY,
+            float maxZ,
+            float[] out,
+            int o) {
         for (int r = 0; r < 3; r++) {
             float lo = m[mo + r * 4 + 3];
             float hi = lo;
@@ -225,8 +265,8 @@ public final class AffineOps {
     }
 
     /**
-     * Linearly interpolates two transforms element-wise (fine for render interpolation between
-     * two close simulation ticks; not a true rotation blend).
+     * Linearly interpolates two transforms element-wise (fine for render interpolation between two
+     * close simulation ticks; not a true rotation blend).
      */
     public static void lerp(float[] a, int ao, float[] b, int bo, float t, float[] out, int o) {
         for (int i = 0; i < STRIDE; i++) {

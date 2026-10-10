@@ -149,8 +149,8 @@ public final class Rng {
     }
 
     /**
-     * Picks an index with probability proportional to {@code weights[i]} among the first {@code
-     * n}. Returns -1 if all weights are zero.
+     * Picks an index with probability proportional to {@code weights[i]} among the first {@code n}.
+     * Returns -1 if all weights are zero.
      */
     public int pickWeighted(float[] weights, int n) {
         double total = 0;
@@ -171,8 +171,8 @@ public final class Rng {
     }
 
     /**
-     * Advances the state by 2^128 steps: the jumped generator and this one produce
-     * non-overlapping sequences. Returns a copy at the old position, then jumps this one.
+     * Advances the state by 2^128 steps: the jumped generator and this one produce non-overlapping
+     * sequences. Returns a copy at the old position, then jumps this one.
      */
     public Rng split() {
         Rng copy = new Rng(0);
@@ -186,7 +186,9 @@ public final class Rng {
 
     /** Advances the state by 2^128 calls of {@link #nextLong()}. */
     public void jump() {
-        long[] jump = {0x180ec6d33cfd0abaL, 0xd5a61266f0c9392cL, 0xa9582618e03fc9aaL, 0x39abdc4529b1661cL};
+        long[] jump = {
+            0x180ec6d33cfd0abaL, 0xd5a61266f0c9392cL, 0xa9582618e03fc9aaL, 0x39abdc4529b1661cL
+        };
         long t0 = 0;
         long t1 = 0;
         long t2 = 0;

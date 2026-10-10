@@ -36,7 +36,12 @@ public final class Log {
     private Log() {}
 
     private record Record(
-            long time, LogLevel level, String logger, String thread, String message, Throwable error) {}
+            long time,
+            LogLevel level,
+            String logger,
+            String thread,
+            String message,
+            Throwable error) {}
 
     /** Returns the logger called {@code name}. */
     public static Logger logger(String name) {
@@ -61,7 +66,16 @@ public final class Log {
     /** Returns a sink that prints one line per record to {@code out}. */
     public static LogSink consoleSink(PrintStream out) {
         return (time, level, logger, thread, message, error) -> {
-            out.println(TIME.format(Instant.ofEpochMilli(time)) + " " + pad(level) + " [" + thread + "] " + logger + ": " + message);
+            out.println(
+                    TIME.format(Instant.ofEpochMilli(time))
+                            + " "
+                            + pad(level)
+                            + " ["
+                            + thread
+                            + "] "
+                            + logger
+                            + ": "
+                            + message);
             if (error != null) {
                 error.printStackTrace(out);
             }
@@ -86,7 +100,14 @@ public final class Log {
 
     static void submit(LogLevel level, String logger, String message, Throwable error) {
         ensureWriter();
-        Record r = new Record(System.currentTimeMillis(), level, logger, Thread.currentThread().getName(), message, error);
+        Record r =
+                new Record(
+                        System.currentTimeMillis(),
+                        level,
+                        logger,
+                        Thread.currentThread().getName(),
+                        message,
+                        error);
         synchronized (FLUSH_LOCK) {
             submitted++;
         }

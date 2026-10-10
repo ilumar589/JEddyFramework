@@ -11,18 +11,17 @@ import java.lang.foreign.SegmentAllocator;
  *
  * <ul>
  *   <li>{@link #allocateOffset(long, long)} returns an offset into {@link #segment()}. Reading and
- *       writing through {@code segment()} at that offset allocates nothing; use this in hot
- *       paths.
- *   <li>As a {@link SegmentAllocator} ({@code allocate}, {@code allocateFrom}): convenient for
- *       FFM calls, but each call returns a new slice object, which the JIT usually but not always
+ *       writing through {@code segment()} at that offset allocates nothing; use this in hot paths.
+ *   <li>As a {@link SegmentAllocator} ({@code allocate}, {@code allocateFrom}): convenient for FFM
+ *       calls, but each call returns a new slice object, which the JIT usually but not always
  *       removes.
  * </ul>
  *
  * Running out of space throws instead of growing, so frame budgets stay deterministic; size the
  * block from {@link #highWaterMark()}.
  *
- * <p>Thread ownership: one allocator per thread (for example per job worker via {@code
- * PerWorker}); not thread-safe.
+ * <p>Thread ownership: one allocator per thread (for example per job worker via {@code PerWorker});
+ * not thread-safe.
  */
 public final class FrameAllocator implements SegmentAllocator, AutoCloseable {
     private final OffHeap block;

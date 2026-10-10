@@ -1,9 +1,9 @@
 package dev.jeddy.math;
 
 /**
- * Frustum culling kernels (DESIGN §9.2/§9.4). Planes are stored as 24 floats: six planes {@code
- * (a, b, c, d)} with {@code a·x + b·y + c·z + d >= 0} inside, normalized so {@code d} is a
- * distance. Order: left, right, bottom, top, near, far.
+ * Frustum culling kernels (DESIGN §9.2/§9.4). Planes are stored as 24 floats: six planes {@code (a,
+ * b, c, d)} with {@code a·x + b·y + c·z + d >= 0} inside, normalized so {@code d} is a distance.
+ * Order: left, right, bottom, top, near, far.
  *
  * <p>The far plane of an infinite reversed-Z projection is degenerate; it is stored as {@code (0,
  * 0, 0, 1)}, which accepts everything.
@@ -92,7 +92,13 @@ public final class CullOps {
 
     /** Returns {@code true} if the box is at least partly inside the frustum (conservative). */
     public static boolean aabbVisible(
-            float[] planes, float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
+            float[] planes,
+            float minX,
+            float minY,
+            float minZ,
+            float maxX,
+            float maxY,
+            float maxZ) {
         for (int p = 0; p < 24; p += 4) {
             float a = planes[p];
             float b = planes[p + 1];
@@ -109,12 +115,20 @@ public final class CullOps {
     }
 
     /**
-     * Tests bounding spheres {@code [start, end)} and appends the indices of visible ones to
-     * {@code out} starting at {@code outOffset}. Returns the number written. The compaction is
+     * Tests bounding spheres {@code [start, end)} and appends the indices of visible ones to {@code
+     * out} starting at {@code outOffset}. Returns the number written. The compaction is
      * branch-free, so {@code out} needs room for {@code end - start} entries.
      */
     public static int spheres(
-            float[] planes, float[] cx, float[] cy, float[] cz, float[] r, int start, int end, int[] out, int outOffset) {
+            float[] planes,
+            float[] cx,
+            float[] cy,
+            float[] cz,
+            float[] r,
+            int start,
+            int end,
+            int[] out,
+            int outOffset) {
         float p0a = planes[0], p0b = planes[1], p0c = planes[2], p0d = planes[3];
         float p1a = planes[4], p1b = planes[5], p1c = planes[6], p1d = planes[7];
         float p2a = planes[8], p2b = planes[9], p2c = planes[10], p2d = planes[11];
@@ -146,8 +160,16 @@ public final class CullOps {
      */
     public static int aabbs(
             float[] planes,
-            float[] minX, float[] minY, float[] minZ, float[] maxX, float[] maxY, float[] maxZ,
-            int start, int end, int[] out, int outOffset) {
+            float[] minX,
+            float[] minY,
+            float[] minZ,
+            float[] maxX,
+            float[] maxY,
+            float[] maxZ,
+            int start,
+            int end,
+            int[] out,
+            int outOffset) {
         int n = outOffset;
         for (int i = start; i < end; i++) {
             if (aabbVisible(planes, minX[i], minY[i], minZ[i], maxX[i], maxY[i], maxZ[i])) {

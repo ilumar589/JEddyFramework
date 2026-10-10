@@ -2,8 +2,8 @@ package dev.jeddy.math;
 
 /**
  * Mutable column-major 4×4 matrix for per-frame camera and transform math without allocation
- * (DESIGN §8.1, layer 2). Elements live in {@link #m} ({@code m[c * 4 + r]}), ready to upload as
- * a uniform.
+ * (DESIGN §8.1, layer 2). Elements live in {@link #m} ({@code m[c * 4 + r]}), ready to upload as a
+ * uniform.
  *
  * <p>Thread ownership: single owner thread.
  */
@@ -72,7 +72,8 @@ public final class MMat4f {
     }
 
     /** Sets a reversed-Z orthographic projection. */
-    public MMat4f orthoReversedZ(float left, float right, float bottom, float top, float near, float far) {
+    public MMat4f orthoReversedZ(
+            float left, float right, float bottom, float top, float near, float far) {
         Mat4Ops.orthoReversedZ(left, right, bottom, top, near, far, m, 0);
         return this;
     }

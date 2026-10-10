@@ -26,7 +26,9 @@ public final class PaddedAtomicLong extends PaddedLongPad1 {
 
     static {
         try {
-            VALUE = MethodHandles.lookup().findVarHandle(PaddedLongValue.class, "value", long.class);
+            VALUE =
+                    MethodHandles.lookup()
+                            .findVarHandle(PaddedLongValue.class, "value", long.class);
         } catch (ReflectiveOperationException e) {
             throw new ExceptionInInitializerError(e);
         }

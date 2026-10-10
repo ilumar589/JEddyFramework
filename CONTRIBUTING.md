@@ -24,13 +24,13 @@ On Windows use `gradlew.bat`.
 4. **Threads:** the SDL main thread owns events, the window and all GL calls. The game thread sends main-thread work through the command queue. CPU work runs on the job system, never on virtual threads or the common pool.
 5. **FFM:** `static final` downcall handles, `Linker.Option.critical` only from the allow-list, no `Arena.ofAuto()`, no Java upcalls on native threads we don't own.
 6. **Stable Java only:** no `--enable-preview`, no incubator modules.
-7. **Prove it:** an `@NoAllocation` test for hot APIs and a JMH benchmark in `bench/` for performance-sensitive code.
+7. **Prove it:** an `Allocations.assertNoAllocation` test for hot APIs and a JMH benchmark in `bench/` for performance-sensitive code.
 
 ## Code conventions
 - Root package `dev.jeddy.<module>`. Raw native bindings live in `*.ffi` packages with qualified exports only.
 - Every public type's Javadoc says which thread may call it.
 - `javac` runs with `-Xlint:all,-module,-processing -Werror`: fix warnings, don't suppress them without a comment.
-- Formatting follows `.editorconfig` (4 spaces, 120 columns, LF). A Spotless check will be added and enforced in CI.
+- Formatting is google-java-format (AOSP style: 4 spaces, 100 columns), enforced by Spotless in `check`. Run `./gradlew spotlessApply` before committing.
 - All dependency versions live in `gradle/libs.versions.toml`. Runtime modules have no third-party dependencies.
 - A module exports a package only once it contains a public type (javac rejects exporting a package with no types).
 

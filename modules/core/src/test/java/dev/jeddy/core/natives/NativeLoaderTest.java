@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import org.junit.jupiter.api.Test;
+
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
 import java.lang.foreign.MemorySegment;
@@ -12,7 +14,6 @@ import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.nio.file.Files;
-import org.junit.jupiter.api.Test;
 
 /** Needs the native libraries: the natives jar on the test classpath, or -Djeddy.natives.dir. */
 class NativeLoaderTest {
@@ -20,7 +21,8 @@ class NativeLoaderTest {
     @Test
     void platformIsDetected() {
         Platform p = Platform.current();
-        assertEquals(System.getProperty("os.name").toLowerCase().startsWith("windows"), p.isWindows());
+        assertEquals(
+                System.getProperty("os.name").toLowerCase().startsWith("windows"), p.isWindows());
         assertTrue(p.id().endsWith("-x64"));
     }
 
@@ -31,7 +33,9 @@ class NativeLoaderTest {
         assertFalse(NativeLoader.isLoaded("ktx"));
         assertTrue(Files.isDirectory(NativeLoader.directory()));
         MemorySegment fn = SymbolLookup.loaderLookup().find("ZSTD_versionNumber").orElseThrow();
-        MethodHandle version = Linker.nativeLinker().downcallHandle(fn, FunctionDescriptor.of(ValueLayout.JAVA_INT));
+        MethodHandle version =
+                Linker.nativeLinker()
+                        .downcallHandle(fn, FunctionDescriptor.of(ValueLayout.JAVA_INT));
         assertEquals(10507, (int) version.invokeExact());
     }
 

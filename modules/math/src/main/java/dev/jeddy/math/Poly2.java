@@ -122,7 +122,8 @@ public final class Poly2 {
     }
 
     private static float side(float px, float pz, float[] xz, int a, int b) {
-        return (xz[2 * b] - xz[2 * a]) * (pz - xz[2 * a + 1]) - (xz[2 * b + 1] - xz[2 * a + 1]) * (px - xz[2 * a]);
+        return (xz[2 * b] - xz[2 * a]) * (pz - xz[2 * a + 1])
+                - (xz[2 * b + 1] - xz[2 * a + 1]) * (px - xz[2 * a]);
     }
 
     private static float cross(float[] xz, int a, int b, int c) {

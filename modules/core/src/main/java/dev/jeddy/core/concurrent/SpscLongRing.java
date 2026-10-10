@@ -32,8 +32,8 @@ abstract class SpscLongPad2 extends SpscLongProducer {
  * records atomically: {@link #offer(int[], int, int)} publishes all {@code n} values or none, so
  * the consumer never sees half a record. Used for profiler records and timestamps.
  *
- * <p>Thread ownership: exactly one producer thread calls {@code offer}; exactly one consumer
- * thread calls {@code poll}/{@code drain}. {@link #size()} may be called from either.
+ * <p>Thread ownership: exactly one producer thread calls {@code offer}; exactly one consumer thread
+ * calls {@code poll}/{@code drain}. {@link #size()} may be called from either.
  */
 public final class SpscLongRing extends SpscLongPad2 {
     private static final VarHandle HEAD;
@@ -115,8 +115,8 @@ public final class SpscLongRing extends SpscLongPad2 {
     }
 
     /**
-     * Consumer: removes {@code n} values into {@code dst[offset..]}. Returns {@code false},
-     * reading nothing, if fewer than {@code n} are available.
+     * Consumer: removes {@code n} values into {@code dst[offset..]}. Returns {@code false}, reading
+     * nothing, if fewer than {@code n} are available.
      */
     public boolean poll(long[] dst, int offset, int n) {
         long h = head;

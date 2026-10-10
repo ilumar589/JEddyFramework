@@ -23,8 +23,19 @@ public final class Intersect {
      * tMax]} (0 if the origin is inside), or {@link #MISS}.
      */
     public static float rayAabb(
-            float ox, float oy, float oz, float dx, float dy, float dz,
-            float minX, float minY, float minZ, float maxX, float maxY, float maxZ, float tMax) {
+            float ox,
+            float oy,
+            float oz,
+            float dx,
+            float dy,
+            float dz,
+            float minX,
+            float minY,
+            float minZ,
+            float maxX,
+            float maxY,
+            float maxZ,
+            float tMax) {
         float ix = 1 / dx;
         float iy = 1 / dy;
         float iz = 1 / dz;
@@ -49,13 +60,27 @@ public final class Intersect {
 
     /**
      * Watertight ray–triangle test (Woop, Benthin and Wald 2013): no gaps between neighbouring
-     * triangles, both sides hit. Returns {@code t} in {@code [0, tMax]} or {@link #MISS}. If
-     * {@code barycentric} is not {@code null}, writes the weights of v0, v1, v2 there.
+     * triangles, both sides hit. Returns {@code t} in {@code [0, tMax]} or {@link #MISS}. If {@code
+     * barycentric} is not {@code null}, writes the weights of v0, v1, v2 there.
      */
     public static float rayTriangle(
-            float ox, float oy, float oz, float dx, float dy, float dz,
-            float v0x, float v0y, float v0z, float v1x, float v1y, float v1z, float v2x, float v2y, float v2z,
-            float tMax, float[] barycentric) {
+            float ox,
+            float oy,
+            float oz,
+            float dx,
+            float dy,
+            float dz,
+            float v0x,
+            float v0y,
+            float v0z,
+            float v1x,
+            float v1y,
+            float v1z,
+            float v2x,
+            float v2y,
+            float v2z,
+            float tMax,
+            float[] barycentric) {
         float adx = Math.abs(dx);
         float ady = Math.abs(dy);
         float adz = Math.abs(dz);
@@ -119,7 +144,16 @@ public final class Intersect {
 
     /** Ray against a sphere. Returns the first {@code t ≥ 0} (0 if inside) or {@link #MISS}. */
     public static float raySphere(
-            float ox, float oy, float oz, float dx, float dy, float dz, float cx, float cy, float cz, float r) {
+            float ox,
+            float oy,
+            float oz,
+            float dx,
+            float dy,
+            float dz,
+            float cx,
+            float cy,
+            float cz,
+            float r) {
         float mx = ox - cx;
         float my = oy - cy;
         float mz = oz - cz;
@@ -145,8 +179,17 @@ public final class Intersect {
      * {@link #MISS}.
      */
     public static float rayVerticalCylinder(
-            float ox, float oy, float oz, float dx, float dy, float dz,
-            float cx, float cz, float r, float yMin, float yMax) {
+            float ox,
+            float oy,
+            float oz,
+            float dx,
+            float dy,
+            float dz,
+            float cx,
+            float cz,
+            float r,
+            float yMin,
+            float yMax) {
         float mx = ox - cx;
         float mz = oz - cz;
         float r2 = r * r;
@@ -193,8 +236,19 @@ public final class Intersect {
      * {@code t ≥ 0} or {@link #MISS}.
      */
     public static float rayCapsule(
-            float ox, float oy, float oz, float dx, float dy, float dz,
-            float ax, float ay, float az, float bx, float by, float bz, float r) {
+            float ox,
+            float oy,
+            float oz,
+            float dx,
+            float dy,
+            float dz,
+            float ax,
+            float ay,
+            float az,
+            float bx,
+            float by,
+            float bz,
+            float r) {
         if (pointSegmentDistanceSquared(ox, oy, oz, ax, ay, az, bx, by, bz) <= r * r) {
             return 0;
         }
@@ -231,7 +285,16 @@ public final class Intersect {
      * parallel or behind.
      */
     public static float rayPlane(
-            float ox, float oy, float oz, float dx, float dy, float dz, float nx, float ny, float nz, float d) {
+            float ox,
+            float oy,
+            float oz,
+            float dx,
+            float dy,
+            float dz,
+            float nx,
+            float ny,
+            float nz,
+            float d) {
         float denom = nx * dx + ny * dy + nz * dz;
         if (Math.abs(denom) < 1e-12f) {
             return MISS;
@@ -244,7 +307,15 @@ public final class Intersect {
 
     /** Returns the squared distance from point {@code p} to segment {@code a}–{@code b}. */
     public static float pointSegmentDistanceSquared(
-            float px, float py, float pz, float ax, float ay, float az, float bx, float by, float bz) {
+            float px,
+            float py,
+            float pz,
+            float ax,
+            float ay,
+            float az,
+            float bx,
+            float by,
+            float bz) {
         float t = closestPointOnSegment(px, py, pz, ax, ay, az, bx, by, bz);
         float cx = ax + (bx - ax) * t - px;
         float cy = ay + (by - ay) * t - py;
@@ -254,7 +325,15 @@ public final class Intersect {
 
     /** Returns the parameter in {@code [0, 1]} of the point on {@code a}–{@code b} closest to p. */
     public static float closestPointOnSegment(
-            float px, float py, float pz, float ax, float ay, float az, float bx, float by, float bz) {
+            float px,
+            float py,
+            float pz,
+            float ax,
+            float ay,
+            float az,
+            float bx,
+            float by,
+            float bz) {
         float abx = bx - ax;
         float aby = by - ay;
         float abz = bz - az;
@@ -268,8 +347,16 @@ public final class Intersect {
 
     /** Returns {@code true} if a sphere and a box overlap. */
     public static boolean sphereAabb(
-            float cx, float cy, float cz, float r,
-            float minX, float minY, float minZ, float maxX, float maxY, float maxZ) {
+            float cx,
+            float cy,
+            float cz,
+            float r,
+            float minX,
+            float minY,
+            float minZ,
+            float maxX,
+            float maxY,
+            float maxZ) {
         float dx = cx - Math.max(minX, Math.min(cx, maxX));
         float dy = cy - Math.max(minY, Math.min(cy, maxY));
         float dz = cz - Math.max(minZ, Math.min(cz, maxZ));
@@ -278,9 +365,23 @@ public final class Intersect {
 
     /** Returns {@code true} if two boxes overlap (touching counts). */
     public static boolean aabbAabb(
-            float aMinX, float aMinY, float aMinZ, float aMaxX, float aMaxY, float aMaxZ,
-            float bMinX, float bMinY, float bMinZ, float bMaxX, float bMaxY, float bMaxZ) {
-        return aMinX <= bMaxX && aMaxX >= bMinX && aMinY <= bMaxY && aMaxY >= bMinY && aMinZ <= bMaxZ
+            float aMinX,
+            float aMinY,
+            float aMinZ,
+            float aMaxX,
+            float aMaxY,
+            float aMaxZ,
+            float bMinX,
+            float bMinY,
+            float bMinZ,
+            float bMaxX,
+            float bMaxY,
+            float bMaxZ) {
+        return aMinX <= bMaxX
+                && aMaxX >= bMinX
+                && aMinY <= bMaxY
+                && aMaxY >= bMinY
+                && aMinZ <= bMaxZ
                 && aMaxZ >= bMinZ;
     }
 
@@ -290,8 +391,19 @@ public final class Intersect {
      * {@code range} long.
      */
     public static boolean coneSphere(
-            float apexX, float apexY, float apexZ, float axisX, float axisY, float axisZ,
-            float cosHalf, float sinHalf, float range, float cx, float cy, float cz, float r) {
+            float apexX,
+            float apexY,
+            float apexZ,
+            float axisX,
+            float axisY,
+            float axisZ,
+            float cosHalf,
+            float sinHalf,
+            float range,
+            float cx,
+            float cy,
+            float cz,
+            float r) {
         float vx = cx - apexX;
         float vy = cy - apexY;
         float vz = cz - apexZ;
@@ -305,7 +417,8 @@ public final class Intersect {
     // ---------------------------------------------------------------- 2D (ground plane x, z)
 
     /** Returns the squared distance from {@code p} to segment {@code a}–{@code b} in 2D. */
-    public static float pointSegmentDistanceSquared2(float px, float pz, float ax, float az, float bx, float bz) {
+    public static float pointSegmentDistanceSquared2(
+            float px, float pz, float ax, float az, float bx, float bz) {
         float abx = bx - ax;
         float abz = bz - az;
         float len2 = abx * abx + abz * abz;
@@ -317,7 +430,8 @@ public final class Intersect {
     }
 
     /** Returns {@code true} if segment {@code a}–{@code b} passes within {@code r} of {@code c}. */
-    public static boolean segmentCircle(float ax, float az, float bx, float bz, float cx, float cz, float r) {
+    public static boolean segmentCircle(
+            float ax, float az, float bx, float bz, float cx, float cz, float r) {
         return pointSegmentDistanceSquared2(cx, cz, ax, az, bx, bz) <= r * r;
     }
 
@@ -334,8 +448,16 @@ public final class Intersect {
      * apex {@code a}, unit direction {@code dir}, half-angle as cosine/sine, radius {@code range}.
      */
     public static boolean sectorCircle(
-            float ax, float az, float dirX, float dirZ, float cosHalf, float sinHalf, float range,
-            float cx, float cz, float r) {
+            float ax,
+            float az,
+            float dirX,
+            float dirZ,
+            float cosHalf,
+            float sinHalf,
+            float range,
+            float cx,
+            float cz,
+            float r) {
         return coneSphere(ax, 0, az, dirX, 0, dirZ, cosHalf, sinHalf, range, cx, 0, cz, r);
     }
 
@@ -344,7 +466,15 @@ public final class Intersect {
      * {@code a}, extends {@code length} along unit {@code dir} and {@code halfWidth} to each side.
      */
     public static boolean rectCircle(
-            float ax, float az, float dirX, float dirZ, float length, float halfWidth, float cx, float cz, float r) {
+            float ax,
+            float az,
+            float dirX,
+            float dirZ,
+            float length,
+            float halfWidth,
+            float cx,
+            float cz,
+            float r) {
         float vx = cx - ax;
         float vz = cz - az;
         float along = vx * dirX + vz * dirZ;
@@ -360,7 +490,14 @@ public final class Intersect {
      * cross).
      */
     public static float segmentSegment2(
-            float p1x, float p1z, float p2x, float p2z, float q1x, float q1z, float q2x, float q2z) {
+            float p1x,
+            float p1z,
+            float p2x,
+            float p2z,
+            float q1x,
+            float q1z,
+            float q2x,
+            float q2z) {
         float rx = p2x - p1x;
         float rz = p2z - p1z;
         float sx = q2x - q1x;

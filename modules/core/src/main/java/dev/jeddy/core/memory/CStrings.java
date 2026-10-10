@@ -8,9 +8,9 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * NUL-terminated UTF-8 C strings for native calls.
  *
- * <p>{@link #of(String)} interns: each distinct string is converted once into global memory and
- * the same segment is returned afterwards, so constant strings (SDL hints, mixer tags, uniform
- * names) cost nothing per call. Only use it for a bounded set of strings.
+ * <p>{@link #of(String)} interns: each distinct string is converted once into global memory and the
+ * same segment is returned afterwards, so constant strings (SDL hints, mixer tags, uniform names)
+ * cost nothing per call. Only use it for a bounded set of strings.
  *
  * <p>Thread ownership: thread-safe.
  */
@@ -25,7 +25,8 @@ public final class CStrings {
         if (cached != null) {
             return cached;
         }
-        return CACHE.computeIfAbsent(s, k -> Arena.global().allocateFrom(k, StandardCharsets.UTF_8));
+        return CACHE.computeIfAbsent(
+                s, k -> Arena.global().allocateFrom(k, StandardCharsets.UTF_8));
     }
 
     /**

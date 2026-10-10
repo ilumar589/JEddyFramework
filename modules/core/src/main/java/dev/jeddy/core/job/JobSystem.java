@@ -2,6 +2,7 @@ package dev.jeddy.core.job;
 
 import dev.jeddy.core.concurrent.MpmcIntQueue;
 import dev.jeddy.core.concurrent.SpinParkWaiter;
+
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -145,8 +146,8 @@ public final class JobSystem implements AutoCloseable {
     }
 
     /**
-     * Returns the number of distinct thread indices: workers plus external threads. Size
-     * per-thread data ({@code PerWorker}) with this.
+     * Returns the number of distinct thread indices: workers plus external threads. Size per-thread
+     * data ({@code PerWorker}) with this.
      */
     public int threadSlots() {
         return workers.length + MAX_EXTERNAL_THREADS;
@@ -162,7 +163,9 @@ public final class JobSystem implements AutoCloseable {
             int index = nextExternal.getAndIncrement();
             if (index >= threadSlots()) {
                 throw new IllegalStateException(
-                        "more than " + MAX_EXTERNAL_THREADS + " external threads use this JobSystem");
+                        "more than "
+                                + MAX_EXTERNAL_THREADS
+                                + " external threads use this JobSystem");
             }
             holder = new int[] {index};
             externalIndex.set(holder);
@@ -335,7 +338,8 @@ public final class JobSystem implements AutoCloseable {
                 return; // already complete
             }
             if (d.dependentCount == MAX_DEPENDENTS) {
-                throw new IllegalStateException("more than " + MAX_DEPENDENTS + " jobs depend on one job");
+                throw new IllegalStateException(
+                        "more than " + MAX_DEPENDENTS + " jobs depend on one job");
             }
             d.dependents[d.dependentCount++] = dependentHandle;
             PENDING.getAndAdd(dependent, 1);

@@ -1,8 +1,8 @@
 package dev.jeddy.core.log;
 
 /**
- * A named logger. Messages use {@code {}} placeholders: {@code log.info("loaded {} in {} ms",
- * name, millis)}.
+ * A named logger. Messages use {@code {}} placeholders: {@code log.info("loaded {} in {} ms", name,
+ * millis)}.
  *
  * <p>Logging is for cold paths: arguments are boxed and the message is formatted on the calling
  * thread. In code that runs every frame, guard with {@link #isEnabled(LogLevel)}. Writing to the

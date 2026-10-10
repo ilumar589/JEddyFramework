@@ -1,9 +1,9 @@
 package dev.jeddy.core.time;
 
 /**
- * Fixed-timestep accumulator for the simulation (DESIGN §5: 30 Hz by default). Each frame,
- * {@link #advance(long)} returns how many ticks to simulate; {@link #alpha()} is how far the
- * frame is between the last two ticks, for interpolating transforms when rendering.
+ * Fixed-timestep accumulator for the simulation (DESIGN §5: 30 Hz by default). Each frame, {@link
+ * #advance(long)} returns how many ticks to simulate; {@link #alpha()} is how far the frame is
+ * between the last two ticks, for interpolating transforms when rendering.
  *
  * <p>The number of ticks per frame is capped, so a long stall (loading, debugger) slows the game
  * down instead of making it simulate a burst of catch-up ticks ("spiral of death").
@@ -49,8 +49,8 @@ public final class FixedStepper {
     }
 
     /**
-     * Accounts for the time since the previous call and returns the number of ticks to simulate
-     * now (0 while paused).
+     * Accounts for the time since the previous call and returns the number of ticks to simulate now
+     * (0 while paused).
      */
     public int advance(long nowNanos) {
         if (last == Long.MIN_VALUE) {

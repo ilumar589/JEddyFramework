@@ -3,9 +3,9 @@ package dev.jeddy.core.collections;
 import java.util.Arrays;
 
 /**
- * Binary min-heap of integer items keyed by {@code float} priorities, with O(log n)
- * decrease-key. Items are integers in {@code [0, universe)} (for example navmesh node indices);
- * each item is in the heap at most once. Built for A* open lists (DESIGN §11.4).
+ * Binary min-heap of integer items keyed by {@code float} priorities, with O(log n) decrease-key.
+ * Items are integers in {@code [0, universe)} (for example navmesh node indices); each item is in
+ * the heap at most once. Built for A* open lists (DESIGN §11.4).
  *
  * <p>Thread ownership: single owner thread; not thread-safe.
  */
@@ -64,7 +64,9 @@ public final class IntHeap {
         return keys[0];
     }
 
-    /** Adds {@code item} with {@code key}; if already present, updates its key in either direction. */
+    /**
+     * Adds {@code item} with {@code key}; if already present, updates its key in either direction.
+     */
     public void push(int item, float key) {
         if (item < 0) {
             throw new IllegalArgumentException("negative item " + item);

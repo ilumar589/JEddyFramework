@@ -27,13 +27,15 @@ import dev.jeddy.core.profile.ScopeIds;
 import dev.jeddy.core.profile.ScopeStats;
 import dev.jeddy.core.time.FixedStepper;
 import dev.jeddy.testing.Allocations;
+
+import org.junit.jupiter.api.Test;
+
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import org.junit.jupiter.api.Test;
 
 class UtilitiesTest {
 
@@ -81,7 +83,9 @@ class UtilitiesTest {
     void strIdMatchesUtf8Bytes() {
         assertEquals(0xcbf29ce484222325L, StrId.of(""));
         assertEquals(0xaf63dc4c8601ec8cL, StrId.of("a")); // FNV-1a 64 reference value
-        String[] samples = {"textures/hero_albedo.ktx2", "ünïcødé", "日本語", "emoji 🧙 wizard", "bad \uD800 surrogate"};
+        String[] samples = {
+            "textures/hero_albedo.ktx2", "ünïcødé", "日本語", "emoji 🧙 wizard", "bad \uD800 surrogate"
+        };
         for (String s : samples) {
             byte[] utf8 = s.getBytes(StandardCharsets.UTF_8);
             assertEquals(StrId.of(utf8, 0, utf8.length), StrId.of(s), s);
@@ -121,7 +125,9 @@ class UtilitiesTest {
         assertEquals(60, again.getInt("graphics.fps_limit", 0));
         assertEquals(s.keys(), again.keys());
         IllegalArgumentException e =
-                assertThrows(IllegalArgumentException.class, () -> Settings.parse("ok = 1\nbroken line"));
+                assertThrows(
+                        IllegalArgumentException.class,
+                        () -> Settings.parse("ok = 1\nbroken line"));
         assertTrue(e.getMessage().startsWith("line 2"));
     }
 
@@ -172,11 +178,12 @@ class UtilitiesTest {
     @Test
     void loggerFormatsAndFilters() {
         List<String> lines = new ArrayList<>();
-        Log.setSink((t, level, logger, thread, message, error) -> {
-            synchronized (lines) {
-                lines.add(level + " " + logger + ": " + message);
-            }
-        });
+        Log.setSink(
+                (t, level, logger, thread, message, error) -> {
+                    synchronized (lines) {
+                        lines.add(level + " " + logger + ": " + message);
+                    }
+                });
         try {
             Logger log = Log.logger("test");
             Log.setThreshold(LogLevel.INFO);
@@ -185,7 +192,11 @@ class UtilitiesTest {
             log.warn("extra {} {}", "only-one");
             Log.flush();
             synchronized (lines) {
-                assertEquals(List.of("INFO test: loaded level1 in 12 ms", "WARN test: extra only-one {}"), lines);
+                assertEquals(
+                        List.of(
+                                "INFO test: loaded level1 in 12 ms",
+                                "WARN test: extra only-one {}"),
+                        lines);
             }
             assertFalse(log.isEnabled(LogLevel.DEBUG));
         } finally {

@@ -118,6 +118,8 @@ public record Vec3f(float x, float y, float z) {
 
     /** Returns {@code true} if every component is within {@code epsilon} of {@code o}'s. */
     public boolean approxEquals(Vec3f o, float epsilon) {
-        return Math.abs(x - o.x) <= epsilon && Math.abs(y - o.y) <= epsilon && Math.abs(z - o.z) <= epsilon;
+        return Math.abs(x - o.x) <= epsilon
+                && Math.abs(y - o.y) <= epsilon
+                && Math.abs(z - o.z) <= epsilon;
     }
 }

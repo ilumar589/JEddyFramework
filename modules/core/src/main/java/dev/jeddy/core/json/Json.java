@@ -306,7 +306,10 @@ public final class Json {
                 }
                 char c = s.charAt(pos);
                 if (c == '"') {
-                    String out = sb == null ? s.substring(start, pos) : sb.append(s, start, pos).toString();
+                    String out =
+                            sb == null
+                                    ? s.substring(start, pos)
+                                    : sb.append(s, start, pos).toString();
                     pos++;
                     return out;
                 }
@@ -353,7 +356,12 @@ public final class Json {
             }
             while (pos < s.length()) {
                 char c = s.charAt(pos);
-                if ((c >= '0' && c <= '9') || c == '.' || c == 'e' || c == 'E' || c == '+' || c == '-') {
+                if ((c >= '0' && c <= '9')
+                        || c == '.'
+                        || c == 'e'
+                        || c == 'E'
+                        || c == '+'
+                        || c == '-') {
                     pos++;
                 } else {
                     break;

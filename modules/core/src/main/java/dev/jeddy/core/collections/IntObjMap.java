@@ -3,8 +3,8 @@ package dev.jeddy.core.collections;
 import java.util.Arrays;
 
 /**
- * Open-addressing hash map from {@code int} to objects: linear probing, backward-shift
- * deletion (no tombstones), no boxing. Lookups of absent keys return {@code null}.
+ * Open-addressing hash map from {@code int} to objects: linear probing, backward-shift deletion (no
+ * tombstones), no boxing. Lookups of absent keys return {@code null}.
  *
  * <p>Iterate without allocating:
  *

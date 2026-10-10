@@ -6,8 +6,8 @@ package dev.jeddy.math;
  * Produces view, projection and view-projection matrices (reversed-Z) and screen-to-world rays for
  * picking. All results go into preallocated arrays.
  *
- * <p>Thread ownership: single owner thread (the game thread builds it; the render packet copies
- * the matrices).
+ * <p>Thread ownership: single owner thread (the game thread builds it; the render packet copies the
+ * matrices).
  */
 public final class IsoCamera {
     /** Point the camera looks at (usually on the ground). */
@@ -71,7 +71,10 @@ public final class IsoCamera {
         float sy = (float) Math.sin(yaw);
         float cy = (float) Math.cos(yaw);
         // Forward is (-sin yaw * cos pitch, -sin pitch, -cos yaw * cos pitch); eye is behind it.
-        eye.set(target.x + sy * cp * distance, target.y + sp * distance, target.z + cy * cp * distance);
+        eye.set(
+                target.x + sy * cp * distance,
+                target.y + sp * distance,
+                target.z + cy * cp * distance);
         Mat4Ops.lookAt(eye.x, eye.y, eye.z, target.x, target.y, target.z, 0, 1, 0, view, 0);
         if (orthographic) {
             float h = orthoHeight * 0.5f;

@@ -1,8 +1,8 @@
 package dev.jeddy.math;
 
 /**
- * Mutable rotation quaternion for per-frame scratch work without allocation (DESIGN §8.1, layer
- * 2). Same conventions as {@link Quatf}.
+ * Mutable rotation quaternion for per-frame scratch work without allocation (DESIGN §8.1, layer 2).
+ * Same conventions as {@link Quatf}.
  *
  * <p>Thread ownership: single owner thread.
  */

@@ -1,6 +1,7 @@
 package dev.jeddy.core.handle;
 
 import dev.jeddy.core.collections.IntRing;
+
 import java.util.Arrays;
 
 /**
@@ -86,7 +87,8 @@ public final class HandlePool {
     /** Frees a live handle. Throws if it is stale or already freed. */
     public void free(int handle) {
         if (!isValid(handle)) {
-            throw new IllegalArgumentException("stale or invalid handle " + Handles.toString(handle));
+            throw new IllegalArgumentException(
+                    "stale or invalid handle " + Handles.toString(handle));
         }
         int index = Handles.index(handle);
         alive[index] = false;

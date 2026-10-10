@@ -5,11 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.jeddy.testing.Allocations;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicIntegerArray;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicIntegerArray;
 
 class JobSystemTest {
     private JobSystem jobs;
@@ -64,7 +66,13 @@ class JobSystemTest {
 
     @Test
     void failuresPropagateToWaitersAndDependents() {
-        int bad = jobs.submit((s, e, t) -> { throw new IllegalStateException("boom"); }, 10, 1);
+        int bad =
+                jobs.submit(
+                        (s, e, t) -> {
+                            throw new IllegalStateException("boom");
+                        },
+                        10,
+                        1);
         AtomicInteger ran = new AtomicInteger();
         int dependent = jobs.submit((s, e, t) -> ran.incrementAndGet(), 1, 1, bad);
         JobFailedException e = assertThrows(JobFailedException.class, () -> jobs.wait(bad));
@@ -73,7 +81,13 @@ class JobSystemTest {
         assertEquals(0, ran.get());
         assertThrows(
                 JobFailedException.class,
-                () -> jobs.parallelFor((s, en, t) -> { throw new IllegalStateException(); }, 4, 8));
+                () ->
+                        jobs.parallelFor(
+                                (s, en, t) -> {
+                                    throw new IllegalStateException();
+                                },
+                                4,
+                                8));
     }
 
     @Test
@@ -142,7 +156,8 @@ class JobSystemTest {
                     }
                     partial[t] += s;
                 };
-        Allocations.assertNoAllocation("JobSystem.parallelFor", 25, 500, () -> jobs.parallelFor(sum, data.length, 256));
+        Allocations.assertNoAllocation(
+                "JobSystem.parallelFor", 25, 500, () -> jobs.parallelFor(sum, data.length, 256));
     }
 
     private static void sleep(long ms) {

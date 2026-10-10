@@ -12,8 +12,14 @@ public record Aabb3f(Vec3f min, Vec3f max) {
     /** An empty box: unions with it return the other box. */
     public static final Aabb3f EMPTY =
             new Aabb3f(
-                    new Vec3f(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
-                    new Vec3f(Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY));
+                    new Vec3f(
+                            Float.POSITIVE_INFINITY,
+                            Float.POSITIVE_INFINITY,
+                            Float.POSITIVE_INFINITY),
+                    new Vec3f(
+                            Float.NEGATIVE_INFINITY,
+                            Float.NEGATIVE_INFINITY,
+                            Float.NEGATIVE_INFINITY));
 
     /** Returns the box with the given center and half-extents. */
     public static Aabb3f ofCenter(Vec3f center, Vec3f halfExtents) {
@@ -45,14 +51,22 @@ public record Aabb3f(Vec3f min, Vec3f max) {
 
     /** Returns {@code true} if {@code p} is inside or on the boundary. */
     public boolean contains(Vec3f p) {
-        return p.x() >= min.x() && p.x() <= max.x() && p.y() >= min.y() && p.y() <= max.y() && p.z() >= min.z()
+        return p.x() >= min.x()
+                && p.x() <= max.x()
+                && p.y() >= min.y()
+                && p.y() <= max.y()
+                && p.z() >= min.z()
                 && p.z() <= max.z();
     }
 
     /** Returns {@code true} if the boxes overlap (touching counts). */
     public boolean intersects(Aabb3f o) {
-        return min.x() <= o.max.x() && max.x() >= o.min.x() && min.y() <= o.max.y() && max.y() >= o.min.y()
-                && min.z() <= o.max.z() && max.z() >= o.min.z();
+        return min.x() <= o.max.x()
+                && max.x() >= o.min.x()
+                && min.y() <= o.max.y()
+                && max.y() >= o.min.y()
+                && min.z() <= o.max.z()
+                && max.z() >= o.min.z();
     }
 
     /** Returns the smallest box containing both. */
