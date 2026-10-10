@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      # Headless SDL for window/input/audio tests (DESIGN §14). GPU tests are excluded by default.
+      SDL_VIDEO_DRIVER: dummy
+      SDL_AUDIO_DRIVER: dummy
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '27'
+
+      # Also validates the Gradle wrapper jar checksum.
+      - uses: gradle/actions/setup-gradle@v5
+
+      - name: Build and test
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew build --stacktrace 2>&1 | tee build.log
+
+      - name: Configuration cache reuse check
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew build 2>&1 | tee -a build.log | grep -E "Configuration cache entry reused|Reusing configuration cache"
+
+      # Raw logs need a login to read; annotations surface failures in the checks API and PR view.
+      - name: Annotate failure
+        if: failure()
+        shell: bash
+        run: bash .github/scripts/annotate-failure.sh build.log
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports-${{ matrix.os }}
+          path: |
+            **/build/reports/
+            **/build/test-results/
+          if-no-files-found: ignore
+          retention-days: 14

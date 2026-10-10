@@ -1,0 +1,13 @@
+# Single source of truth for every external version (CLAUDE.md, DESIGN §14).
+# Runtime modules have no third-party dependencies. Test, benchmark and tools dependencies only.
+
+[versions]
+junit = "6.0.1"
+jmh = "1.37"
+
+[libraries]
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+jmh-core = { module = "org.openjdk.jmh:jmh-core", version.ref = "jmh" }
+jmh-annprocess = { module = "org.openjdk.jmh:jmh-generator-annprocess", version.ref = "jmh" }
