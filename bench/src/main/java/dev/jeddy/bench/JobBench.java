@@ -2,7 +2,7 @@ package dev.jeddy.bench;
 
 import dev.jeddy.core.job.JobKernel;
 import dev.jeddy.core.job.JobSystem;
-import java.util.concurrent.TimeUnit;
+
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -15,6 +15,8 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
+
+import java.util.concurrent.TimeUnit;
 
 /** Job system dispatch and scaling (TASKS M1-07 AC: ≥ 6× on 8 cores). */
 @State(Scope.Thread)

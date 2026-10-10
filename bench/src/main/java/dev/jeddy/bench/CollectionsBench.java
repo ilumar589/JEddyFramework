@@ -2,10 +2,7 @@ package dev.jeddy.bench;
 
 import dev.jeddy.core.collections.IntIntMap;
 import dev.jeddy.core.collections.LongSort;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Random;
-import java.util.concurrent.TimeUnit;
+
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -17,6 +14,11 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Random;
+import java.util.concurrent.TimeUnit;
 
 /** Primitive collections against their boxed JDK counterparts (TASKS M1-03, M1-15). */
 @State(Scope.Thread)

@@ -4,8 +4,7 @@ import dev.jeddy.math.AffineOps;
 import dev.jeddy.math.CullOps;
 import dev.jeddy.math.IsoCamera;
 import dev.jeddy.math.Mat4Ops;
-import java.util.Random;
-import java.util.concurrent.TimeUnit;
+
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -17,6 +16,9 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+
+import java.util.Random;
+import java.util.concurrent.TimeUnit;
 
 /** Math kernels on struct-of-arrays data (TASKS M1-12, M1-15). */
 @State(Scope.Thread)
