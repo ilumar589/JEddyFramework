@@ -166,6 +166,11 @@ public final class Animations {
         version[instance]++;
     }
 
+    /** Returns the most instances this set holds ({@code maxInstances}). */
+    public int capacity() {
+        return capacity;
+    }
+
     /** Returns the number of live instances. */
     public int count() {
         return liveCount;
@@ -188,6 +193,11 @@ public final class Animations {
     public void setActive(int instance, boolean on) {
         check(instance);
         active[instance] = on;
+    }
+
+    /** Returns whether an instance is active (see {@link #setActive}). */
+    public boolean isActive(int instance) {
+        return active[instance];
     }
 
     // States -------------------------------------------------------------------------------------

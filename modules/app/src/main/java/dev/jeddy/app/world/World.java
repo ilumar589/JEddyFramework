@@ -1,5 +1,7 @@
 package dev.jeddy.app.world;
 
+import dev.jeddy.animation.Animations;
+import dev.jeddy.animation.Skeleton;
 import dev.jeddy.asset.AssetType;
 import dev.jeddy.asset.format.SceneData;
 import dev.jeddy.core.collections.SparseSet;
@@ -12,6 +14,8 @@ import dev.jeddy.scene.EntityPool;
 import dev.jeddy.scene.TransformStore;
 
 import java.util.Arrays;
+import java.util.IdentityHashMap;
+import java.util.Map;
 
 /**
  * The game-side scene (TASKS M10-02, DESIGN §13): entities with transforms, and <b>renderables</b>
@@ -21,8 +25,14 @@ import java.util.Arrays;
  * staticVersion} bumped whenever that set changes (the GPU static-scene contract, D49).
  *
  * <p>Typical tick: {@link #beginTick} (current transforms become the previous ones), gameplay and
- * physics write local transforms, {@link #updateTransforms}; per frame, {@link #extract} into the
- * packet the main thread will render.
+ * physics write local transforms, {@link #updateTransforms}; per frame, {@link #updateAnimations}
+ * and {@link #extract} into the packet the main thread will render.
+ *
+ * <p><b>Animated scenes</b> (TASKS M12-05, DESIGN §13.4): {@link #instantiateAnimated} gives each
+ * skin of a scene an {@link Animations} instance. Skinned meshes become renderables on children of
+ * the root with identity transforms (skinning is relative to the scene root), meshes under joints
+ * become attachments that follow their joint, and {@link #extract} adds each visible instance's
+ * palette to the packet once per frame and bounds its skinned renderables by its joints.
  *
  * <p>Thread ownership: the game thread. Allocates nothing per tick or frame once entities exist.
  */
@@ -46,11 +56,45 @@ public final class World {
     private final float[] tmp = new float[12];
     private final float[] point = new float[3];
 
+    // Animation.
+    private final Animations animations; // null: no animated scenes
+    private int[] animInstance = new int[256]; // per renderable: the instance it follows, or -1
+    private int[] attachJoint = new int[256]; // per renderable: the joint it hangs off; -1 skins
+    private float[] attachOffset = new float[256 * 12]; // relative to that joint
+    private final SparseSet animated = new SparseSet(1024, 64); // animated roots by entity index
+    private int[] animatedRoot = new int[64];
+    private int[][] animatedInstances = new int[64][];
+    private final Map<SceneData, Skeleton[]> skeletons = new IdentityHashMap<>();
+    private final int[] paletteStamp;
+    private final int[] paletteBase;
+    private int extractStamp;
+    private float skinMargin = 0.5f;
+    private final float[] attachLocal = new float[12];
+    private final float[] attachPrev = new float[12];
+    private final float[] attachCurr = new float[12];
+
     /** Creates a world for up to {@code maxEntities} entities drawing meshes of {@code meshes}. */
     public World(int maxEntities, AssetType<GpuMesh> meshes) {
+        this(maxEntities, meshes, null);
+    }
+
+    /**
+     * Creates a world whose animated scenes ({@link #instantiateAnimated}) play in {@code
+     * animations} ({@code null} for none).
+     */
+    public World(int maxEntities, AssetType<GpuMesh> meshes, Animations animations) {
         this.pool = new EntityPool(maxEntities);
         this.transforms = new TransformStore(pool, 1024);
         this.meshes = meshes;
+        this.animations = animations;
+        int slots = animations == null ? 0 : animations.capacity();
+        this.paletteStamp = new int[slots];
+        this.paletteBase = new int[slots];
+    }
+
+    /** Returns the animated instances, or {@code null} if this world has none. */
+    public Animations animations() {
+        return animations;
     }
 
     /** Returns the entity pool. */
@@ -86,8 +130,30 @@ public final class World {
         transforms.setRotation(entity, 0, (float) Math.sin(h), 0, (float) Math.cos(h));
     }
 
-    /** Destroys an entity and its renderable, releasing its mesh. */
+    /**
+     * Destroys an entity and its renderable, releasing its mesh. Destroying an animated root
+     * ({@link #instantiateAnimated}) also destroys its renderables' entities and removes its
+     * animation instances.
+     */
     public void destroy(int entity) {
+        int a = animated.indexOf(Handles.index(entity));
+        if (a >= 0 && animatedRoot[a] == entity) {
+            for (int i = renderables.size() - 1; i >= 0; i--) {
+                if (group[i] == entity && entityOf[i] != entity) {
+                    int e = entityOf[i];
+                    removeRenderable(e);
+                    pool.destroy(e);
+                }
+            }
+            for (int instance : animatedInstances[a]) {
+                animations.remove(instance);
+            }
+            int last = animated.size() - 1;
+            animated.remove(Handles.index(entity));
+            animatedRoot[a] = animatedRoot[last];
+            animatedInstances[a] = animatedInstances[last];
+            animatedInstances[last] = null;
+        }
         removeRenderable(entity);
         pool.destroy(entity);
     }
@@ -114,6 +180,8 @@ public final class World {
         style[i] = 0;
         group[i] = entity;
         hasPrev[i] = false;
+        animInstance[i] = -1;
+        attachJoint[i] = -1;
         if ((renderFlags & RenderPacket.FLAG_STATIC) != 0) {
             staticStructure++;
         }
@@ -132,6 +200,9 @@ public final class World {
         group = Arrays.copyOf(group, cap);
         prev = Arrays.copyOf(prev, cap * 12);
         hasPrev = Arrays.copyOf(hasPrev, cap);
+        animInstance = Arrays.copyOf(animInstance, cap);
+        attachJoint = Arrays.copyOf(attachJoint, cap);
+        attachOffset = Arrays.copyOf(attachOffset, cap * 12);
     }
 
     /** Removes {@code entity}'s renderable (if any). */
@@ -154,7 +225,10 @@ public final class World {
             style[i] = style[last];
             group[i] = group[last];
             hasPrev[i] = hasPrev[last];
+            animInstance[i] = animInstance[last];
+            attachJoint[i] = attachJoint[last];
             System.arraycopy(prev, last * 12, prev, i * 12, 12);
+            System.arraycopy(attachOffset, last * 12, attachOffset, i * 12, 12);
             if ((flags[i] & RenderPacket.FLAG_STATIC) != 0) {
                 staticStructure++; // a static instance moved in the order
             }
@@ -176,7 +250,8 @@ public final class World {
 
     /**
      * Hides or shows every renderable of a group: an instantiated scene's root (characters in the
-     * fog of war), or a single renderable's own entity.
+     * fog of war), or a single renderable's own entity. Hidden animated scenes stop animating (they
+     * keep their pose and cost nothing).
      */
     public void setGroupHidden(int groupEntity, boolean hidden) {
         int index = Handles.index(groupEntity);
@@ -184,6 +259,12 @@ public final class World {
             hiddenGroup = Arrays.copyOf(hiddenGroup, Math.max(index + 1, hiddenGroup.length * 2));
         }
         hiddenGroup[index] = hidden;
+        int a = animated.indexOf(index);
+        if (a >= 0 && animatedRoot[a] == groupEntity) {
+            for (int instance : animatedInstances[a]) {
+                animations.setActive(instance, !hidden);
+            }
+        }
     }
 
     /** Sets the outline style of every renderable of a group (see {@link #setGroupHidden}). */
@@ -344,6 +425,168 @@ public final class World {
         int flags(String name, int flags);
     }
 
+    // Animated scenes ----------------------------------------------------------------------------
+
+    /**
+     * Instantiates a skinned scene under a new root entity at {@code (x, y, z)} turned by {@code
+     * yaw}, with an {@link Animations} instance per skin in its bind pose (play clips on {@link
+     * #animation}). Only mesh nodes become entities, all direct children of the root:
+     *
+     * <ul>
+     *   <li>skinned meshes, with identity transforms: their palette places their vertices;
+     *   <li>meshes under a joint (weapons, shields, helmets): <em>attachments</em> that follow
+     *       their joint at a fixed offset;
+     *   <li>other meshes: their transform composed down the node hierarchy, as with {@code
+     *       flatten}.
+     * </ul>
+     *
+     * {@code nodeFlags} chooses flags per mesh node ({@code null}: {@code renderFlags} for all);
+     * animated renderables are never static. Skeletons are built once per scene object and shared.
+     * Cold path.
+     *
+     * @return the root entity
+     * @throws IllegalStateException if this world has no {@link Animations} or they are full
+     */
+    public int instantiateAnimated(
+            SceneData scene,
+            float x,
+            float y,
+            float z,
+            float yaw,
+            int renderFlags,
+            NodeFlags nodeFlags) {
+        if (animations == null) {
+            throw new IllegalStateException("this world was created without Animations");
+        }
+        Skeleton[] rigs = skeletons(scene);
+        int flags = renderFlags & ~RenderPacket.FLAG_STATIC;
+        int[] instances = new int[rigs.length];
+        int added = 0;
+        try {
+            for (; added < rigs.length; added++) {
+                instances[added] = animations.add(rigs[added]);
+            }
+        } catch (RuntimeException e) {
+            for (int k = 0; k < added; k++) {
+                animations.remove(instances[k]);
+            }
+            throw e;
+        }
+        int root = create(Handles.NULL, x, y, z, yaw);
+        int n = scene.nodeCount();
+        float[] composed = new float[n * 10];
+        for (int i = 0; i < n; i++) {
+            compose(scene, i, scene.parent(i), composed);
+            int m = scene.mesh(i);
+            if (m < 0) {
+                continue;
+            }
+            int f = nodeFlags == null ? flags : nodeFlags.flags(scene.nodeName(i), flags);
+            if (f < 0) {
+                continue;
+            }
+            f &= ~RenderPacket.FLAG_STATIC;
+            int skin = scene.skin(i);
+            int instance = -1;
+            int joint = -1;
+            if (skin >= 0) {
+                instance = instances[skin];
+            } else {
+                for (int k = 0; k < rigs.length && instance < 0; k++) {
+                    joint = rigs[k].attachment(i, attachLocal, 0);
+                    if (joint >= 0) {
+                        instance = instances[k];
+                    }
+                }
+            }
+            int e = pool.create();
+            transforms.add(e, root);
+            if (instance < 0) {
+                int o = i * 10;
+                transforms.setPosition(e, composed[o], composed[o + 1], composed[o + 2]);
+                transforms.setRotation(
+                        e, composed[o + 3], composed[o + 4], composed[o + 5], composed[o + 6]);
+                transforms.setScale(e, composed[o + 7], composed[o + 8], composed[o + 9]);
+            }
+            addRenderable(e, scene.meshId(m), RenderPacket.MESH_MATERIALS, f);
+            int r = renderables.indexOf(Handles.index(e));
+            group[r] = root;
+            animInstance[r] = instance;
+            attachJoint[r] = joint;
+            if (joint >= 0) {
+                System.arraycopy(attachLocal, 0, attachOffset, r * 12, 12);
+            }
+        }
+        int a = animated.add(Handles.index(root));
+        if (a >= animatedRoot.length) {
+            animatedRoot = Arrays.copyOf(animatedRoot, a * 2);
+            animatedInstances = Arrays.copyOf(animatedInstances, a * 2);
+        }
+        animatedRoot[a] = root;
+        animatedInstances[a] = instances;
+        return root;
+    }
+
+    private Skeleton[] skeletons(SceneData scene) {
+        Skeleton[] rigs = skeletons.get(scene);
+        if (rigs == null) {
+            rigs = new Skeleton[scene.skins().size()];
+            for (int s = 0; s < rigs.length; s++) {
+                rigs[s] = Skeleton.of(scene, s);
+            }
+            skeletons.put(scene, rigs);
+        }
+        return rigs;
+    }
+
+    /**
+     * Returns the {@link Animations} instance of the first skin of an animated root, or -1 if
+     * {@code root} is not one.
+     */
+    public int animation(int root) {
+        return animation(root, 0);
+    }
+
+    /** Returns the {@link Animations} instance of skin {@code skin} of an animated root, or -1. */
+    public int animation(int root, int skin) {
+        int a = animated.indexOf(Handles.index(root));
+        if (a < 0 || animatedRoot[a] != root || skin >= animatedInstances[a].length) {
+            return -1;
+        }
+        return animatedInstances[a][skin];
+    }
+
+    /**
+     * Sets how far skin may reach beyond its joints (model-space meters, default 0.5): the margin
+     * added to the joints' bounding sphere when culling skinned renderables.
+     */
+    public void setSkinMargin(float meters) {
+        skinMargin = meters;
+    }
+
+    /**
+     * Advances every animated instance by {@code dt} seconds (a frame, not a tick: poses need no
+     * interpolation) on {@code jobs}. Call before {@link #extract}. Allocates nothing.
+     */
+    public void updateAnimations(float dt, JobSystem jobs) {
+        if (animations != null) {
+            animations.update(dt, jobs);
+        }
+    }
+
+    /** Adds instance {@code a}'s palette to the packet once per extract; returns its base. */
+    private int palette(RenderPacket packet, int a) {
+        if (paletteStamp[a] != extractStamp) {
+            paletteStamp[a] = extractStamp;
+            paletteBase[a] =
+                    packet.addPalette(
+                            animations.palettes(),
+                            animations.jointBase(a) * AffineOps.STRIDE,
+                            animations.jointCount(a));
+        }
+        return paletteBase[a];
+    }
+
     // Ticks and extraction -----------------------------------------------------------------------
 
     /**
@@ -376,6 +619,10 @@ public final class World {
         float[] world = transforms.world();
         int n = renderables.size();
         int staticReady = 0;
+        if (++extractStamp == 0) {
+            Arrays.fill(paletteStamp, 0); // after 2^32 extracts
+            extractStamp = 1;
+        }
         for (int pass = 0; pass < 2; pass++) {
             boolean wantStatic = pass == 0;
             for (int i = 0; i < n; i++) {
@@ -393,7 +640,10 @@ public final class World {
                 GpuMesh mesh = meshes.get(h);
                 int s = transforms.indexOf(entityOf[i]);
                 int k;
-                if (wantStatic) {
+                int a = animInstance[i];
+                if (a >= 0) {
+                    k = extractAnimated(packet, i, s, a, mesh, world);
+                } else if (wantStatic) {
                     k =
                             packet.add(
                                     world,
@@ -420,10 +670,22 @@ public final class World {
                                     flags[i],
                                     entityOf[i]);
                 }
-                AffineOps.transformPoint(
-                        world, s * 12, mesh.sphere(0), mesh.sphere(1), mesh.sphere(2), point, 0);
-                packet.setBounds(
-                        k, point[0], point[1], point[2], mesh.sphere(3) * maxScale(world, s * 12));
+                if (a < 0) {
+                    AffineOps.transformPoint(
+                            world,
+                            s * 12,
+                            mesh.sphere(0),
+                            mesh.sphere(1),
+                            mesh.sphere(2),
+                            point,
+                            0);
+                    packet.setBounds(
+                            k,
+                            point[0],
+                            point[1],
+                            point[2],
+                            mesh.sphere(3) * maxScale(world, s * 12));
+                }
                 if (style[i] != 0) {
                     packet.setHighlight(k, style[i]);
                 }
@@ -439,6 +701,66 @@ public final class World {
         }
         packet.staticVersion = staticVersion;
         return packet.count();
+    }
+
+    /**
+     * Writes animated renderable {@code i} (entity transform slot {@code s}, following animation
+     * instance {@code a}): an attachment at root × joint × offset for the previous and current
+     * tick, or a skinned mesh with the instance's palette, bounded by its joints.
+     */
+    private int extractAnimated(
+            RenderPacket packet, int i, int s, int a, GpuMesh mesh, float[] world) {
+        if (!hasPrev[i]) {
+            System.arraycopy(world, s * 12, prev, i * 12, 12);
+            hasPrev[i] = true;
+        }
+        int joint = attachJoint[i];
+        if (joint >= 0) {
+            AffineOps.mul(
+                    animations.models(),
+                    (animations.jointBase(a) + joint) * AffineOps.STRIDE,
+                    attachOffset,
+                    i * 12,
+                    attachLocal,
+                    0);
+            AffineOps.mul(prev, i * 12, attachLocal, 0, attachPrev, 0);
+            AffineOps.mul(world, s * 12, attachLocal, 0, attachCurr, 0);
+            int k =
+                    packet.add(
+                            attachPrev,
+                            0,
+                            attachCurr,
+                            0,
+                            mesh.handle(),
+                            material[i],
+                            flags[i],
+                            entityOf[i]);
+            AffineOps.transformPoint(
+                    attachCurr, 0, mesh.sphere(0), mesh.sphere(1), mesh.sphere(2), point, 0);
+            packet.setBounds(
+                    k, point[0], point[1], point[2], mesh.sphere(3) * maxScale(attachCurr, 0));
+            return k;
+        }
+        int k =
+                packet.add(
+                        prev,
+                        i * 12,
+                        world,
+                        s * 12,
+                        mesh.handle(),
+                        material[i],
+                        flags[i],
+                        entityOf[i]);
+        packet.setPalette(k, palette(packet, a));
+        float[] b = animations.bounds();
+        AffineOps.transformPoint(world, s * 12, b[a * 4], b[a * 4 + 1], b[a * 4 + 2], point, 0);
+        packet.setBounds(
+                k,
+                point[0],
+                point[1],
+                point[2],
+                (b[a * 4 + 3] + skinMargin) * maxScale(world, s * 12));
+        return k;
     }
 
     private static float maxScale(float[] m, int o) {
