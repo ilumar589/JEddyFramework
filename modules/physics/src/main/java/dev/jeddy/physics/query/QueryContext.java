@@ -12,7 +12,7 @@ import dev.jeddy.physics.bvh.RayHit;
  */
 public final class QueryContext {
     final RayHit rayHit = new RayHit();
-    final IntList candidates = new IntList(64);
+    final IntList candidates;
     final int[] stack = new int[Bvh.MAX_DEPTH * 2];
     final float[] scratch = new float[16];
     final CollisionWorld.SweepVisitor sweep = new CollisionWorld.SweepVisitor();
@@ -54,7 +54,18 @@ public final class QueryContext {
     public int pickKind;
 
     /** Creates a context. */
-    public QueryContext() {}
+    public QueryContext() {
+        this(64);
+    }
+
+    /**
+     * Creates a context whose broadphase candidate list holds {@code expectedBodies} without
+     * growing: size it for the most bodies one query can touch (a crowd) to keep queries
+     * allocation-free from the first.
+     */
+    public QueryContext(int expectedBodies) {
+        candidates = new IntList(Math.max(16, expectedBodies));
+    }
 
     void clear() {
         t = Float.POSITIVE_INFINITY;

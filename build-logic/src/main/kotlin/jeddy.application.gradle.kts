@@ -30,5 +30,9 @@ extensions.configure<JavaApplication> {
         "--enable-native-access=" + nativeAccessModules.joinToString(","),
         "-XX:+UseZGC",
         "-XX:+AlwaysPreTouch",
+        // No method-handle customization: it compiles a hidden class (tens of KB of garbage) when a
+        // downcall handle reaches its 127th call from interpreted or C1 code, which for rarely
+        // used natives can be minutes into a game. C2 inlines our constant handles anyway (D69).
+        "-Djava.lang.invoke.MethodHandle.CUSTOMIZE_THRESHOLD=-1",
     )
 }

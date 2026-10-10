@@ -18,6 +18,8 @@ public final class ProfilerOverlay {
 
     private final Overlay overlay;
     private float budgetMs = 16.6f;
+    private float scale = 2;
+    private float labelWidth;
 
     /** Draws into {@code overlay}. */
     public ProfilerOverlay(Overlay overlay) {
@@ -29,17 +31,30 @@ public final class ProfilerOverlay {
         budgetMs = ms;
     }
 
+    /** Sets the text scale (default 2: 12×16-pixel glyph cells). */
+    public void setScale(float value) {
+        scale = value;
+    }
+
     /** Queues the overlay at the top-left corner. */
     public void queue(
             FrameStats mainThread, FrameStats gameThread, FrameGraph graph, int drawCalls) {
         float x = 8;
         float y = 8;
-        float scale = 2;
         float line = 9 * scale;
-        int rows = 4 + graph.passCount();
-        overlay.rect(x - 4, y - 4, 360, rows * line + 8, BACKGROUND);
-        y = row(x, y, scale, "MAIN MS", mainThread == null ? 0 : mainThread.averageMs());
-        y = row(x, y, scale, "GAME MS", gameThread == null ? 0 : gameThread.averageMs());
+        int longest = 8;
+        int rows = 4;
+        for (int p = 0; p < graph.passCount(); p++) {
+            if (graph.isLive(p)) {
+                longest = Math.max(longest, graph.passName(p).length());
+                rows++;
+            }
+        }
+        labelWidth = (longest + 1) * 6 * scale;
+        float width = labelWidth + 6 * 6 * scale + 8 + 70 * scale;
+        overlay.rect(x - 4, y - 4, width, rows * line + 8, BACKGROUND);
+        y = row(x, y, "MAIN MS", mainThread == null ? 0 : mainThread.averageMs());
+        y = row(x, y, "GAME MS", gameThread == null ? 0 : gameThread.averageMs());
         float cx = overlay.text(x, y, scale, TEXT, "DRAWS ");
         overlay.number(cx, y, scale, TEXT, drawCalls, 0);
         y += line;
@@ -47,17 +62,17 @@ public final class ProfilerOverlay {
         y += line;
         for (int p = 0; p < graph.passCount(); p++) {
             if (graph.isLive(p)) {
-                y = row(x, y, scale, graph.passName(p), graph.passMillis(p));
+                y = row(x, y, graph.passName(p), graph.passMillis(p));
             }
         }
     }
 
-    private float row(float x, float y, float scale, CharSequence label, double ms) {
+    private float row(float x, float y, CharSequence label, double ms) {
         overlay.text(x, y, scale, TEXT, label);
-        float nx = overlay.number(x + 130, y, scale, TEXT, ms, 2);
-        float bar = (float) Math.min(1, ms / budgetMs) * 140;
+        float nx = overlay.number(x + labelWidth, y, scale, TEXT, ms, 2);
+        float bar = (float) Math.min(1, ms / budgetMs) * 70 * scale;
         overlay.rect(
-                Math.max(nx + 8, x + 210),
+                Math.max(nx + 8, x + labelWidth + 6 * 6 * scale + 8),
                 y + scale,
                 Math.max(1, bar),
                 6 * scale,

@@ -11,6 +11,7 @@ import dev.jeddy.sdl.ffi.SDL_AudioSpec;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.lang.invoke.MethodHandle;
 
 /**
  * The audio system on SDL3_mixer (DESIGN §12.3). Mixing and decoding are native; no Java runs on
@@ -222,6 +223,43 @@ public final class Audio implements AutoCloseable {
             freeVoices[i] = v - 1 - i;
         }
         freeVoiceCount = v;
+        prelink();
+    }
+
+    /**
+     * Creates the downcall handles (lazy jextract holders) and links the memory accessors that
+     * {@link #play} and {@link #update} use, so the game's first positional sound or first finished
+     * voice does not allocate mid-frame (D65).
+     */
+    private void prelink() {
+        MethodHandle[] handles = {
+            MIX_SetTrack3DPosition$handle(),
+            MIX_TrackPaused$handle(),
+            MIX_TrackPlaying$handle(),
+            MIX_SetTrackGain$handle(),
+            MIX_StopTrack$handle(),
+            MIX_TagTrack$handle(),
+            MIX_UntagTrack$handle(),
+            MIX_SetTrackAudio$handle(),
+            MIX_PlayTrack$handle(),
+            MIX_LockMixer$handle(),
+            MIX_UnlockMixer$handle(),
+            MIX_PauseTag$handle(),
+            MIX_ResumeTag$handle(),
+            MIX_TrackMSToFrames$handle(),
+            MIX_AudioFramesToMS$handle(),
+            MIX_SetMixerGain$handle(),
+            SDL3.SDL_SetNumberProperty$handle()
+        };
+        if (handles.length == 0
+                || MIX_PROP_PLAY_LOOPS_NUMBER() == null
+                || MIX_PROP_PLAY_START_MILLISECOND_NUMBER() == null
+                || MIX_PROP_PLAY_FADE_IN_MILLISECONDS_NUMBER() == null) {
+            throw new IllegalStateException("SDL_mixer bindings missing");
+        }
+        writePoint(0, 0, 0);
+        MIX_TrackPlaying(tracks[0]);
+        MIX_TrackPaused(tracks[0]);
     }
 
     /** Opens the audio system (see the class comment for the thread). */

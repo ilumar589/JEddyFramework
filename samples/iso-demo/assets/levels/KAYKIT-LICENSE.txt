@@ -1,0 +1,11 @@
+KayKit content in this folder (levels/crypt.glb and characters/*.glb) is built by
+samples/iso-demo/tools/kaykit.py from:
+
+  KayKit : Dungeon Remastered 1.0
+  KayKit : Character Pack : Adventurers 1.0
+  KayKit : Character Pack : Skeletons 1.0
+
+Created and distributed by Kay Lousberg (www.kaylousberg.com).
+License: Creative Commons Zero (CC0 1.0), http://creativecommons.org/publicdomain/zero/1.0/
+Free to use in personal, educational and commercial projects; crediting is appreciated, not
+required. Thank you, Kay!

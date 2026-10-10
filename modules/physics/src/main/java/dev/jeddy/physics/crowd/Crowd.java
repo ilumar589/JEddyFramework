@@ -151,7 +151,7 @@ public final class Crowd {
     private static final class Scratch {
         final NavMeshQuery query;
         final Orca orca = new Orca(MAX_NEIS);
-        final IntList candidates = new IntList(64);
+        final IntList candidates;
         final float[] p = new float[3];
         final float[] a = new float[3];
         final float[] b = new float[3];
@@ -160,8 +160,11 @@ public final class Crowd {
         final int[] cornerFlags = new int[MAX_CORNERS];
         final int[] cornerPolys = new int[MAX_CORNERS];
 
-        Scratch(NavMesh mesh) {
+        Scratch(NavMesh mesh, int maxAgents) {
             query = new NavMeshQuery(mesh, 1024);
+            // A neighbour query returns each body at most once: sized for all of them, a dense
+            // crowd never grows the list mid-game.
+            candidates = new IntList(Math.max(64, maxAgents));
         }
     }
 
@@ -186,7 +189,7 @@ public final class Crowd {
         int slots = jobs == null ? 1 : jobs.threadSlots();
         batch = new NavPathBatch(mesh, 32, MAX_PATH, 4, 4096, slots);
         batchAgent = new int[maxAgents];
-        scratch = new PerWorker<>(slots, i -> new Scratch(mesh));
+        scratch = new PerWorker<>(slots, i -> new Scratch(mesh, maxAgents));
         int n = maxAgents;
         active = new boolean[n];
         state = new int[n];

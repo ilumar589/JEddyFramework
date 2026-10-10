@@ -122,7 +122,7 @@ public final class JeddyApp {
                             pump.keyLabels(),
                             settings,
                             config.settingsFile);
-            main = new MainContext(window, cursors, pump, queue);
+            main = new MainContext(window, cursors, pump, queue, jobs);
             if (config.renderer != null) {
                 config.renderer.init(main);
                 rendererStarted = true;
