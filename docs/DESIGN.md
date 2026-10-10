@@ -479,11 +479,15 @@ JeddyFramework/
 ├─ gradle/wrapper/                # Gradle 9.8.1
 ├─ build-logic/                   # convention plugins + GL generator + jextract task
 │  └─ src/main/kotlin/
-│     ├─ jeddy.java-library.gradle.kts   # toolchain 27, release 27, -Xlint:all, JPMS, JUnit 6, native-access in tests
-│     ├─ jeddy.ffm-bindings.gradle.kts   # regenerateBindings (jextract), src/ffi/java source set
-│     ├─ jeddy.gl-bindings.gradle.kts    # GenerateGlBindings task wired into sourceSets
-│     ├─ jeddy.application.gradle.kts    # launcher JVM flags (ZGC, native access, AOT cache)
-│     └─ jeddy.jmh.gradle.kts
+│     ├─ jeddy.java-base.gradle.kts      # shared: toolchain 27, --release 27, -Xlint:all,-module,-processing -Werror,
+│     │                                  #   JUnit 6, native access for tests, reproducible archives, jeddy-* names
+│     ├─ jeddy.java-library.gradle.kts   # java-library + java-base (pure-Java modules keep the `restricted` lint)
+│     ├─ jeddy.native-library.gradle.kts # java-library with javac's `restricted` lint off, for FFM modules
+│     ├─ jeddy.ffm-bindings.gradle.kts   # regenerate<Lib>Bindings tasks (jextract), src/ffi/java source set
+│     ├─ jeddy.gl-bindings.gradle.kts    # GenerateGlBindings task wired into sourceSets (M3-01)
+│     ├─ jeddy.application.gradle.kts    # launcher JVM flags (ZGC, native access; AOT cache in M11)
+│     ├─ jeddy.jmh.gradle.kts            # hand-wired JMH `jmh` task
+│     └─ dev/jeddy/gradle/*.kt           # task and extension classes
 ├─ bindings/                      # *.includes for jextract, gl/gl.xml, gl/gl.properties
 ├─ natives/                       # CMake superbuild + natives-windows-x64, natives-linux-x64 packaging
 ├─ modules/
@@ -553,3 +557,5 @@ JeddyFramework/
 | 2026-10-10 | D13 | Repo and CI: GitHub ([ilumar589/JEddyFramework](https://github.com/ilumar589/JEddyFramework)) with GitHub Actions. Root package and group `dev.jeddy` confirmed. Fixed simulation tick of 30 Hz confirmed |
 | 2026-10-10 | D14 | JMH is wired by hand (no Gradle JMH plugin) to avoid third-party plugin compatibility risk with Gradle 9 |
 | 2026-10-10 | D15 | `javac` lint is `-Xlint:all,-module,-processing` with `-Werror`. The `module` category is off because qualified exports name downstream modules that aren't visible yet when the exporting module compiles |
+| 2026-10-10 | D16 | A module exports a package only once that package has a public type, because javac rejects exporting a package that holds only `package-info.java`. Skeleton `module-info.java` files carry the intended `exports` as a comment |
+| 2026-10-10 | D17 | javac's `restricted` lint (warnings on downcalls, `reinterpret`, `System.load`) is off only in modules that apply `jeddy.native-library` or `jeddy.ffm-bindings`. Pure-Java modules (`math`, `physics`, `scene`) keep it, so native code there fails the build |
