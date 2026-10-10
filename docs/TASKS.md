@@ -47,7 +47,7 @@ The tracks are *mostly* independent. Dotted edges are the few late cross-track d
 - [x] **M0-07** `natives/` CMake superbuild with pinned SDL3 3.4.18, SDL3_mixer 3.2.4 (Vorbis, WAV, FLAC, MP3, plus optional Opus), zstd 1.5.7, KTX-Software 4.4.2, meshoptimizer 1.2 (shared), mikktspace shim · L · AC: one command per OS produces all shared libraries. Linux libraries use `RPATH=$ORIGIN` and an old-glibc baseline. Licenses are collected
 - [x] **M0-08** Natives packaging: `natives-windows-x64` and `natives-linux-x64` jars with `natives.json` (load order, SHA-256) · M · Deps: M0-07
 - [x] **M0-09** CI job that builds natives on tag or manual dispatch and publishes the artifacts · M · Deps: M0-06, M0-08
-- [ ] **M0-10** `jeddy.ffm-bindings` convention plugin: `regenerateBindings` task (jextract from PATH or `-Pjextract.home`, include lists in `bindings/`, output to committed `src/ffi/java`), plus a Windows/Linux diff helper script · M · Deps: M0-03 · AC: regenerating zstd bindings works end to end on both OS · *Status: plugin and tasks in place (PR #1); the AC is exercised by the first real binding in M2-01 or M4-01*
+- [x] **M0-10** `jeddy.ffm-bindings` convention plugin: `regenerateBindings` task (jextract from PATH or `-Pjextract.home`, include lists in `bindings/`, output to committed `src/ffi/java`), plus a Windows/Linux diff helper script · M · Deps: M0-03 · AC: regenerating zstd bindings works end to end on both OS · *Done: exercised end to end on both OSes by the `Bindings` workflow (SDL3 and SDL3_mixer in M2-01; zstd follows in M4-01); the diff helper became `BindingsPostProcessor` plus the cross-OS workflow (D22)*
 
 ## M1: Core and Math
 - [x] **M1-01** `NativeLoader` + `Platform`: extract to the cache, verify the hash, rename atomically, `System.load` in order, `-Djeddy.natives.dir` override (§6.3) · M · Deps: M0-08 · AC: loads SDL3 and zstd on both OS. The second run skips extraction
@@ -67,16 +67,16 @@ The tracks are *mostly* independent. Dotted edges are the few late cross-track d
 - [x] **M1-15** `bench` module wired up, with baseline benchmarks committed and a results README · S · Deps: M0-03
 
 ## M2: Platform (SDL3, window, input, app v0)
-- [ ] **M2-01** SDL3 and SDL3_mixer include lists. Generate with `regenerateBindings`, diff Windows vs Linux output, commit `src/ffi/java` (§6.4) · M · Deps: M0-10, M0-08
-- [ ] **M2-02** `sdl` wrapper utilities: error to exception (`SDL_GetError`), properties helper, main-thread assertion · S · Deps: M2-01
-- [ ] **M2-03** `window`: `Platform.init` on the main thread, window creation, GL 4.6 core context attributes, displays/DPI, windowed/borderless/exclusive modes, VSync modes, frame limiter (`SDL_DelayPrecise`), minimize handling · L · Deps: M2-02 · AC: works on Windows, X11 and Wayland, and handles resize, fullscreen toggles and DPI changes
-- [ ] **M2-04** Event pump: one preallocated `SDL_Event` segment, `static final` field offsets, 8-int encoded records into an `SpscIntRing` · M · Deps: M2-03, M1-06 · AC: 0 B/frame while moving the mouse and typing
-- [ ] **M2-05** `input` device state: keyboard/mouse with frame-stamp edges, text input mode · M · Deps: M2-04
-- [ ] **M2-06** Action mapping: actions, bindings, chords, axes, context stack, rebinding and persistence · L · Deps: M2-05
-- [ ] **M2-07** CRPG gestures: click vs drag, double-click, box select, edge scroll, camera rotate/zoom/pan inputs. Cursor manager (custom color cursors) in `window`, switched through the main-thread command queue · M · Deps: M2-06, M2-10
-- [ ] **M2-08** Gamepads: hotplug, mapping DB, virtual cursor, rumble · M · Deps: M2-05
-- [ ] **M2-09** `app` v0: main thread and game thread split, fixed-step loop, clean shutdown, crash message box · M · Deps: M2-03, M1-07 · AC: an empty app runs 10 minutes at 0 B/frame on both threads
-- [ ] **M2-10** Main-thread command queue (game → main): encoded commands for cursor, text input start/stop, window mode and relative mouse. Assertions that main-thread-only SDL calls never run elsewhere (§5) · S · Deps: M2-09
+- [x] **M2-01** SDL3 and SDL3_mixer include lists. Generate with `regenerateBindings`, diff Windows vs Linux output, commit `src/ffi/java` (§6.4) · M · Deps: M0-10, M0-08 · *Done: `bindings/sdl3.includes`, `bindings/sdl3_mixer.includes`; portability via `BindingsPostProcessor` plus `SdlBindingsTest` on both CI OSes, and the `Bindings` workflow regenerates on Windows and Linux with official jextract and diffs (D22)*
+- [x] **M2-02** `sdl` wrapper utilities: error to exception (`SDL_GetError`), properties helper, main-thread assertion · S · Deps: M2-01
+- [x] **M2-03** `window`: `Platform.init` on the main thread, window creation, GL 4.6 core context attributes, displays/DPI, windowed/borderless/exclusive modes, VSync modes, frame limiter (`SDL_DelayPrecise`), minimize handling · L · Deps: M2-02 · AC: works on Windows, X11 and Wayland, and handles resize, fullscreen toggles and DPI changes
+- [x] **M2-04** Event pump: one preallocated `SDL_Event` segment, `static final` field offsets, 8-int encoded records into an `SpscIntRing` · M · Deps: M2-03, M1-06 · AC: 0 B/frame while moving the mouse and typing
+- [x] **M2-05** `input` device state: keyboard/mouse with frame-stamp edges, text input mode · M · Deps: M2-04
+- [x] **M2-06** Action mapping: actions, bindings, chords, axes, context stack, rebinding and persistence · L · Deps: M2-05
+- [x] **M2-07** CRPG gestures: click vs drag, double-click, box select, edge scroll, camera rotate/zoom/pan inputs. Cursor manager (custom color cursors) in `window`, switched through the main-thread command queue · M · Deps: M2-06, M2-10
+- [x] **M2-08** Gamepads: hotplug, mapping DB, virtual cursor, rumble · M · Deps: M2-05
+- [x] **M2-09** `app` v0: main thread and game thread split, fixed-step loop, clean shutdown, crash message box · M · Deps: M2-03, M1-07 · AC: an empty app runs 10 minutes at 0 B/frame on both threads
+- [x] **M2-10** Main-thread command queue (game → main): encoded commands for cursor, text input start/stop, window mode and relative mouse. Assertions that main-thread-only SDL calls never run elsewhere (§5) · S · Deps: M2-09
 
 ## M3: GL bindings and first pixels
 - [ ] **M3-01** Vendor `gl.xml` (pinned commit) and `gl.properties`. Write the `GenerateGlBindings` task in build-logic: constants, functions, per-function holders with `static final MethodHandle`, critical allow-list, segment and primitive signatures (§9.1) · L · AC: the task is cacheable and configuration-cache safe, and the generated `GL46` compiles

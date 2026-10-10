@@ -1,0 +1,142 @@
+name: Bindings
+
+# Regenerates every jextract binding with the official jextract build on Windows and Linux and
+# checks that (1) both platforms produce the same sources and (2) they match the committed
+# src/ffi trees (DESIGN §6.4, D22; TASKS M0-10, M2-01).
+#
+# Pushing a branch named regen/<anything> makes the Linux job commit the regenerated sources back
+# to that branch, which is how the committed trees are refreshed without a local jextract.
+
+on:
+  pull_request:
+    paths:
+      - 'bindings/**'
+      - 'build-logic/src/main/java/dev/jeddy/gradle/BindingsPostProcessor.java'
+      - 'build-logic/src/main/kotlin/dev/jeddy/gradle/Bindings.kt'
+      - 'build-logic/src/main/kotlin/jeddy.ffm-bindings.gradle.kts'
+      - 'modules/*/src/ffi/**'
+      - 'modules/*/build.gradle.kts'
+      - '.github/workflows/bindings.yml'
+  push:
+    branches: ['regen/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bindings-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JEXTRACT_URL: https://download.java.net/java/early_access/jextract/22/5
+
+jobs:
+  regenerate:
+    name: Regenerate (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            archive: openjdk-22-jextract+5-33_linux-x64_bin.tar.gz
+          - os: windows-latest
+            archive: openjdk-22-jextract+5-33_windows-x64_bin.tar.gz
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '27'
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      - name: Download jextract
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ../jextract
+          curl -fsSL -o ../jextract.tar.gz "$JEXTRACT_URL/${{ matrix.archive }}"
+          tar -xzf ../jextract.tar.gz -C ../jextract --strip-components=1 --force-local 2>/dev/null \
+            || tar -xzf ../jextract.tar.gz -C ../jextract --strip-components=1
+          if [ "$RUNNER_OS" = "Windows" ]; then home=$(cd ../jextract && pwd -W); else home=$(cd ../jextract && pwd); fi
+          echo "JEXTRACT_HOME=$home" >> "$GITHUB_ENV"
+          ls ../jextract/bin
+
+      - name: Regenerate bindings
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew regenerateBindings "-Pjextract.home=$JEXTRACT_HOME" --stacktrace 2>&1 | tee regen.log
+
+      - name: Annotate failure
+        if: failure()
+        shell: bash
+        run: bash .github/scripts/annotate-failure.sh regen.log
+
+      - name: Compare with the committed sources
+        id: compare
+        shell: bash
+        run: |
+          # jextract only writes under modules/<name>/src/ffi.
+          git add -A -- modules
+          git diff --cached --stat -- modules > ffi-diff-stat.txt
+          if [ -s ffi-diff-stat.txt ]; then
+            encode() { sed -e 's/%/%25/g' -e 's/\r//g' | awk 'BEGIN { ORS = "%0A" } { print }'; }
+            echo "::warning title=Generated bindings differ from the committed ones (${{ runner.os }})::$(head -n 40 ffi-diff-stat.txt | encode)"
+            echo "::warning title=First lines of the diff (${{ runner.os }})::$(git diff --cached -- modules | head -n 120 | encode)"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Generated bindings match the committed sources."
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ffi-${{ runner.os }}
+          path: modules/*/src/ffi/
+          retention-days: 7
+
+      - name: Commit regenerated sources (regen/** branches)
+        if: runner.os == 'Linux' && startsWith(github.ref, 'refs/heads/regen/') && steps.compare.outputs.changed == 'true'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Regenerate jextract bindings (official jextract 22, ${{ runner.os }})"
+          git push origin "HEAD:${GITHUB_REF#refs/heads/}"
+
+      - name: Fail on stale committed sources
+        if: steps.compare.outputs.changed == 'true' && !startsWith(github.ref, 'refs/heads/regen/')
+        shell: bash
+        run: |
+          echo "::error title=Stale bindings::Committed src/ffi trees differ from the regenerated ones. Push the branch as regen/<name> to refresh them."
+          exit 1
+
+  compare:
+    name: Windows vs Linux
+    needs: regenerate
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ffi-Linux
+          path: linux
+      - uses: actions/download-artifact@v4
+        with:
+          name: ffi-Windows
+          path: windows
+      - name: Diff
+        shell: bash
+        run: |
+          if diff -r linux windows > platform.diff; then
+            echo "Windows and Linux generate identical bindings."
+          else
+            encode() { sed -e 's/%/%25/g' -e 's/\r//g' | awk 'BEGIN { ORS = "%0A" } { print }'; }
+            echo "::error title=Windows and Linux bindings differ::$(head -n 150 platform.diff | encode)"
+            exit 1
+          fi

@@ -185,6 +185,7 @@ Keep `ValueLayout` and `VarHandle` constants in `static final` fields.
 ### 4.7 Measuring (no optimization without numbers)
 - `bench/` holds JMH benchmarks for collections, math kernels, FFM call overhead, the job system, culling, sort, pathfinding, BVH queries and zstd.
 - An **allocation assertion** (`dev.jeddy.testing.Allocations.assertNoAllocation`, in the `:testing` project that every module's tests get) runs the code in rounds of warm-up plus measurement and asserts that `ThreadMXBean.getCurrentThreadAllocatedBytes()` grows by 0 once the JIT has compiled it.
+- **Whole-loop soak tests** (the app's main and game threads) sample each thread's counter from a separate monitor thread, so no measuring code sits in the loop. "0 B per frame" means *steady state*: a thread that requests a C2 compilation resolves every not-yet-resolved string literal of that method's class on the spot (HotSpot's `CompileBroker::compile_method` calls `resolve_string_constants`), so the first C2 compile of each hot class allocates a few hundred bytes on the game or main thread (found with JFR and `-XX:-UseTLAB`; C1-only runs show none). Soak tests therefore run uncapped for at least 30k frames per thread and wait until the JIT is quiet before measuring. At a capped 60 FPS in production these one-off allocations happen during the first minutes of play; the AOT cache's method profiles (§4.6) shorten that warm-up.
 - **Built-in profiler:** `Profiler.begin(int scopeId)` and `end()` write `long` records into per-thread ring buffers. GPU timer queries run with a 2–3 frame delay, so they never stall. There is an in-game overlay, and JFR custom events in dev builds.
 - Optional, later: a Tracy client through FFM.
 
@@ -247,7 +248,9 @@ Shipped images bake this in with `jlink --add-options`. The `Enable-Native-Acces
 ### 6.4 Bindings with jextract (SDL3, SDL3_mixer, zstd, libktx, meshoptimizer)
 - Curated include lists live in `bindings/<lib>.includes` (generated once with `--dump-includes`, then trimmed to the symbols we use). This keeps the class count and startup time small.
 - `./gradlew :sdl:regenerateBindings` is a manual task that needs `jextract` on PATH or `-Pjextract.home`. Its output goes to `src/ffi/java`, which is **committed**. Normal builds never need jextract or libclang.
-- **Portability check:** generate on Windows and Linux, then diff. SDL/zstd/ktx use fixed-width types and `size_t`, so the output should be identical on x64. If it isn't, use per-OS source sets.
+- Headers are vendored next to the include lists (`bindings/<lib>/include`, pinned to the same commits as `natives/versions.json`), so regeneration does not depend on what is installed on the machine.
+- **Portability (D22):** the output is *not* byte-identical across OSes. On Linux jextract maps `int64_t`, `uint64_t` and `size_t` to C `long` (`C_LONG`), which is 32 bits on Windows, where the `C_LONG` initializer throws. So the regenerate task ends with `BindingsPostProcessor` (in `build-logic`), which rewrites `C_LONG` to `C_LONG_LONG` (every 64-bit integer is `long long` on both x64 ABIs), turns `Arena.ofAuto()` into `Arena.global()`, and fails if a bound declaration uses a platform-dependent type (`long`, `wchar_t`, `va_list`). One generated tree serves both platforms. A test in each binding module (`SdlBindingsTest`) initializes every generated class and per-function holder against the shipped natives on the Windows and Linux CI runners, so a missing symbol, a bad descriptor or a non-portable layout fails CI.
+- Not bound: callbacks SDL may invoke on its own threads (event filters and watches, timers, hint and log callbacks, audio stream and mixer callbacks), varargs and `va_list` functions, opaque handle structs (they are plain pointers), and platform-only APIs.
 - Generated packages are `*.ffi` and stay internal. Hand-written wrappers provide the idiomatic, allocation-free API.
 - jextract doesn't emit `critical` downcalls. The few hot native functions outside GL that need one get a hand-written holder in the wrapper.
 
@@ -343,7 +346,7 @@ Immediate-mode lines, boxes, spheres, capsules, polygons and text that write int
 `glQueryCounter(GL_TIMESTAMP)` pairs per pass in a ring, read 3 frames later.
 
 ### 9.7 Testing
-Pure CPU parts (sorting, packets, allocators) have unit tests. GL tests are tagged `@Tag("gpu")` and run locally or on a self-hosted GPU runner (Mesa llvmpipe doesn't reach GL 4.6).
+Pure CPU parts (sorting, packets, allocators) have unit tests. GL tests are tagged `@Tag("gpu")`; `./gradlew test -Pjeddy.gpuTests=true` adds them and `=only` runs just them. The CI `gpu` job runs them under Xvfb with Mesa llvmpipe and `MESA_GL_VERSION_OVERRIDE=4.6` (llvmpipe implements GL 4.5 plus most of 4.6; the override lets the 4.6 core context be created). That catches binding, loader and API-usage errors; performance and driver-specific behaviour still need real GPUs (locally or a self-hosted runner, M10).
 
 ### 9.8 Future backend
 `render` keeps GL-specific code behind the resource and pass layer, so a Vulkan backend (through FFM) stays possible. No abstraction is built for it now.
@@ -430,7 +433,7 @@ Convex prisms (polygon footprint and Y range), boxes and spheres. Agents are tes
 
 ### 12.1 `window`
 - `Platform.init()` calls `SDL_Init(VIDEO | GAMEPAD | EVENTS)` on the **main thread** and records it as the SDL main thread. Calling SDL video functions from another thread fails fast with an assertion.
-- A window with GL attributes for **4.6 core** (forward-compatible, a debug context in dev, sRGB-capable), `SDL_WINDOW_HIGH_PIXEL_DENSITY` and resizable. It handles window vs pixel size, display enumeration and modes, content scale (DPI) changes, and windowed, borderless and exclusive fullscreen.
+- A window with GL attributes for **4.6 core** (forward-compatible, a debug context in dev). The default framebuffer is plain RGB8 without depth: the renderer draws into its own targets and the final pass writes sRGB-encoded values itself (D23), `SDL_WINDOW_HIGH_PIXEL_DENSITY` and resizable. It handles window vs pixel size, display enumeration and modes, content scale (DPI) changes, and windowed, borderless and exclusive fullscreen.
 - **VSync** off/on/adaptive (`SDL_GL_SetSwapInterval(-1)` with fallback). A **frame limiter** uses `SDL_DelayPrecise` plus a short spin. Rendering pauses when minimized.
 - Cursors: a pool of custom color cursors (`SDL_CreateColorCursor`) for move, attack, talk, loot, forbidden and spell targeting, switched by `int` ID. The game thread requests a switch through the main-thread command queue (§5). The window icon, title and message box (for crash reports) also live here.
 
@@ -482,7 +485,7 @@ JeddyFramework/
 │     ├─ jeddy.java-base.gradle.kts      # shared: toolchain 27, --release 27, -Xlint:all,-module,-processing -Werror,
 │     │                                  #   JUnit 6, native access for tests, reproducible archives, jeddy-* names
 │     ├─ jeddy.java-library.gradle.kts   # java-library + java-base (pure-Java modules keep the `restricted` lint)
-│     ├─ jeddy.native-library.gradle.kts # java-library with javac's `restricted` lint off, for FFM modules
+│     ├─ jeddy.native-library.gradle.kts # java-library with javac's `restricted` lint off, for FFM modules and modules whose tests load natives (app)
 │     ├─ jeddy.ffm-bindings.gradle.kts   # regenerate<Lib>Bindings tasks (jextract), src/ffi/java source set
 │     ├─ jeddy.gl-bindings.gradle.kts    # GenerateGlBindings task wired into sourceSets (M3-01)
 │     ├─ jeddy.application.gradle.kts    # launcher JVM flags (ZGC, native access; AOT cache in M11)
@@ -563,3 +566,5 @@ JeddyFramework/
 | 2026-10-10 | D19 | Native releases are published by the Natives workflow from `main` (release `natives-v<natives_version>`), not by tag pushes. The natives jars download the pinned release and check its SHA-256 (`gradle.properties`) |
 | 2026-10-10 | D20 | Formatting is google-java-format 1.36.1, AOSP style (4-space indent, 100 columns), enforced by Spotless in `check`. Pinned below 1.37.0: that release made `JavaFormatterOptions.Style` a record and Spotless 8.10.0's glue still calls `Style.valueOf`, so every file failed with `InvocationTargetException` |
 | 2026-10-10 | D21 | `Mat4` stays column-major for GL uniforms, while affine transforms are row-major 3×4 for direct SSBO upload. `AffineOps.toMat4` converts when a uniform needs one |
+| 2026-10-10 | D22 | jextract bindings are generated once (on Linux) and made portable by `BindingsPostProcessor` (`C_LONG` → `C_LONG_LONG`, `Arena.ofAuto()` → `Arena.global()`, platform-dependent C types rejected) instead of diffing Windows and Linux generator output (§6.4). The cross-OS check is a test that initializes every generated holder on both CI runners. SDL and SDL3_mixer bindings are separate packages (`dev.jeddy.sdl.ffi`, `dev.jeddy.sdl.mixer.ffi`) with header classes `SDL3` and `SDL3Mixer` |
+| 2026-10-10 | D23 | The window's default framebuffer is not requested sRGB-capable (`SDL_GL_FRAMEBUFFER_SRGB_CAPABLE=0`, no alpha, no depth). Some X servers (Xvfb among them) have no sRGB GLX visuals, so the request made window creation fail; the final post pass encodes sRGB in the shader instead, which also behaves the same on every driver. GL tests run in CI under Mesa llvmpipe with a 4.6 version override (§9.7) |
