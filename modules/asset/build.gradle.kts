@@ -1,5 +1,5 @@
 plugins {
-    id("jeddy.java-library")
+    id("jeddy.native-library")
 }
 
 dependencies {

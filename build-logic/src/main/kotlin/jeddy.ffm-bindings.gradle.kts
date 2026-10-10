@@ -10,7 +10,7 @@ import dev.jeddy.gradle.RegenerateBindingsTask
 
 plugins {
     `java-library`
-    id("jeddy.java-library")
+    id("jeddy.native-library")
 }
 
 val bindings = extensions.create<BindingsExtension>("jeddyBindings")
