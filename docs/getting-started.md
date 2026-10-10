@@ -294,9 +294,9 @@ accepts it through the `JDK_JAVA_OPTIONS` environment variable.
 
 Images are per platform: build the Windows package on Windows.
 
-**AOT cache.** An AOT cache from a training run cuts cold start: the iso demo (headless) reaches
-its first frame in about 0.45 s instead of 0.75–0.95 s. The cache needs a training run of the
-image at build time:
+**AOT cache.** An AOT cache from a training run roughly halves cold start: the iso demo (headless)
+reaches its first frame in 0.21 s instead of 0.37 s on a GitHub Linux runner, and in 0.40 s
+instead of 0.72 s on Windows. The cache needs a training run of the image at build time:
 
 ```kotlin
 jeddyPackaging {
