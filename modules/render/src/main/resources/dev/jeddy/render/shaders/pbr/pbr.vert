@@ -2,6 +2,9 @@
 // Forward+ PBR vertex stage (TASKS M7-01): world position, tangent frame and UVs.
 #include "/engine/vertex.glsl"
 #include "/engine/instance.glsl"
+#ifdef SKINNED
+#include "/engine/skinning.glsl"
+#endif
 #include "/engine/frame.glsl"
 
 layout(location = 0) out vec3 vWorld;
@@ -18,7 +21,14 @@ void main() {
     vec3 t;
     float handedness;
     jeddyTangentFrame(n, t, handedness);
-    vWorld = jeddyTransformPoint(inst, jeddyPosition);
+    vec3 position = jeddyPosition;
+#ifdef SKINNED
+    JeddySkin skin = jeddySkin(inst.data.y);
+    position = jeddySkinPoint(skin, position);
+    n = jeddySkinDirection(skin, n);
+    t = jeddySkinDirection(skin, t);
+#endif
+    vWorld = jeddyTransformPoint(inst, position);
     float mirror = jeddyMirrored(inst) ? -1.0 : 1.0;
     vNormal = jeddyTransformNormal(inst, n);
     vTangent = vec4(normalize(jeddyTransformDirection(inst, t)), handedness * mirror);

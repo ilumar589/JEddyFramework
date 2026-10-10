@@ -55,6 +55,18 @@ public final class RenderPacket {
     /** Highlight style: interactable while the highlight key is held (gold outline). */
     public static final int HIGHLIGHT_INTERACTABLE = 4;
 
+    /**
+     * First bit of the instance's skinning palette in {@link #flags} (20 bits): the palette's first
+     * matrix in {@link #palettes} plus one, 0 for none ({@link #setPalette}).
+     */
+    public static final int PALETTE_SHIFT = 12;
+
+    /** Most matrices the packet's palettes can address ({@code 2^20 - 1}). */
+    public static final int MAX_PALETTE_MATRICES = (1 << 20) - 1;
+
+    /** Floats per palette matrix: a row-major 3×4 affine transform. */
+    public static final int PALETTE_FLOATS = 12;
+
     private int capacity;
     private int count;
 
@@ -196,6 +208,57 @@ public final class RenderPacket {
         decalCount = 0;
         emitterCount = 0;
         revealCount = 0;
+        paletteCount = 0;
+    }
+
+    /**
+     * Skinning palettes (TASKS M12-04, D80): {@link #PALETTE_FLOATS} floats per joint matrix (joint
+     * model transform × inverse bind, relative to the instance's transform), uploaded once per
+     * frame and read by {@code SKINNED} programs. Fill with {@link #addPalette}.
+     */
+    public float[] palettes = new float[PALETTE_FLOATS * 256];
+
+    /** Number of palette matrices. */
+    public int paletteCount;
+
+    /**
+     * Appends the {@code joints} skinning matrices at {@code src[offset..offset + joints × 12)}
+     * (one animated skeleton's palette) and returns the first one's index, for {@link #setPalette}
+     * on each instance that skins with it. Allocates nothing unless the array grows.
+     *
+     * @throws IllegalStateException past {@link #MAX_PALETTE_MATRICES}
+     */
+    public int addPalette(float[] src, int offset, int joints) {
+        int base = paletteCount;
+        if (base + joints > MAX_PALETTE_MATRICES) {
+            throw new IllegalStateException("more than " + MAX_PALETTE_MATRICES + " matrices");
+        }
+        int need = (base + joints) * PALETTE_FLOATS;
+        if (need > palettes.length) {
+            palettes = Arrays.copyOf(palettes, Math.max(need, palettes.length * 2));
+        }
+        System.arraycopy(src, offset, palettes, base * PALETTE_FLOATS, joints * PALETTE_FLOATS);
+        paletteCount = base + joints;
+        return base;
+    }
+
+    /**
+     * Makes instance {@code i} skin with the palette starting at matrix {@code base} (from {@link
+     * #addPalette}), or stops skinning it with {@code -1}. Skinned instances are never static
+     * (clears {@link #FLAG_STATIC}); their mesh must have the skin stream, whose joint indices
+     * address the palette.
+     */
+    public void setPalette(int i, int base) {
+        int f = flags[i] & ((1 << PALETTE_SHIFT) - 1);
+        if (base >= 0) {
+            f = (f & ~FLAG_STATIC) | (base + 1) << PALETTE_SHIFT;
+        }
+        flags[i] = f;
+    }
+
+    /** Returns the palette base of instance {@code i}, or -1 if it does not skin. */
+    public int palette(int i) {
+        return (flags[i] >>> PALETTE_SHIFT) - 1;
     }
 
     private int nextLight() {
@@ -694,6 +757,23 @@ public final class RenderPacket {
      */
     public void reserve(
             int instances, int lightCount, int decalCount, int emitterCount, int lines) {
+        reserve(instances, lightCount, decalCount, emitterCount, lines, 0);
+    }
+
+    /**
+     * Like {@link #reserve(int, int, int, int, int)}, also for {@code paletteMatrices} skinning
+     * matrices.
+     */
+    public void reserve(
+            int instances,
+            int lightCount,
+            int decalCount,
+            int emitterCount,
+            int lines,
+            int paletteMatrices) {
+        if (paletteMatrices * PALETTE_FLOATS > palettes.length) {
+            palettes = Arrays.copyOf(palettes, paletteMatrices * PALETTE_FLOATS);
+        }
         if (instances > capacity) {
             allocate(instances);
         }

@@ -17,11 +17,22 @@ import java.util.Arrays;
  * is what the draw sort keys and batches use: every draw of a batch shares its program and its
  * texture arrays.
  *
- * <p>Thread ownership: the GL thread; draw builders on workers read {@link #programSlot}.
+ * <p>Skinned meshes draw with the {@link #SKINNED} variant of their material's slot: {@link
+ * #prepareSkinned} creates it on the render thread before a draw build, and builders on workers
+ * then look it up with {@link #skinnedSlot} (TASKS M12-04, D80).
+ *
+ * <p>Thread ownership: the GL thread; draw builders on workers read {@link #programSlot}, {@link
+ * #slotMask} and {@link #skinnedSlot}.
  */
 public final class MaterialTable implements AutoCloseable {
     /** Floats per material row. */
     public static final int FLOATS = 32;
+
+    /**
+     * Variant bit of skinned draws (engine feature bit 15, {@code SKINNED} in the shaders): every
+     * program definition that draws skinned meshes honors it.
+     */
+    public static final long SKINNED = 1L << 15;
 
     private final GpuDevice device;
     private final ProgramCache programs;
@@ -40,6 +51,7 @@ public final class MaterialTable implements AutoCloseable {
     private int[] slotDefinition = new int[16];
     private long[] slotMask = new long[16];
     private int[] slotTextureSet = new int[16];
+    private int[] skinnedVariant = filled(16); // -1 until prepared
 
     /** Creates a table for {@code capacity} materials (grows). */
     public MaterialTable(GpuDevice device, ProgramCache programs, int capacity) {
@@ -122,6 +134,36 @@ public final class MaterialTable implements AutoCloseable {
         return count;
     }
 
+    /**
+     * Makes sure program slot {@code slot} has a {@link #SKINNED} variant and returns it (the slot
+     * itself if it already is one). Allocates only the first time.
+     *
+     * <p>Thread ownership: the render thread, while no draw build runs.
+     */
+    public int prepareSkinned(int slot) {
+        int v = skinnedVariant[slot];
+        if (v >= 0) {
+            return v;
+        }
+        long mask = slotMask[slot];
+        v =
+                (mask & SKINNED) != 0
+                        ? slot
+                        : slot(slotDefinition[slot], mask | SKINNED, slotTextureSet[slot]);
+        skinnedVariant[slot] = v;
+        skinnedVariant[v] = v;
+        return v;
+    }
+
+    /**
+     * Returns the {@link #SKINNED} variant of program slot {@code slot} prepared by {@link
+     * #prepareSkinned}, or {@code slot} itself if none was.
+     */
+    public int skinnedSlot(int slot) {
+        int v = skinnedVariant[slot];
+        return v < 0 ? slot : v;
+    }
+
     /** Returns the program slot of a material (12 bits fit the sort key). */
     public int programSlot(int material) {
         return slotOfMaterial[material];
@@ -174,11 +216,19 @@ public final class MaterialTable implements AutoCloseable {
             slotDefinition = Arrays.copyOf(slotDefinition, slotCount * 2);
             slotMask = Arrays.copyOf(slotMask, slotCount * 2);
             slotTextureSet = Arrays.copyOf(slotTextureSet, slotCount * 2);
+            skinnedVariant = Arrays.copyOf(skinnedVariant, slotCount * 2);
+            Arrays.fill(skinnedVariant, slotCount, skinnedVariant.length, -1);
         }
         slotDefinition[slotCount] = definition;
         slotMask[slotCount] = mask;
         slotTextureSet[slotCount] = textureSet;
         return slotCount++;
+    }
+
+    private static int[] filled(int n) {
+        int[] a = new int[n];
+        Arrays.fill(a, -1);
+        return a;
     }
 
     private void grow() {

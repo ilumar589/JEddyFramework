@@ -46,6 +46,12 @@ public final class SceneRenderer implements AutoCloseable {
     /** Uniform binding of the frame constants. */
     public static final int FRAME_BINDING = 0;
 
+    /**
+     * Storage binding of the frame's skinning palettes ({@code engine/skinning.glsl}, TASKS
+     * M12-04).
+     */
+    public static final int PALETTE_BINDING = 9;
+
     /** Bytes of the frame constants block ({@code engine/frame.glsl}). */
     public static final int FRAME_BYTES = 544;
 
@@ -516,6 +522,7 @@ public final class SceneRenderer implements AutoCloseable {
         packet = p;
         frameNumber++;
         ring.beginFrame();
+        uploadPalettes(p);
         if (visible.length < p.count()) {
             visible = new int[Math.max(p.count(), visible.length * 2)];
         }
@@ -554,6 +561,27 @@ public final class SceneRenderer implements AutoCloseable {
         graph.execute(frameNumber);
         ring.endFrame();
         packet = null;
+    }
+
+    /** Copies the packet's skinning palettes into the ring and binds them for every pass. */
+    private void uploadPalettes(RenderPacket p) {
+        int n = p.paletteCount;
+        if (n == 0) {
+            return;
+        }
+        long bytes = (long) n * RenderPacket.PALETTE_FLOATS * 4;
+        long o = ring.allocate(bytes, device.caps().shaderStorageBufferOffsetAlignment());
+        if (o < 0) {
+            throw new IllegalStateException("scene ring is full; raise Config.ringBytesPerFrame");
+        }
+        MemorySegment.copy(
+                p.palettes,
+                0,
+                ring.memory(),
+                ValueLayout.JAVA_FLOAT,
+                o,
+                n * RenderPacket.PALETTE_FLOATS);
+        device.state().bindStorage(PALETTE_BINDING, ring.glName(), o, bytes);
     }
 
     /**

@@ -1,4 +1,5 @@
-// The mesh vertex layout of MeshRegistry (DESIGN §9.2, D27) and QTangent decoding.
+// The mesh vertex layout of MeshRegistry (DESIGN §9.2, D27) and QTangent decoding. The skin
+// stream (locations 4 and 5) is declared by engine/skinning.glsl.
 #pragma once
 
 layout(location = 0) in vec3 jeddyPosition;

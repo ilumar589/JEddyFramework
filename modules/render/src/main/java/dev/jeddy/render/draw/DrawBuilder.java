@@ -40,6 +40,10 @@ import java.util.Arrays;
  * The vertex shader finds its record at {@code gl_BaseInstance + gl_InstanceID}. Everything is
  * preallocated: a steady-state frame allocates nothing.
  *
+ * <p>Instances with a skinning palette ({@link RenderPacket#setPalette}) whose mesh has the skin
+ * stream draw with the {@link MaterialTable#SKINNED} variant of their material's program slot;
+ * {@link #build} prepares those slots on the calling thread before the workers run.
+ *
  * <p>Thread ownership: the render (main) thread; {@link #build} borrows job workers.
  */
 public final class DrawBuilder {
@@ -145,8 +149,15 @@ public final class DrawBuilder {
         int n = 0;
         for (int v = 0; v < visibleCount; v++) {
             itemFirst[v] = n;
-            int mesh = p.mesh[visibleIndices[v]];
-            n += meshes.isValid(mesh) ? meshes.submeshCount(mesh) : 0;
+            int i = visibleIndices[v];
+            int mesh = p.mesh[i];
+            if (meshes.isValid(mesh)) {
+                int submeshes = meshes.submeshCount(mesh);
+                if ((p.flags[i] >>> RenderPacket.PALETTE_SHIFT) != 0 && meshes.isSkinned(mesh)) {
+                    prepareSkinned(p.material[i], mesh, submeshes);
+                }
+                n += submeshes;
+            }
         }
         itemFirst[visibleCount] = n;
         itemCount = n;
@@ -217,6 +228,14 @@ public final class DrawBuilder {
         packet = null;
         visible = null;
         return true;
+    }
+
+    private void prepareSkinned(int instanceMaterial, int mesh, int submeshes) {
+        for (int s = 0; s < submeshes; s++) {
+            int material =
+                    instanceMaterial >= 0 ? instanceMaterial : meshes.submeshMaterialIndex(mesh, s);
+            materials.prepareSkinned(materials.programSlot(material));
+        }
     }
 
     /**
@@ -333,6 +352,8 @@ public final class DrawBuilder {
             int depth = (int) Math.min(65535f, distance * 64f);
             long meshBits = (long) (Handles.index(mesh) & 0xFFFFF) << 28 | (long) lod << 24;
             int instanceMaterial = p.material[i];
+            boolean skinned =
+                    (p.flags[i] >>> RenderPacket.PALETTE_SHIFT) != 0 && meshes.isSkinned(mesh);
             for (int s = 0; s < submeshes; s++) {
                 int item = first + s;
                 int material =
@@ -340,6 +361,9 @@ public final class DrawBuilder {
                                 ? instanceMaterial
                                 : meshes.submeshMaterialIndex(mesh, s);
                 int slot = materials.programSlot(material);
+                if (skinned) {
+                    slot = materials.skinnedSlot(slot);
+                }
                 // Blended materials draw in the translucent pass whatever the instance says.
                 boolean translucent =
                         translucentInstance

@@ -3,6 +3,7 @@ package dev.jeddy.samples.iso;
 import dev.jeddy.app.world.AgentSync;
 import dev.jeddy.app.world.World;
 import dev.jeddy.asset.format.SceneData;
+import dev.jeddy.math.Rng;
 import dev.jeddy.physics.crowd.AgentParams;
 import dev.jeddy.physics.crowd.Crowd;
 import dev.jeddy.physics.crowd.Formation;
@@ -11,7 +12,8 @@ import dev.jeddy.render.RenderPacket;
 
 /**
  * The player's six adventurers (TASKS M10-03): selection by click, box and keys, highlight
- * outlines, and move orders, alone or in one of a few formations with paced walking.
+ * outlines, and move orders, alone or in one of a few formations with paced walking. Standing
+ * members strike at skeletons within reach (an animation only: the demo has no melee rules).
  *
  * <p>Thread ownership: the game thread. Allocates nothing after construction.
  */
@@ -24,6 +26,7 @@ final class Party {
 
     final int[] agent = new int[SIZE];
     final int[] root = new int[SIZE];
+    final int[] character = new int[SIZE]; // Animator index
     final boolean[] selected = new boolean[SIZE];
     final int[] selection = new int[SIZE];
     int selectionCount;
@@ -41,10 +44,23 @@ final class Party {
         Formation.circle(SIZE, 2.2f)
     };
     private final int[] style = new int[SIZE];
+    private final float[] cooldown = new float[SIZE];
+    private final Animator animator;
+    private final AgentSync sync;
+    private final Rng rng;
 
-    Party(Level level, World world, AgentSync sync, SceneData[] models) {
+    Party(
+            Level level,
+            World world,
+            AgentSync sync,
+            SceneData[] models,
+            Animator animator,
+            Rng rng) {
         this.crowd = level.crowd;
         this.world = world;
+        this.animator = animator;
+        this.sync = sync;
+        this.rng = rng;
         mover = new FormationMove(crowd, level.query, SIZE);
         AgentParams params = new AgentParams();
         params.radius = 0.4f;
@@ -64,6 +80,7 @@ final class Party {
             agent[i] = crowd.addAgent(p[0], p[1], p[2], params);
             root[i] = Characters.spawn(world, models[i], p[0], p[1], p[2], Characters.FACE_PLUS_X);
             sync.bind(agent[i], root[i], Characters.FACE_PLUS_X);
+            character[i] = animator.add(root[i], Animator.HEROES, agent[i], rng);
         }
         select(0, false);
     }
@@ -183,6 +200,39 @@ final class Party {
     /** Paces formation members (once per tick). */
     void tick() {
         mover.update();
+    }
+
+    /**
+     * Once per tick: members standing next to a living skeleton turn to it and strike every second
+     * or so; the mage only casts on order ({@link #cast}).
+     */
+    void fight(float dt, Enemies enemies) {
+        for (int i = 0; i < SIZE; i++) {
+            cooldown[i] -= dt;
+            int c = character[i];
+            int attack = Characters.PARTY_ATTACK[i];
+            if (attack == Animator.CAST || cooldown[i] > 0 || !animator.isFree(c)) {
+                continue;
+            }
+            int a = agent[i];
+            float vx = crowd.velocityX(a);
+            float vz = crowd.velocityZ(a);
+            if (vx * vx + vz * vz > 0.04f) {
+                continue;
+            }
+            int target = enemies.nearestAlive(crowd.x(a), crowd.z(a), Enemies.REACH + 0.4f);
+            if (target >= 0) {
+                sync.faceToward(a, crowd.x(target), crowd.z(target));
+                animator.action(c, attack);
+                cooldown[i] = 0.9f + rng.nextFloat() * 0.8f;
+            }
+        }
+    }
+
+    /** Member {@code i} casts toward {@code (x, z)}. */
+    void cast(int i, float x, float z) {
+        sync.faceToward(agent[i], x, z);
+        animator.action(character[i], Animator.CAST);
     }
 
     /** Average position of the party (or of the selection, if {@code selectionOnly}). */

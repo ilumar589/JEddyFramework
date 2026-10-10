@@ -3,6 +3,9 @@
 // for alpha-tested surfaces, and what the main view's camera fade needs (M7-10).
 #include "/engine/vertex.glsl"
 #include "/engine/instance.glsl"
+#ifdef SKINNED
+#include "/engine/skinning.glsl"
+#endif
 
 layout(location = 0) uniform mat4 uViewProjection;
 #ifdef ALPHA_MASK
@@ -15,7 +18,11 @@ layout(location = 4) flat out float vFade;
 
 void main() {
     JeddyInstance inst = jeddyInstance();
+#ifdef SKINNED
+    vec3 world = jeddyTransformPoint(inst, jeddySkinPoint(jeddySkin(inst.data.y), jeddyPosition));
+#else
     vec3 world = jeddyTransformPoint(inst, jeddyPosition);
+#endif
 #ifdef ALPHA_MASK
     vUv = vec4(jeddyUv0, jeddyUv1);
     vMaterial = inst.data.x;

@@ -5,6 +5,6 @@ plugins {
 dependencies {
     listOf(
         "core", "math", "compress", "sdl", "gl", "window", "input",
-        "asset", "render", "audio", "physics", "scene", "app", "testing",
+        "asset", "render", "audio", "physics", "animation", "scene", "app", "testing",
     ).forEach { "javadocs"(project(":$it")) }
 }

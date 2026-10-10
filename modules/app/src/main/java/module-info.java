@@ -12,6 +12,7 @@ module dev.jeddy.app {
     requires transitive dev.jeddy.physics;
     requires transitive dev.jeddy.scene;
     requires transitive dev.jeddy.asset;
+    requires transitive dev.jeddy.animation;
     requires dev.jeddy.sdl;
 
     exports dev.jeddy.app;

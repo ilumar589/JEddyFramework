@@ -1,5 +1,7 @@
 package dev.jeddy.samples.iso;
 
+import dev.jeddy.animation.Animations;
+import dev.jeddy.animation.Skeleton;
 import dev.jeddy.app.AppContext;
 import dev.jeddy.app.Game;
 import dev.jeddy.app.audio.AudioSync;
@@ -34,17 +36,20 @@ import dev.jeddy.render.RenderPackets;
 import dev.jeddy.render.camera.IsoCameraController;
 
 /**
- * The iso demo's game thread (TASKS M10-03 to M10-05): loads the crypt and the characters, then
- * runs the party, the skeletons, fireballs, fog of war, the turn-based movement overlay and the
- * camera, and extracts each frame into a render packet. With {@code --perf} a script plays it
- * (formation tours, wandering skeletons, a fireball every 1.5 s, an orbiting camera) while {@link
- * PerfCapture} measures.
+ * The iso demo's game thread (TASKS M10-03 to M10-05, M12-07): loads the crypt, the characters and
+ * their animation libraries, then runs the party, the skeletons, their animations, fireballs, fog
+ * of war, the turn-based movement overlay and the camera, and extracts each frame into a render
+ * packet. With {@code --perf} a script plays it (formation tours, wandering skeletons, a fireball
+ * every 1.5 s, an orbiting camera) while {@link PerfCapture} measures.
  *
  * <p>Thread ownership: the game thread ({@link Game} callbacks). Allocates nothing per frame once
  * loaded.
  */
 final class DemoGame implements Game {
     private static final Logger LOG = Log.logger("iso-demo");
+
+    /** Joints per character rig (KayKit: 41), for sizing the animation pools. */
+    private static final int JOINTS = 48;
 
     /** Movement allowance of one turn in the turn-based overlay, meters. */
     private static final float TURN_MOVEMENT = 9;
@@ -73,6 +78,7 @@ final class DemoGame implements Game {
     private int levelSpawns;
     private final int[] partyModels = new int[Characters.PARTY.length];
     private final int[] enemyModels = new int[Characters.ENEMIES.length];
+    private final int[] animationLibraries = new int[Animator.LIBRARIES.length];
     private int boomSound;
     private int ambienceSound;
     private boolean ambienceStarted;
@@ -81,6 +87,8 @@ final class DemoGame implements Game {
     private Level level;
     private Party party;
     private Enemies enemies;
+    private Animator animator;
+    private long animationNanos;
     private Spells spells;
     private AgentSync sync;
     private Audio audio;
@@ -178,6 +186,9 @@ final class DemoGame implements Game {
         for (int i = 0; i < enemyModels.length; i++) {
             enemyModels[i] = scenes.load(Characters.path(Characters.ENEMIES[i]));
         }
+        for (int i = 0; i < animationLibraries.length; i++) {
+            animationLibraries[i] = scenes.load(Animator.LIBRARIES[i]);
+        }
         audio = renderer.audio();
         if (audio != null) {
             sounds = assets.register("sound", audio.loader());
@@ -185,7 +196,14 @@ final class DemoGame implements Game {
             ambienceSound = sounds.load("audio/crypt_ambience.wav");
         }
         int characters = Party.SIZE + options.enemyCount();
-        world = new World(8192 + characters * 16 + options.instanceCount(), renderer.meshes());
+        // One animated instance per character (KayKit rigs have 41 joints).
+        Animations animations =
+                new Animations(characters, characters * JOINTS, ctx.jobs().threadSlots());
+        world =
+                new World(
+                        8192 + characters * 16 + options.instanceCount(),
+                        renderer.meshes(),
+                        animations);
         // Size the packets for the peak up front, so nothing grows mid-game (DESIGN §4.2).
         for (int i = 0; i < DemoHud.FRAMES; i++) {
             packets.packet(i)
@@ -194,7 +212,8 @@ final class DemoGame implements Game {
                             options.lightCount() + 64 + Spells.MAX,
                             64,
                             8 + Spells.MAX * 3,
-                            16_384);
+                            16_384,
+                            characters * JOINTS);
         }
         debugSink = renderer.debugDraw()::line;
         debugThread = ctx.jobs().threadIndex();
@@ -221,6 +240,9 @@ final class DemoGame implements Game {
             ok &= ready(scenes, h);
         }
         for (int h : enemyModels) {
+            ok &= ready(scenes, h);
+        }
+        for (int h : animationLibraries) {
             ok &= ready(scenes, h);
         }
         return ok;
@@ -259,7 +281,21 @@ final class DemoGame implements Game {
         for (int i = 0; i < enemyScenes.length; i++) {
             enemyScenes[i] = scenes.get(enemyModels[i]);
         }
-        party = new Party(level, world, sync, partyScenes);
+        SceneData[] libraries = new SceneData[animationLibraries.length];
+        for (int i = 0; i < libraries.length; i++) {
+            libraries[i] = scenes.get(animationLibraries[i]);
+        }
+        animator =
+                new Animator(
+                        world,
+                        level.crowd,
+                        libraries,
+                        new Skeleton[] {
+                            Skeleton.of(partyScenes[0], 0), Skeleton.of(enemyScenes[0], 0)
+                        },
+                        Characters.SCALE,
+                        characters);
+        party = new Party(level, world, sync, partyScenes, animator, rng);
         party.center(false, center);
         enemies =
                 new Enemies(
@@ -267,6 +303,7 @@ final class DemoGame implements Game {
                         world,
                         sync,
                         enemyScenes,
+                        animator,
                         options.enemyCount(),
                         rng,
                         options.perf(),
@@ -366,6 +403,7 @@ final class DemoGame implements Game {
         enemies.think(dt, party);
         a.mark(AllocProbe.THINK);
         party.tick();
+        party.fight(dt, enemies);
         a.mark(AllocProbe.PARTY);
         level.crowd.update(dt);
         a.mark(AllocProbe.CROWD);
@@ -424,6 +462,14 @@ final class DemoGame implements Game {
             handleInput(ctx, in);
         }
         probe.mark(AllocProbe.INPUT);
+        if (levelBuilt) {
+            // Poses advance per frame, not per tick: they need no interpolation.
+            long t0 = System.nanoTime();
+            animator.update(dt);
+            world.updateAnimations(dt, ctx.jobs());
+            animationNanos = System.nanoTime() - t0;
+        }
+        probe.mark(AllocProbe.ANIMATION);
         updateCamera(ctx, in, dt);
         probe.mark(AllocProbe.CAMERA);
         if (audio != null) {
@@ -603,6 +649,7 @@ final class DemoGame implements Game {
     /** The party's caster (the first mage) throws a fireball at {@code (x, y, z)}. */
     private void castFireball(float x, float y, float z) {
         int a = party.agent[2];
+        party.cast(2, x, z);
         spells.cast(level.crowd.x(a), level.crowd.y(a), level.crowd.z(a), x, y, z);
     }
 
@@ -800,7 +847,7 @@ final class DemoGame implements Game {
         lastGameNanos = frameStart == 0 ? 0 : now - frameStart;
         frameStart = 0;
         if (measuring) {
-            perf.recordGame(lastGameNanos, p.count(), lights);
+            perf.recordGame(lastGameNanos, p.count(), lights, animationNanos);
         }
         hud.gameNanos[index] = lastGameNanos;
     }

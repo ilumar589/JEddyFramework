@@ -28,8 +28,9 @@ val descriptions = mapOf(
     "render" to "The PBR renderer: frame graph, clustered lights, shadows, decals, particles, post",
     "audio" to "SDL3_mixer voices, buses, 3D emitters, music and ambience",
     "physics" to "Collision queries, navmesh baking and pathfinding, crowds, formations, visibility",
+    "animation" to "Skeletons, baked clips, blended and crossfaded instances, skinning palettes",
     "scene" to "Entities and transform hierarchies",
-    "app" to "The application loop and world integration (scene, render, physics, audio)",
+    "app" to "The application loop and world integration (scene, render, physics, animation, audio)",
     "testing" to "Test helpers: allocation assertions",
 )
 

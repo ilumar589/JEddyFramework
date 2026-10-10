@@ -3,6 +3,9 @@
 // style (instance flags bits 8..11) to the fragment shader.
 #include "/engine/vertex.glsl"
 #include "/engine/instance.glsl"
+#ifdef SKINNED
+#include "/engine/skinning.glsl"
+#endif
 
 layout(location = 0) uniform mat4 uViewProjection;
 layout(location = 2) flat out uint vStyle;
@@ -13,7 +16,11 @@ layout(location = 1) flat out uint vMaterial;
 
 void main() {
     JeddyInstance inst = jeddyInstance();
+#ifdef SKINNED
+    vec3 world = jeddyTransformPoint(inst, jeddySkinPoint(jeddySkin(inst.data.y), jeddyPosition));
+#else
     vec3 world = jeddyTransformPoint(inst, jeddyPosition);
+#endif
     vStyle = (inst.data.y >> 8u) & 15u;
 #ifdef ALPHA_MASK
     vUv = vec4(jeddyUv0, jeddyUv1);

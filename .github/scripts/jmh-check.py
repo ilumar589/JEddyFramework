@@ -21,7 +21,7 @@ import sys
 ZERO_ALLOC = [
     r"AudioBench\.", r"DrawBench\.cull", r"JobBench\.", r"MathBench\.", r"PhysicsBench\.",
     r"TransformBench\.", r"FfmBench\.(abs|mat4)", r"CollectionsBench\.(intIntMapGet|radixSort16k)",
-    r"AssetBench\.(pakFind|vfsSize)", r"BaselineBench\.",
+    r"AssetBench\.(pakFind|vfsSize)", r"BaselineBench\.", r"AnimationBench\.",
 ]
 NOISE = 16.0  # B/op
 BACKGROUND = 64.0  # B per ms of operation time

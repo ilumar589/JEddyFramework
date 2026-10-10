@@ -11,8 +11,9 @@ import dev.jeddy.render.RenderPacket;
 
 /**
  * The skeletons (TASKS M10-04): wait at their posts or wander, chase the nearest party member they
- * can see, crowd around it, give up when it gets away, take fireball damage, die and (optionally)
- * rise again elsewhere. Hidden while their position is outside the party's sight.
+ * can see, crowd around it and strike at it, give up when it gets away, take fireball damage (and
+ * flinch), die (the body stays a moment) and (optionally) rise again elsewhere. Hidden while their
+ * position is outside the party's sight. Animated through the {@link Animator} (TASKS M12-07).
  *
  * <p>Thread ownership: the game thread. Allocates nothing after construction.
  */
@@ -27,6 +28,9 @@ final class Enemies {
     static final float REACH = 1.5f;
     static final float MAX_HP = 30;
 
+    /** Seconds a body stays visible after death. */
+    static final float CORPSE_SECONDS = 2.5f;
+
     final int count;
     final int[] agent;
     final int[] root;
@@ -34,6 +38,7 @@ final class Enemies {
     final byte[] state;
     final float[] hp;
     final boolean[] visible;
+    final int[] character; // Animator index
     int alive;
     int visibleCount;
     int hovered = -1;
@@ -53,6 +58,9 @@ final class Enemies {
     private final float[] flash;
     private final int[] style;
     private final boolean[] hidden;
+    private final float[] cooldown;
+    private final float[] corpse;
+    private final Animator animator;
     private int[] enemyOfAgent;
 
     Enemies(
@@ -60,6 +68,7 @@ final class Enemies {
             World world,
             AgentSync sync,
             SceneData[] models,
+            Animator animator,
             int count,
             Rng rng,
             boolean wander,
@@ -74,7 +83,11 @@ final class Enemies {
         this.rng = rng;
         this.wander = wander;
         this.respawnSeconds = respawnSeconds;
+        this.animator = animator;
         agent = new int[count];
+        character = new int[count];
+        cooldown = new float[count];
+        corpse = new float[count];
         root = new int[count];
         model = new int[count];
         state = new byte[count];
@@ -110,6 +123,7 @@ final class Enemies {
             agent[i] = crowd.addAgent(p[0], p[1], p[2], params);
             enemyOfAgent[agent[i]] = i;
             sync.bind(agent[i], root[i], yaw);
+            character[i] = animator.add(root[i], Animator.SKELETONS, agent[i], rng);
             hp[i] = MAX_HP;
             timer[i] = rng.nextFloat() * 4;
             hidden[i] = false;
@@ -153,13 +167,44 @@ final class Enemies {
         return a >= 0 && a < enemyOfAgent.length ? enemyOfAgent[a] : -1;
     }
 
-    /** One AI tick: targets, chasing, giving up, respawns. */
+    /**
+     * Returns the crowd agent of the nearest living enemy the party can see within {@code radius}
+     * of {@code (x, z)}, or -1.
+     */
+    int nearestAlive(float x, float z, float radius) {
+        int best = -1;
+        float bestD2 = radius * radius;
+        for (int i = 0; i < count; i++) {
+            if (state[i] == DEAD || !visible[i]) {
+                continue;
+            }
+            int a = agent[i];
+            float dx = crowd.x(a) - x;
+            float dz = crowd.z(a) - z;
+            float d2 = dx * dx + dz * dz;
+            if (d2 < bestD2) {
+                bestD2 = d2;
+                best = a;
+            }
+        }
+        return best;
+    }
+
+    /** One AI tick: targets, chasing, striking, giving up, bodies, respawns. */
     void think(float dt, Party party) {
         for (int i = 0; i < count; i++) {
             if (flash[i] > 0) {
                 flash[i] -= dt;
             }
+            cooldown[i] -= dt;
             if (state[i] == DEAD) {
+                if (corpse[i] > 0) {
+                    corpse[i] -= dt;
+                    if (corpse[i] <= 0 && !hidden[i]) {
+                        world.setGroupHidden(root[i], true);
+                        hidden[i] = true;
+                    }
+                }
                 timer[i] -= dt;
                 if (respawnSeconds > 0 && timer[i] <= 0) {
                     respawn(i, party);
@@ -211,10 +256,15 @@ final class Enemies {
                     if (bestD2 > (REACH + 0.8f) * (REACH + 0.8f)) {
                         state[i] = CHASE;
                         timer[i] = 0;
+                    } else if (cooldown[i] <= 0 && visible[i] && animator.isFree(character[i])) {
+                        sync.faceToward(a, crowd.x(best), crowd.z(best));
+                        animator.action(character[i], Characters.ENEMY_ATTACK[model[i]]);
+                        cooldown[i] = 1.4f + rng.nextFloat() * 1.2f;
                     }
                 }
                 default -> {}
             }
+            animator.setCombat(character[i], state[i] != IDLE);
         }
     }
 
@@ -232,6 +282,8 @@ final class Enemies {
         }
         if (hp[i] <= 0) {
             kill(i);
+        } else {
+            animator.action(character[i], Animator.HIT);
         }
     }
 
@@ -242,8 +294,9 @@ final class Enemies {
         sync.unbind(agent[i]);
         crowd.removeAgent(agent[i]);
         agent[i] = -1;
-        world.setGroupHidden(root[i], true);
-        hidden[i] = true;
+        animator.setAgent(character[i], -1);
+        animator.die(character[i]);
+        corpse[i] = CORPSE_SECONDS; // hidden once the body has lain a moment
         visible[i] = false;
         alive--;
     }
@@ -261,6 +314,13 @@ final class Enemies {
         }
         agent[i] = a;
         enemyOfAgent[a] = i;
+        if (!hidden[i]) {
+            world.setGroupHidden(root[i], true); // the body vanishes; the fog shows it again
+            hidden[i] = true;
+        }
+        corpse[i] = 0;
+        animator.setAgent(character[i], a);
+        animator.revive(character[i]);
         world.transforms().setPosition(root[i], c[0], c[1], c[2]);
         sync.bind(a, root[i], 0);
         hp[i] = MAX_HP;

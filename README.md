@@ -7,7 +7,7 @@ A Java 27 framework for building 3D isometric RPGs in the style of *Pathfinder: 
 - **Targets:** Windows x64 and Linux x64.
 - **Build:** Gradle 9.8.1 multi-module, one JPMS module per subsystem.
 
-![The iso demo: a party in a KayKit crypt with fog of war and a fireball](docs/images/iso-demo.png)
+![The iso demo: the animated party in a KayKit crypt, weapons in hand](docs/images/iso-demo.png)
 
 ## Modules
 | Module | What it does |
@@ -22,6 +22,7 @@ A Java 27 framework for building 3D isometric RPGs in the style of *Pathfinder: 
 | [render](modules/render/README.md) | Forward+ PBR on GL 4.6: shadows, decals, particles, fog of war, post-processing |
 | [audio](modules/audio/README.md) | Voices, buses, 3D sound, music and ambience on SDL3_mixer |
 | [physics](modules/physics/README.md) | Collision queries, navmesh baking and pathfinding, crowds, visibility and turn-based movement |
+| [animation](modules/animation/README.md) | Skeletons, clips baked at load time, blended and crossfaded instances evaluated on jobs, GPU skinning palettes |
 | [scene](modules/scene/README.md) | Struct-of-arrays transforms and hierarchy |
 | [app](modules/app/README.md) | The two-thread game loop, `World` and `WorldRenderer` |
 

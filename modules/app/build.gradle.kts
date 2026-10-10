@@ -12,5 +12,6 @@ dependencies {
     api(project(":physics"))
     api(project(":scene"))
     api(project(":asset"))
+    api(project(":animation"))
     implementation(project(":sdl"))
 }

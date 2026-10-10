@@ -7,7 +7,8 @@ import java.util.Arrays;
 /**
  * Physics → scene sync (TASKS M10-02): after each {@link Crowd#update}, moves the entity bound to
  * each crowd agent to the agent's position and turns it toward its motion (models face +Z), at a
- * limited turn rate so characters do not snap around.
+ * limited turn rate so characters do not snap around. Standing agents turn toward the facing last
+ * asked with {@link #face} (an attack's target).
  *
  * <p>Thread ownership: the game thread, after the crowd update and before the transform update.
  * Allocates nothing per tick.
@@ -17,6 +18,8 @@ public final class AgentSync {
     private final World world;
     private int[] entity;
     private float[] yaw;
+    private float[] wantYaw;
+    private boolean[] wants;
     private float turnRate = 10;
 
     /** Syncs {@code crowd}'s agents into {@code world}. */
@@ -25,6 +28,8 @@ public final class AgentSync {
         this.world = world;
         entity = new int[crowd.capacity()];
         yaw = new float[crowd.capacity()];
+        wantYaw = new float[crowd.capacity()];
+        wants = new boolean[crowd.capacity()];
     }
 
     /** Sets the turn rate in radians per second. */
@@ -37,9 +42,30 @@ public final class AgentSync {
         if (agent >= entity.length) {
             entity = Arrays.copyOf(entity, agent + 1);
             yaw = Arrays.copyOf(yaw, agent + 1);
+            wantYaw = Arrays.copyOf(wantYaw, agent + 1);
+            wants = Arrays.copyOf(wants, agent + 1);
         }
         entity[agent] = e;
         yaw[agent] = initialYaw;
+        wants[agent] = false;
+    }
+
+    /**
+     * Turns {@code agent}'s entity toward {@code targetYaw} (radians about +Y, 0 = +Z) at the turn
+     * rate while it stands still; moving again cancels it.
+     */
+    public void face(int agent, float targetYaw) {
+        wantYaw[agent] = targetYaw;
+        wants[agent] = true;
+    }
+
+    /** Like {@link #face}, toward the point {@code (x, z)}. */
+    public void faceToward(int agent, float x, float z) {
+        float dx = x - crowd.x(agent);
+        float dz = z - crowd.z(agent);
+        if (dx * dx + dz * dz > 1e-6f) {
+            face(agent, (float) Math.atan2(dx, dz));
+        }
     }
 
     /** Unbinds agent {@code agent}. */
@@ -68,13 +94,22 @@ public final class AgentSync {
             world.transforms().setPosition(e, crowd.x(a), crowd.y(a), crowd.z(a));
             float vx = crowd.velocityX(a);
             float vz = crowd.velocityZ(a);
+            float target;
             if (vx * vx + vz * vz > 0.04f) {
-                float target = (float) Math.atan2(vx, vz);
-                float d = target - yaw[a];
-                d -= (float) (Math.PI * 2) * (float) Math.floor((d + Math.PI) / (Math.PI * 2));
-                yaw[a] += Math.clamp(d, -maxTurn, maxTurn);
-                world.setYaw(e, yaw[a]);
+                target = (float) Math.atan2(vx, vz);
+                wants[a] = false;
+            } else if (wants[a]) {
+                target = wantYaw[a];
+            } else {
+                continue;
             }
+            float d = target - yaw[a];
+            d -= (float) (Math.PI * 2) * (float) Math.floor((d + Math.PI) / (Math.PI * 2));
+            if (Math.abs(d) <= maxTurn) {
+                wants[a] = false; // facing reached: stop touching the transform
+            }
+            yaw[a] += Math.clamp(d, -maxTurn, maxTurn);
+            world.setYaw(e, yaw[a]);
         }
     }
 }
