@@ -82,12 +82,13 @@ jobs:
         id: compare
         shell: bash
         run: |
-          git add -A -- 'modules/*/src/ffi'
-          git diff --cached --stat -- 'modules/*/src/ffi' > ffi-diff-stat.txt
+          # jextract only writes under modules/<name>/src/ffi.
+          git add -A -- modules
+          git diff --cached --stat -- modules > ffi-diff-stat.txt
           if [ -s ffi-diff-stat.txt ]; then
             encode() { sed -e 's/%/%25/g' -e 's/\r//g' | awk 'BEGIN { ORS = "%0A" } { print }'; }
             echo "::warning title=Generated bindings differ from the committed ones (${{ runner.os }})::$(head -n 40 ffi-diff-stat.txt | encode)"
-            echo "::warning title=First lines of the diff (${{ runner.os }})::$(git diff --cached -- 'modules/*/src/ffi' | head -n 120 | encode)"
+            echo "::warning title=First lines of the diff (${{ runner.os }})::$(git diff --cached -- modules | head -n 120 | encode)"
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "Generated bindings match the committed sources."
