@@ -58,6 +58,8 @@ final class PerfCapture {
     private long startNanos;
     private long endNanos;
     private long uptimeOriginNanos;
+    private long beginEpochMillis;
+    private long endEpochMillis;
 
     /** The run's {@link JitLog}, or {@code null} to judge allocation strictly. */
     Path jitLog;
@@ -70,6 +72,11 @@ final class PerfCapture {
 
     /** Extra Markdown appended to the report (the allocation probe's table). */
     String notes = "";
+
+    /**
+     * The allocation probe's second-half allocations by frame and system ({@code --alloc-probe}).
+     */
+    String probeEvents = "";
 
     private long instanceSum;
     private int instanceFrames;
@@ -123,6 +130,7 @@ final class PerfCapture {
         workerSum(); // links the counter calls before the first recorded frame
         currentThreadAllocated();
         long uptime = ManagementFactory.getRuntimeMXBean().getUptime();
+        beginEpochMillis = System.currentTimeMillis();
         startNanos = System.nanoTime();
         uptimeOriginNanos = startNanos - uptime * 1_000_000L;
     }
@@ -156,6 +164,7 @@ final class PerfCapture {
     /** Game thread: closes the measured window (cold; allocates). */
     void end() {
         endNanos = System.nanoTime();
+        endEpochMillis = System.currentTimeMillis();
         long[] gc = gc();
         gcCountEnd = gc[0];
         gcMillisEnd = gc[1];
@@ -243,7 +252,7 @@ final class PerfCapture {
 
     /**
      * Writes {@code perf.json} and {@code perf.md} into {@code dir}. Budget keys: {@code game},
-     * {@code main}, {@code gpu}, {@code alloc}, {@code gc}, {@code load}.
+     * {@code main}, {@code gpu}, {@code alloc}, {@code flags}, {@code gc}, {@code load}.
      */
     Report write(Path dir, String gpuName, String jvm) throws IOException {
         Files.createDirectories(dir);
@@ -323,6 +332,11 @@ final class PerfCapture {
 
         Map<String, Object> json = new LinkedHashMap<>();
         json.put("seconds", seconds);
+        // The window on the JVM's clocks, for logs and recordings (class loading, JFR).
+        json.put("uptimeStartMs", (double) uptimeMillis(startNanos));
+        json.put("uptimeEndMs", (double) uptimeMillis(endNanos));
+        json.put("epochStartMs", (double) beginEpochMillis);
+        json.put("epochEndMs", (double) endEpochMillis);
         json.put("gpu", gpuName);
         json.put("jvm", jvm);
         json.put("agents", (double) agents);
@@ -357,6 +371,7 @@ final class PerfCapture {
         json.put("allocatedBytesSecondHalfByThread", halves);
         json.put("allocationEvents", events.toString());
         json.put("jitAllocationEvents", jitEvents.toString());
+        json.put("probeAllocationEvents", probeEvents);
         Map<String, Object> gc = new LinkedHashMap<>();
         gc.put("collections", (double) gcCount);
         gc.put("collectionMs", (double) gcMillis);
@@ -412,6 +427,14 @@ final class PerfCapture {
                                 frames,
                                 allocTotal),
                         unexplained == 0));
+        String missing = missingLauncherFlags();
+        rows.add(
+                row(
+                        "flags",
+                        "Launcher flags (ZGC, native access, no MH customization)",
+                        "all set",
+                        missing.isEmpty() ? "all set" : "missing: " + missing,
+                        missing.isEmpty()));
         rows.add(
                 row(
                         "gc",
@@ -487,6 +510,11 @@ final class PerfCapture {
                     .append('\n');
         }
         md.append(notes);
+        if (!probeEvents.isEmpty()) {
+            md.append("\nGame-thread allocations in the second half by system: ")
+                    .append(probeEvents)
+                    .append('\n');
+        }
         Files.writeString(dir.resolve("perf.md"), md.toString());
         List<String> failed = new ArrayList<>();
         for (String[] r : rows) {
@@ -508,6 +536,36 @@ final class PerfCapture {
                 c.uptimeMillis() / 1000.0,
                 c.method(),
                 c.firstC2OfClass() ? " (its class's first)" : "");
+    }
+
+    /**
+     * The launcher flags of DESIGN §4.6 that this JVM runs without: measurements without them
+     * describe another configuration (a build script that dropped them once made the CI capture run
+     * on G1 with method-handle customization on).
+     */
+    static String missingLauncherFlags() {
+        List<String> missing = new ArrayList<>();
+        boolean zgc = false;
+        for (GarbageCollectorMXBean bean : ManagementFactory.getGarbageCollectorMXBeans()) {
+            zgc |= bean.getName().startsWith("ZGC");
+        }
+        if (!zgc) {
+            missing.add("-XX:+UseZGC");
+        }
+        if (!"-1".equals(System.getProperty("java.lang.invoke.MethodHandle.CUSTOMIZE_THRESHOLD"))) {
+            missing.add("-Djava.lang.invoke.MethodHandle.CUSTOMIZE_THRESHOLD=-1");
+        }
+        // The launch option, not Module.isNativeAccessEnabled: without the option the JDK enables
+        // native access on first use, with a warning.
+        boolean nativeAccess = false;
+        for (String arg : ManagementFactory.getRuntimeMXBean().getInputArguments()) {
+            nativeAccess |=
+                    arg.startsWith("--enable-native-access=") && arg.contains("dev.jeddy.core");
+        }
+        if (!nativeAccess) {
+            missing.add("--enable-native-access=dev.jeddy.core,...");
+        }
+        return String.join(", ", missing);
     }
 
     /** Bytes over all {@code n} recorded frames and over the second half of them. */

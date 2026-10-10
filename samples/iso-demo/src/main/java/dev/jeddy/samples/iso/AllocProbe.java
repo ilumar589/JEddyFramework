@@ -56,7 +56,15 @@ final class AllocProbe {
     static final int FOG = 19;
     static final int HUD = 20;
 
+    /** Allocations kept with their frame and system, for the report's second half. */
+    static final int MAX_EVENTS = 256;
+
     final long[] bytes = new long[NAMES.length];
+    private final int[] eventFrame = new int[MAX_EVENTS];
+    private final int[] eventSystem = new int[MAX_EVENTS];
+    private final long[] eventBytes = new long[MAX_EVENTS];
+    private int events;
+    private int frame;
     private final com.sun.management.ThreadMXBean bean;
     boolean enabled;
     private long last;
@@ -75,16 +83,50 @@ final class AllocProbe {
         }
         long now = bean.getCurrentThreadAllocatedBytes();
         if (last != 0) {
-            bytes[system] += now - last;
+            long delta = now - last;
+            bytes[system] += delta;
+            if (delta != 0 && events < MAX_EVENTS) {
+                eventFrame[events] = frame;
+                eventSystem[events] = system;
+                eventBytes[events] = delta;
+                events++;
+            }
         }
         last = now;
+        if (system == HUD) {
+            frame++; // the frame's last mark
+        }
     }
 
     /** Starts charging (after the warm-up). */
     void start() {
         enabled = bean != null;
         last = 0;
+        frame = 0;
+        events = 0;
         mark(START);
+    }
+
+    /** The allocations of the second half of the frames since {@link #start}, one per entry. */
+    String secondHalfEvents() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < events; i++) {
+            if (eventFrame[i] >= frame / 2) {
+                sb.append("frame ")
+                        .append(eventFrame[i])
+                        .append(" of ")
+                        .append(frame)
+                        .append(": ")
+                        .append(NAMES[eventSystem[i]])
+                        .append(' ')
+                        .append(eventBytes[i])
+                        .append(" B; ");
+            }
+        }
+        if (events == MAX_EVENTS) {
+            sb.append("(first ").append(MAX_EVENTS).append(" allocations only)");
+        }
+        return sb.toString();
     }
 
     String report() {

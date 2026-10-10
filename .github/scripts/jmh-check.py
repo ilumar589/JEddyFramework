@@ -4,8 +4,12 @@
 1. Regressions: each benchmark's score against bench/baseline/<platform>.json (written from an
    earlier nightly with --write-baseline). A benchmark slower than the baseline by more than its
    threshold (default 25%, per benchmark in the baseline file) fails the run.
-2. Allocation sweep (run JMH with -prof gc): benchmarks of per-frame paths must allocate nothing
-   (gc.alloc.rate.norm below 16 B/op, JMH's own noise); the others are only reported.
+2. Allocation sweep (run JMH with -prof gc): benchmarks of per-frame paths must allocate nothing.
+   JMH's gc.alloc.rate.norm sums the allocation of every thread in the fork, so background threads
+   add a rate in bytes per millisecond that long operations pick up (the first nightly saw 3-29 B
+   per ms of operation time, the same within each fork whatever the benchmark). A hot path fails
+   above 16 B/op plus 64 B per ms of its operation time; the others are only reported. Exact
+   per-thread checks are the @NoAllocation tests (Allocations.assertNoAllocation).
 
 Usage: jmh-check.py RESULTS.json BASELINE.json [--write-baseline]"""
 import json
@@ -20,6 +24,19 @@ ZERO_ALLOC = [
     r"AssetBench\.(pakFind|vfsSize)", r"BaselineBench\.",
 ]
 NOISE = 16.0  # B/op
+BACKGROUND = 64.0  # B per ms of operation time
+
+
+def op_millis(r):
+    """Time of one operation in ms, from the primary score (average time or throughput)."""
+    score, unit = r["primaryMetric"]["score"], r["primaryMetric"]["scoreUnit"]
+    per_op = {"ns/op": 1e-6, "us/op": 1e-3, "ms/op": 1.0, "s/op": 1e3}
+    ops_per_ms = {"ops/ns": 1e6, "ops/us": 1e3, "ops/ms": 1.0, "ops/s": 1e-3}
+    if unit in per_op:
+        return score * per_op[unit]
+    if unit in ops_per_ms and score > 0:
+        return 1.0 / (score * ops_per_ms[unit])
+    return 0.0
 
 results_path, baseline_path = sys.argv[1], sys.argv[2]
 write = "--write-baseline" in sys.argv
@@ -65,10 +82,15 @@ for r in results:
         continue
     k, bytes_per_op = key(r), alloc["score"]
     hot = any(re.search(p, k) for p in ZERO_ALLOC)
-    if hot and bytes_per_op > NOISE:
-        failures.append(f"allocates {k}: {bytes_per_op:.1f} B/op")
+    ms = op_millis(r)
+    allowed = NOISE + BACKGROUND * ms
+    per_ms = f", {bytes_per_op / ms:.1f} B per ms of operation" if ms > 0 else ""
+    if hot and bytes_per_op > allowed:
+        failures.append(f"allocates {k}: {bytes_per_op:.1f} B/op (allowed {allowed:.0f}{per_ms})")
+    elif hot and bytes_per_op > NOISE:
+        notes.append(f"background allocation {k}: {bytes_per_op:.1f} B/op{per_ms}")
     elif bytes_per_op > NOISE:
-        notes.append(f"allocation (allowed) {k}: {bytes_per_op:.1f} B/op")
+        notes.append(f"allocation (allowed) {k}: {bytes_per_op:.1f} B/op{per_ms}")
 
 for n in notes:
     print("note:", n)

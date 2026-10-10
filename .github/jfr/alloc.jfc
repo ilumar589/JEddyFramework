@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- TLAB allocation events with stacks, for the perf capture's allocation diagnosis
+     (.github/scripts/alloc-stacks.py). Use with small TLABs so every allocation shows. -->
+<configuration version="2.0" label="Jeddy allocation" description="TLAB allocation events with stack traces">
+  <event name="jdk.ObjectAllocationInNewTLAB">
+    <setting name="enabled">true</setting>
+    <setting name="stackTrace">true</setting>
+  </event>
+  <event name="jdk.ObjectAllocationOutsideTLAB">
+    <setting name="enabled">true</setting>
+    <setting name="stackTrace">true</setting>
+  </event>
+  <!-- FrameStats emits one per frame while a recording enables it. -->
+  <event name="dev.jeddy.Frame">
+    <setting name="enabled">false</setting>
+  </event>
+</configuration>

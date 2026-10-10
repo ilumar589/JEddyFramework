@@ -479,6 +479,7 @@ final class DemoGame implements Game {
 
                 if (options.allocProbe) {
                     perf.notes = probe.report();
+                    perf.probeEvents = probe.secondHalfEvents();
                 }
                 perf.casts = spells.casts;
                 ctx.quit();
