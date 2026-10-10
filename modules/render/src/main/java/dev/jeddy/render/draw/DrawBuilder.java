@@ -2,6 +2,7 @@ package dev.jeddy.render.draw;
 
 import static dev.jeddy.gl.ffi.GL46.*;
 
+import dev.jeddy.asset.format.MaterialData;
 import dev.jeddy.core.collections.LongSort;
 import dev.jeddy.core.handle.Handles;
 import dev.jeddy.core.job.JobKernel;
@@ -328,7 +329,7 @@ public final class DrawBuilder {
                                             + world[w + 4] * world[w + 4]
                                             + world[w + 8] * world[w + 8]);
             int lod = selectLod(mesh, scale, distance);
-            boolean translucent = (p.flags[i] & RenderPacket.FLAG_TRANSLUCENT) != 0;
+            boolean translucentInstance = (p.flags[i] & RenderPacket.FLAG_TRANSLUCENT) != 0;
             int depth = (int) Math.min(65535f, distance * 64f);
             long meshBits = (long) (Handles.index(mesh) & 0xFFFFF) << 28 | (long) lod << 24;
             int instanceMaterial = p.material[i];
@@ -339,6 +340,11 @@ public final class DrawBuilder {
                                 ? instanceMaterial
                                 : meshes.submeshMaterialIndex(mesh, s);
                 int slot = materials.programSlot(material);
+                // Blended materials draw in the translucent pass whatever the instance says.
+                boolean translucent =
+                        translucentInstance
+                                || (materials.slotMask(slot) & MaterialData.FEATURE_ALPHA_BLEND)
+                                        != 0;
                 itemInstance[item] = v;
                 itemMaterial[item] = material;
                 itemLod[item] = (byte) lod;

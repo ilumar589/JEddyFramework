@@ -121,9 +121,17 @@ public final class MaterialSystem implements AutoCloseable {
         this.litOpaqueNoPrepass =
                 (state, slot, translucent) ->
                         !translucent && bindLit(state, slot, PipelineState.OPAQUE);
+        // Back faces of blended surfaces are culled unless the material is double-sided (unsorted
+        // back and front faces of one mesh would blend in arbitrary order).
         this.litTranslucent =
                 (state, slot, translucent) ->
-                        translucent && bindLit(state, slot, PipelineState.TRANSPARENT);
+                        translucent
+                                && bindLit(
+                                        state,
+                                        slot,
+                                        PipelineState.withCull(
+                                                PipelineState.TRANSPARENT,
+                                                PipelineState.CULL_BACK));
         this.depthOnly =
                 (state, slot, translucent) -> {
                     if (translucent) {

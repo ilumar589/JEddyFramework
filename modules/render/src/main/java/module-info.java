@@ -20,6 +20,7 @@ module dev.jeddy.render {
     exports dev.jeddy.render.material;
     exports dev.jeddy.render.mesh;
     exports dev.jeddy.render.outline;
+    exports dev.jeddy.render.particle;
     exports dev.jeddy.render.post;
     exports dev.jeddy.render.shader;
     exports dev.jeddy.render.shadow;

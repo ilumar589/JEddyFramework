@@ -544,4 +544,42 @@ class SceneRendererTest {
         float topAo = ao.getAtIndex(ValueLayout.JAVA_FLOAT, (top[1] / 2) * half + top[0] / 2);
         assertTrue(topAo > 0.85f, "sphere top: " + topAo);
     }
+
+    @Test
+    void translucentMaterialsBlendBackToFront() {
+        renderer.environment().setUniform(1, 1, 1);
+        MaterialSystem ms = renderer.materials();
+        int red =
+                ms.add(
+                        new MaterialData.Builder()
+                                .baseColor(1, 0, 0, 0.5f)
+                                .metallicRoughness(0, 0.9f)
+                                .alpha(MaterialData.ALPHA_BLEND, 0)
+                                .deriveFeatures()
+                                .build());
+        int blue =
+                ms.add(
+                        new MaterialData.Builder()
+                                .baseColor(0, 0, 1, 0.5f)
+                                .metallicRoughness(0, 0.9f)
+                                .alpha(MaterialData.ALPHA_BLEND, 0)
+                                .deriveFeatures()
+                                .build());
+        ms.compileBlocking(red);
+        ms.compileBlocking(blue);
+        // Blue first in the packet but farther away; red nearer.
+        addSphere(0.1f, 0, -0.6f, blue);
+        addSphere(0, 0, 0, red);
+        render();
+        int[] c = screen(0.05f, 0, 0.4f);
+        float r = hdr(c[0], c[1], 0);
+        float b = hdr(c[0], c[1], 2);
+        // Over the white background: red over (blue over white): r ≈ 0.5 + 0.25, b ≈ 0.25 + 0.
+        assertTrue(r > b + 0.2f, "the nearer red layer is on top: r " + r + " b " + b);
+        assertTrue(b > 0.1f, "blue shows through: " + b);
+        // A translucent surface does not hide what is behind it from the depth buffer: the opaque
+        // pass never sees it, so the background stays visible through it.
+        float g = hdr(c[0], c[1], 1);
+        assertTrue(g > 0.1f && g < 0.5f, "white background through both layers: " + g);
+    }
 }

@@ -2,7 +2,8 @@
 #pragma once
 #include "frame.glsl"
 
-#ifdef SCREEN_AO
+// Blended surfaces lie in front of the depth the AO came from: they skip it.
+#if defined(SCREEN_AO) && !defined(ALPHA_BLEND)
 layout(binding = 9) uniform sampler2D jAmbientOcclusion;
 float jeddyScreenOcclusion(vec2 fragCoord) {
     return texture(jAmbientOcclusion, fragCoord * jViewport.zw).r;

@@ -18,6 +18,7 @@ import dev.jeddy.render.light.LightClusters;
 import dev.jeddy.render.material.MaterialSystem;
 import dev.jeddy.render.mesh.MeshRegistry;
 import dev.jeddy.render.outline.Outlines;
+import dev.jeddy.render.particle.GpuParticles;
 import dev.jeddy.render.post.Gtao;
 import dev.jeddy.render.post.PostProcess;
 import dev.jeddy.render.shader.ProgramCache;
@@ -55,6 +56,7 @@ public final class SceneRenderer implements AutoCloseable {
      * @param ambientOcclusion half-resolution GTAO settings, or {@code null} for none
      * @param decalTextureSize layer size of the decal texture array, or 0 for no decals
      * @param outlines whether highlighted instances get outlines
+     * @param particleCapacity GPU particle pool size, or 0 for no particles
      * @param post bloom, exposure, tone mapping, grading and anti-aliasing settings
      */
     public record Config(
@@ -65,10 +67,11 @@ public final class SceneRenderer implements AutoCloseable {
             Gtao.Config ambientOcclusion,
             int decalTextureSize,
             boolean outlines,
+            int particleCapacity,
             PostProcess.Config post) {
         /**
-         * 32 MiB per frame, 256 materials, shadows, AO, 256² decal textures, outlines, default
-         * post.
+         * 32 MiB per frame, 256 materials, shadows, AO, 256² decal textures, outlines, 64k
+         * particles, default post.
          */
         public static final Config DEFAULT =
                 new Config(
@@ -79,6 +82,7 @@ public final class SceneRenderer implements AutoCloseable {
                         Gtao.Config.DEFAULT,
                         256,
                         true,
+                        1 << 16,
                         PostProcess.Config.DEFAULT);
 
         /** Checks that the post settings are present. */
@@ -96,6 +100,7 @@ public final class SceneRenderer implements AutoCloseable {
                     ambientOcclusion,
                     decalTextureSize,
                     outlines,
+                    particleCapacity,
                     post);
         }
 
@@ -109,6 +114,7 @@ public final class SceneRenderer implements AutoCloseable {
                     ambientOcclusion,
                     decalTextureSize,
                     outlines,
+                    particleCapacity,
                     post);
         }
 
@@ -122,6 +128,7 @@ public final class SceneRenderer implements AutoCloseable {
                     value,
                     decalTextureSize,
                     outlines,
+                    particleCapacity,
                     post);
         }
 
@@ -135,6 +142,7 @@ public final class SceneRenderer implements AutoCloseable {
                     ambientOcclusion,
                     value,
                     outlines,
+                    particleCapacity,
                     post);
         }
 
@@ -147,6 +155,21 @@ public final class SceneRenderer implements AutoCloseable {
                     localShadows,
                     ambientOcclusion,
                     decalTextureSize,
+                    value,
+                    particleCapacity,
+                    post);
+        }
+
+        /** Returns a copy with another particle pool size (0 turns particles off). */
+        public Config withParticleCapacity(int value) {
+            return new Config(
+                    ringBytesPerFrame,
+                    maxMaterials,
+                    sunShadows,
+                    localShadows,
+                    ambientOcclusion,
+                    decalTextureSize,
+                    outlines,
                     value,
                     post);
         }
@@ -161,6 +184,7 @@ public final class SceneRenderer implements AutoCloseable {
                     ambientOcclusion,
                     decalTextureSize,
                     outlines,
+                    particleCapacity,
                     value);
         }
     }
@@ -177,6 +201,7 @@ public final class SceneRenderer implements AutoCloseable {
     private final PostProcess post;
     private final DecalTextures decalTextures;
     private final Outlines outlines;
+    private final GpuParticles particles;
     private final FrameRing ring;
     private final Culling culling;
     private final DrawBuilder draws;
@@ -256,6 +281,10 @@ public final class SceneRenderer implements AutoCloseable {
                 config.outlines()
                         ? new Outlines(device, programs, meshes, materials, jobs, emptyVao)
                         : null;
+        particles =
+                config.particleCapacity() <= 0
+                        ? null
+                        : new GpuParticles(device, programs, config.particleCapacity(), emptyVao);
 
         graph = new FrameGraph(device);
         hdr = graph.texture("hdr", GL_RGBA16F, 1f);
@@ -293,6 +322,19 @@ public final class SceneRenderer implements AutoCloseable {
             opaque.readsTexture(ao);
         }
         graph.addPass("sky", this::sky).color(hdr).depthReadOnly(depth);
+        FrameGraph.Pass transparent =
+                graph.addPass("transparent", this::transparent)
+                        .color(hdr)
+                        .depthReadOnly(depth)
+                        .readsStorage(clusterItems)
+                        .readsTexture(sunCascades)
+                        .readsTexture(shadowAtlas);
+        if (gtao != null) {
+            transparent.readsTexture(ao);
+        }
+        if (particles != null) {
+            particles.declare(graph, hdr, depth);
+        }
         int overlay = outlines == null ? -1 : outlines.declare(graph, depth);
         post.declare(graph, hdr, overlay);
     }
@@ -342,6 +384,11 @@ public final class SceneRenderer implements AutoCloseable {
         return outlines;
     }
 
+    /** Returns the GPU particles, or {@code null} when off. */
+    public GpuParticles particles() {
+        return particles;
+    }
+
     /** Returns the post-processing chain. */
     public PostProcess post() {
         return post;
@@ -388,6 +435,11 @@ public final class SceneRenderer implements AutoCloseable {
         if (outlines != null) {
             outlines.collect(p, visible, n, ring, lod);
         }
+        float elapsed = Float.isNaN(lastTime) ? 0f : Math.clamp(p.time - lastTime, 0f, 1f);
+        lastTime = p.time;
+        if (particles != null) {
+            particles.collect(p, ring, elapsed);
+        }
         if (sunShadows != null) {
             sunShadows.update(p, ring, lod);
         }
@@ -397,8 +449,6 @@ public final class SceneRenderer implements AutoCloseable {
             localShadows.update(p, ring, clusters.lightsOffset(), lod);
         }
         frameOffset = writeFrameConstants(p);
-        float elapsed = Float.isNaN(lastTime) ? 0f : Math.clamp(p.time - lastTime, 0f, 1f);
-        lastTime = p.time;
         post.prepare(p.exposure, elapsed);
         StateCache state = device.state();
         state.bindUniform(FRAME_BINDING, ring.glName(), frameOffset, FRAME_BYTES);
@@ -514,6 +564,17 @@ public final class SceneRenderer implements AutoCloseable {
     }
 
     private void opaque(PassContext ctx) {
+        bindLighting(ctx);
+        draws.submit(ctx.state(), ring, materials.litOpaque);
+    }
+
+    private void transparent(PassContext ctx) {
+        bindLighting(ctx);
+        draws.submit(ctx.state(), ring, materials.litTranslucent);
+    }
+
+    /** Binds what the lit passes read: frame constants, AO, decals, IBL, lights, shadows. */
+    private void bindLighting(PassContext ctx) {
         StateCache state = ctx.state();
         state.bindUniform(FRAME_BINDING, ring.glName(), frameOffset, FRAME_BYTES);
         if (gtao != null) {
@@ -531,7 +592,6 @@ public final class SceneRenderer implements AutoCloseable {
             localShadows.bind(state, ring);
         }
         materials.invalidateBindings();
-        draws.submit(state, ring, materials.litOpaque);
     }
 
     private void sky(PassContext ctx) {
@@ -556,6 +616,9 @@ public final class SceneRenderer implements AutoCloseable {
         post.close();
         if (outlines != null) {
             outlines.close();
+        }
+        if (particles != null) {
+            particles.close();
         }
         if (decalTextures != null) {
             decalTextures.close();

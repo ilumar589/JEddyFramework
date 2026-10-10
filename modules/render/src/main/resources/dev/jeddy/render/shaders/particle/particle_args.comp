@@ -1,0 +1,16 @@
+#version 460 core
+// Writes the indirect draw for the next alive list and empties the current one, which becomes
+// next frame's "next" (TASKS M7-09).
+#include "particles.glsl"
+
+layout(local_size_x = 1) in;
+layout(location = 0) uniform uvec4 uParams; // y current list
+
+void main() {
+    uint current = uParams.y;
+    jDrawCount = 4u;
+    jDrawInstances = jAliveCount[1u - current];
+    jDrawFirst = 0u;
+    jDrawBaseInstance = 0u;
+    jAliveCount[current] = 0u;
+}

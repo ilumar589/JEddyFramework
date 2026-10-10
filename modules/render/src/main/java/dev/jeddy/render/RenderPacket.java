@@ -181,6 +181,7 @@ public final class RenderPacket {
         debugLineCount = 0;
         lightCount = 0;
         decalCount = 0;
+        emitterCount = 0;
     }
 
     private int nextLight() {
@@ -462,6 +463,119 @@ public final class RenderPacket {
         setDecalShape(d, 0, 0.05f, 0.3f);
         setDecalEmission(d, 1);
         return d;
+    }
+
+    /**
+     * Floats per emitter in {@link #emitters}: position xyz, spawn radius; velocity xyz, random
+     * speed; start color rgba; end color rgba; lifetime, lifetime randomness, start size, end size;
+     * rate, burst, gravity scale, drag. Colors are premultiplied linear RGBA (alpha 0 adds light).
+     */
+    public static final int EMITTER_FLOATS = 24;
+
+    /** Particle emitters ({@link #addEmitter}), {@link #EMITTER_FLOATS} floats each. */
+    public float[] emitters = new float[EMITTER_FLOATS * 8];
+
+    /** Number of emitters. */
+    public int emitterCount;
+
+    /**
+     * Adds a particle emitter at {@code (x, y, z)} spawning {@code rate} particles per second and
+     * {@code burst} once (when the renderer first sees this packet's {@link #frame}). Defaults: a
+     * 0.1 m spawn sphere, 1 m/s upward plus up to 0.5 m/s at random, white fading to transparent, 1
+     * s ± 20% lifetime, size 0.1 m shrinking to 0, no gravity or drag; change them with the {@code
+     * setEmitter*} methods.
+     *
+     * @return the emitter index
+     */
+    public int addEmitter(float x, float y, float z, float rate, int burst) {
+        if ((emitterCount + 1) * EMITTER_FLOATS > emitters.length) {
+            emitters = Arrays.copyOf(emitters, emitters.length * 2);
+        }
+        int o = emitterCount * EMITTER_FLOATS;
+        float[] e = emitters;
+        e[o] = x;
+        e[o + 1] = y;
+        e[o + 2] = z;
+        e[o + 3] = 0.1f;
+        e[o + 4] = 0;
+        e[o + 5] = 1;
+        e[o + 6] = 0;
+        e[o + 7] = 0.5f;
+        e[o + 8] = 1;
+        e[o + 9] = 1;
+        e[o + 10] = 1;
+        e[o + 11] = 1;
+        e[o + 12] = 0;
+        e[o + 13] = 0;
+        e[o + 14] = 0;
+        e[o + 15] = 0;
+        e[o + 16] = 1;
+        e[o + 17] = 0.2f;
+        e[o + 18] = 0.1f;
+        e[o + 19] = 0;
+        e[o + 20] = rate;
+        e[o + 21] = burst;
+        e[o + 22] = 0;
+        e[o + 23] = 0;
+        return emitterCount++;
+    }
+
+    /** Sets an emitter's spawn sphere radius. */
+    public void setEmitterRadius(int emitter, float radius) {
+        emitters[emitter * EMITTER_FLOATS + 3] = radius;
+    }
+
+    /** Sets an emitter's base velocity and the most random speed added in any direction. */
+    public void setEmitterVelocity(int emitter, float vx, float vy, float vz, float spread) {
+        int o = emitter * EMITTER_FLOATS;
+        emitters[o + 4] = vx;
+        emitters[o + 5] = vy;
+        emitters[o + 6] = vz;
+        emitters[o + 7] = spread;
+    }
+
+    /** Sets an emitter's premultiplied start and end colors (alpha 0: additive). */
+    public void setEmitterColors(
+            int emitter,
+            float r0,
+            float g0,
+            float b0,
+            float a0,
+            float r1,
+            float g1,
+            float b1,
+            float a1) {
+        int o = emitter * EMITTER_FLOATS + 8;
+        float[] e = emitters;
+        e[o] = r0;
+        e[o + 1] = g0;
+        e[o + 2] = b0;
+        e[o + 3] = a0;
+        e[o + 4] = r1;
+        e[o + 5] = g1;
+        e[o + 6] = b1;
+        e[o + 7] = a1;
+    }
+
+    /** Sets an emitter's particle lifetime (seconds, ± {@code randomness} as a fraction). */
+    public void setEmitterLifetime(int emitter, float seconds, float randomness) {
+        int o = emitter * EMITTER_FLOATS;
+        emitters[o + 16] = seconds;
+        emitters[o + 17] = randomness;
+    }
+
+    /** Sets an emitter's particle half-size at birth and at death (meters). */
+    public void setEmitterSize(int emitter, float start, float end) {
+        int o = emitter * EMITTER_FLOATS;
+        emitters[o + 18] = start;
+        emitters[o + 19] = end;
+    }
+
+    /** Sets an emitter's gravity scale (1 = 9.81 m/s² down) and drag (1 / s). */
+    public void setEmitterForces(int emitter, float gravity, float drag) {
+        int o = emitter * EMITTER_FLOATS;
+        emitters[o + 22] = gravity;
+        emitters[o + 23] = drag;
     }
 
     /** Bumped by the game whenever static geometry changes (invalidates cached shadow maps). */
