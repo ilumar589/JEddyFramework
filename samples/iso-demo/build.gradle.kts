@@ -22,12 +22,13 @@ jeddyAssets {
 // Extra JVM flags for perf runs: -Pjeddy.jvmArgs="-Xlog:gc*:file=build/perf/gc.log". They go through
 // an argument provider: adding to jvmArguments would drop the launcher flags, which are only its
 // convention (the perf capture's `flags` check catches that).
-val extraJvmArgs = providers.gradleProperty("jeddy.jvmArgs")
-    .map { args -> args.split(' ').filter(String::isNotBlank) }
-    .orElse(emptyList())
 tasks.named<JavaExec>("run") {
     dependsOn("packAssets")
-    jvmArgumentProviders.add(CommandLineArgumentProvider { extraJvmArgs.get() })
+    // A local, so the provider lambda captures no script object (configuration cache).
+    val extra = providers.gradleProperty("jeddy.jvmArgs")
+        .map { args -> args.split(' ').filter(String::isNotBlank) }
+        .orElse(emptyList())
+    jvmArgumentProviders.add(CommandLineArgumentProvider { extra.get() })
 }
 
 // Packaging (TASKS M11): ./gradlew :iso-demo:distImage (runnable image with launchers and an AOT
