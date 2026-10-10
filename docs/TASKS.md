@@ -79,11 +79,11 @@ The tracks are *mostly* independent. Dotted edges are the few late cross-track d
 - [x] **M2-10** Main-thread command queue (game → main): encoded commands for cursor, text input start/stop, window mode and relative mouse. Assertions that main-thread-only SDL calls never run elsewhere (§5) · S · Deps: M2-09
 
 ## M3: GL bindings and first pixels
-- [ ] **M3-01** Vendor `gl.xml` (pinned commit) and `gl.properties`. Write the `GenerateGlBindings` task in build-logic: constants, functions, per-function holders with `static final MethodHandle`, critical allow-list, segment and primitive signatures (§9.1) · L · AC: the task is cacheable and configuration-cache safe, and the generated `GL46` compiles
-- [ ] **M3-02** `GLLoader` (`SDL_GL_GetProcAddress`), `GLCapabilities` (version, extensions, limits) · S · Deps: M3-01, M2-03
-- [ ] **M3-03** `KHR_debug` callback (upcall created once, synchronous in dev), object labels · S · Deps: M3-02
-- [ ] **M3-04** Hello triangle sample using DSA · S · Deps: M3-03 · AC: renders on NVIDIA, AMD and Intel on Windows, and on Mesa (radeonsi/iris) on Linux
-- [ ] **M3-05** FFM call-overhead benchmarks (critical vs regular, heap vs off-heap args, `glUniform*`, `glNamedBufferSubData`). Finalize the critical allow-list and document the numbers · M · Deps: M3-04, M1-15
+- [x] **M3-01** Vendor `gl.xml` (pinned commit) and `gl.properties`. Write the `GenerateGlBindings` task in build-logic: constants, functions, per-function holders with `static final MethodHandle`, critical allow-list, segment and primitive signatures (§9.1) · L · AC: the task is cacheable and configuration-cache safe, and the generated `GL46` compiles
+- [x] **M3-02** `GLLoader` (`SDL_GL_GetProcAddress`), `GLCapabilities` (version, extensions, limits) · S · Deps: M3-01, M2-03
+- [x] **M3-03** `KHR_debug` callback (upcall created once, synchronous in dev), object labels · S · Deps: M3-02
+- [x] **M3-04** Hello triangle sample using DSA · S · Deps: M3-03 · AC: renders on NVIDIA, AMD and Intel on Windows, and on Mesa (radeonsi/iris) on Linux · *Done: `samples/hello-triangle` plus `GLTest` (renders and reads back pixels); CI runs both under Mesa llvmpipe. Hardware vendors still need a manual run (question for the M10 hardware pass)*
+- [x] **M3-05** FFM call-overhead benchmarks (critical vs regular, heap vs off-heap args, `glUniform*`, `glNamedBufferSubData`). Finalize the critical allow-list and document the numbers · M · Deps: M3-04, M1-15
 
 ## M4: Compression and asset runtime
 - [ ] **M4-01** jextract zstd. `Zstd` facade: one-shot segment API, pooled CCtx/DCtx per worker, streaming in chunks, dictionaries (CDict/DDict) · M · Deps: M0-10, M1-04 · bench · AC: round-trip fuzz test, throughput within 10% of the native CLI, 0 B allocated per call

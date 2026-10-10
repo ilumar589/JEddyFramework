@@ -17,6 +17,24 @@ every push and posts the numbers as a notice annotation on the commit ("JMH resu
 | `CollectionsBench` | `IntIntMap` vs `HashMap<Integer,Integer>` lookups; radix sort vs `Arrays.sort` | M1-03 |
 | `MathBench` | TRS composition, hierarchy pass, sphere culling for 10k items; `Mat4` multiply | M1-12 |
 | `JobBench` | 1M-element `parallelFor` vs sequential (scaling target ≥ 6× on 8 cores); empty dispatch cost | M1-07 |
+| `FfmBench` | FFM call overhead with C library functions: regular vs critical, `mat4` blocks from heap arrays vs off-heap | M3-05 |
+| `GlBench` | `glUniform4f` regular vs critical vs generated, `glUniformMatrix4fv` heap vs off-heap, 64-byte `glNamedBufferSubData` (needs a GL 4.6 context; CI uses Xvfb + llvmpipe) | M3-05 |
+
+### FFM numbers (M3-05)
+
+Local run, JDK 27, x64 Linux, Mesa llvmpipe (single-thread loop, not JMH; CI posts JMH numbers):
+
+| Call | ns |
+|---|---|
+| `abs` regular / critical | 16.5 / 3.6 |
+| 64-byte block, off-heap regular / off-heap critical / heap critical / copy then regular | 13.9 / 10.1 / 10.5 / 18.9 |
+| `glUniform4f` regular / critical / generated `GL46` | 37.0 / 33.2 / 33.5 |
+| `glUniformMatrix4fv` off-heap regular / heap critical / copy then regular | 37.6 / 27.7 / 36.1 |
+| `glNamedBufferSubData` 64 B | 139 |
+
+Conclusions: critical linking saves about 13 ns per call; heap access makes `float[]` parameter
+blocks as cheap as off-heap ones; the generated wrappers add nothing. The allow-list in
+`bindings/gl/gl.properties` (state setters, binds, uniforms) stays as designed (DESIGN §4.4).
 
 Vectorization of the math kernels is checked with JMH's `-prof perfasm` (needs `hsdis`), not
 `-XX:+PrintCompilation`.
