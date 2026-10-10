@@ -52,7 +52,7 @@ public class meshopt_OverdrawStatistics {
         return pixels_covered$LAYOUT;
     }
 
-    private static final long pixels_covered$OFFSET = $LAYOUT.byteOffset(groupElement("pixels_covered"));
+    private static final long pixels_covered$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -96,7 +96,7 @@ public class meshopt_OverdrawStatistics {
         return pixels_shaded$LAYOUT;
     }
 
-    private static final long pixels_shaded$OFFSET = $LAYOUT.byteOffset(groupElement("pixels_shaded"));
+    private static final long pixels_shaded$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -140,7 +140,7 @@ public class meshopt_OverdrawStatistics {
         return overdraw$LAYOUT;
     }
 
-    private static final long overdraw$OFFSET = $LAYOUT.byteOffset(groupElement("overdraw"));
+    private static final long overdraw$OFFSET = 8;
 
     /**
      * Offset for field:

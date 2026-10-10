@@ -12,17 +12,61 @@ import java.util.stream.*;
 import static java.lang.foreign.ValueLayout.*;
 import static java.lang.foreign.MemoryLayout.PathElement.*;
 
-public class Ktx extends Ktx$shared {
+public class Ktx {
 
     Ktx() {
         // Should not be called directly
     }
 
     static final Arena LIBRARY_ARENA = Arena.global();
+    static final boolean TRACE_DOWNCALLS = Boolean.getBoolean("jextract.trace.downcalls");
+
+    static void traceDowncall(String name, Object... args) {
+         String traceArgs = Arrays.stream(args)
+                       .map(Object::toString)
+                       .collect(Collectors.joining(", "));
+         System.out.printf("%s(%s)\n", name, traceArgs);
+    }
+
+    static MemorySegment findOrThrow(String symbol) {
+        return SYMBOL_LOOKUP.find(symbol)
+            .orElseThrow(() -> new UnsatisfiedLinkError("unresolved symbol: " + symbol));
+    }
+
+    static MethodHandle upcallHandle(Class<?> fi, String name, FunctionDescriptor fdesc) {
+        try {
+            return MethodHandles.lookup().findVirtual(fi, name, fdesc.toMethodType());
+        } catch (ReflectiveOperationException ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
+    static MemoryLayout align(MemoryLayout layout, long align) {
+        return switch (layout) {
+            case PaddingLayout p -> p;
+            case ValueLayout v -> v.withByteAlignment(align);
+            case GroupLayout g -> {
+                MemoryLayout[] alignedMembers = g.memberLayouts().stream()
+                        .map(m -> align(m, align)).toArray(MemoryLayout[]::new);
+                yield g instanceof StructLayout ?
+                        MemoryLayout.structLayout(alignedMembers) : MemoryLayout.unionLayout(alignedMembers);
+            }
+            case SequenceLayout s -> MemoryLayout.sequenceLayout(s.elementCount(), align(s.elementLayout(), align));
+        };
+    }
 
     static final SymbolLookup SYMBOL_LOOKUP = SymbolLookup.loaderLookup()
             .or(Linker.nativeLinker().defaultLookup());
 
+    public static final ValueLayout.OfBoolean C_BOOL = ValueLayout.JAVA_BOOLEAN;
+    public static final ValueLayout.OfByte C_CHAR = ValueLayout.JAVA_BYTE;
+    public static final ValueLayout.OfShort C_SHORT = ValueLayout.JAVA_SHORT;
+    public static final ValueLayout.OfInt C_INT = ValueLayout.JAVA_INT;
+    public static final ValueLayout.OfLong C_LONG_LONG = ValueLayout.JAVA_LONG;
+    public static final ValueLayout.OfFloat C_FLOAT = ValueLayout.JAVA_FLOAT;
+    public static final ValueLayout.OfDouble C_DOUBLE = ValueLayout.JAVA_DOUBLE;
+    public static final AddressLayout C_POINTER = ValueLayout.ADDRESS
+            .withTargetLayout(MemoryLayout.sequenceLayout(java.lang.Long.MAX_VALUE, JAVA_BYTE));
     private static final int KHR_DF_TRANSFER_LINEAR = (int)1L;
     /**
      * {@snippet lang=c :
@@ -53,7 +97,7 @@ public class Ktx extends Ktx$shared {
     private static final int KTX_TEXTURE_CREATE_NO_STORAGE = (int)0L;
     /**
      * {@snippet lang=c :
-     * enum ktxTextureCreateStorageEnum.KTX_TEXTURE_CREATE_NO_STORAGE = 0
+     * enum <anonymous>.KTX_TEXTURE_CREATE_NO_STORAGE = 0
      * }
      */
     public static int KTX_TEXTURE_CREATE_NO_STORAGE() {
@@ -62,7 +106,7 @@ public class Ktx extends Ktx$shared {
     private static final int KTX_TEXTURE_CREATE_ALLOC_STORAGE = (int)1L;
     /**
      * {@snippet lang=c :
-     * enum ktxTextureCreateStorageEnum.KTX_TEXTURE_CREATE_ALLOC_STORAGE = 1
+     * enum <anonymous>.KTX_TEXTURE_CREATE_ALLOC_STORAGE = 1
      * }
      */
     public static int KTX_TEXTURE_CREATE_ALLOC_STORAGE() {
@@ -86,7 +130,7 @@ public class Ktx extends Ktx$shared {
             Ktx.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ktxTexture2_Create");
+        public static final MemorySegment ADDR = Ktx.findOrThrow("ktxTexture2_Create");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -133,8 +177,6 @@ public class Ktx extends Ktx$shared {
                 traceDowncall("ktxTexture2_Create", createInfo, storageAllocation, newTex);
             }
             return (int)mh$.invokeExact(createInfo, storageAllocation, newTex);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -147,7 +189,7 @@ public class Ktx extends Ktx$shared {
             Ktx.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ktxTexture2_CreateCopy");
+        public static final MemorySegment ADDR = Ktx.findOrThrow("ktxTexture2_CreateCopy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -194,8 +236,6 @@ public class Ktx extends Ktx$shared {
                 traceDowncall("ktxTexture2_CreateCopy", orig, newTex);
             }
             return (int)mh$.invokeExact(orig, newTex);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -210,7 +250,7 @@ public class Ktx extends Ktx$shared {
             Ktx.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ktxTexture2_CreateFromMemory");
+        public static final MemorySegment ADDR = Ktx.findOrThrow("ktxTexture2_CreateFromMemory");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -257,8 +297,6 @@ public class Ktx extends Ktx$shared {
                 traceDowncall("ktxTexture2_CreateFromMemory", bytes, size, createFlags, newTex);
             }
             return (int)mh$.invokeExact(bytes, size, createFlags, newTex);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -269,7 +307,7 @@ public class Ktx extends Ktx$shared {
             Ktx.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ktxTexture2_Destroy");
+        public static final MemorySegment ADDR = Ktx.findOrThrow("ktxTexture2_Destroy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -316,8 +354,6 @@ public class Ktx extends Ktx$shared {
                 traceDowncall("ktxTexture2_Destroy", This);
             }
             mh$.invokeExact(This);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -330,7 +366,7 @@ public class Ktx extends Ktx$shared {
             Ktx.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ktxTexture2_DeflateZstd");
+        public static final MemorySegment ADDR = Ktx.findOrThrow("ktxTexture2_DeflateZstd");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -377,8 +413,6 @@ public class Ktx extends Ktx$shared {
                 traceDowncall("ktxTexture2_DeflateZstd", This, level);
             }
             return (int)mh$.invokeExact(This, level);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -394,7 +428,7 @@ public class Ktx extends Ktx$shared {
             Ktx.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ktxTexture2_GetImageOffset");
+        public static final MemorySegment ADDR = Ktx.findOrThrow("ktxTexture2_GetImageOffset");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -441,8 +475,6 @@ public class Ktx extends Ktx$shared {
                 traceDowncall("ktxTexture2_GetImageOffset", This, level, layer, faceSlice, pOffset);
             }
             return (int)mh$.invokeExact(This, level, layer, faceSlice, pOffset);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -454,7 +486,7 @@ public class Ktx extends Ktx$shared {
             Ktx.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ktxTexture2_GetOETF");
+        public static final MemorySegment ADDR = Ktx.findOrThrow("ktxTexture2_GetOETF");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -501,8 +533,6 @@ public class Ktx extends Ktx$shared {
                 traceDowncall("ktxTexture2_GetOETF", This);
             }
             return (int)mh$.invokeExact(This);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -514,7 +544,7 @@ public class Ktx extends Ktx$shared {
             Ktx.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ktxTexture2_NeedsTranscoding");
+        public static final MemorySegment ADDR = Ktx.findOrThrow("ktxTexture2_NeedsTranscoding");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -561,8 +591,6 @@ public class Ktx extends Ktx$shared {
                 traceDowncall("ktxTexture2_NeedsTranscoding", This);
             }
             return (boolean)mh$.invokeExact(This);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -576,7 +604,7 @@ public class Ktx extends Ktx$shared {
             Ktx.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ktxTexture2_WriteToMemory");
+        public static final MemorySegment ADDR = Ktx.findOrThrow("ktxTexture2_WriteToMemory");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -623,8 +651,6 @@ public class Ktx extends Ktx$shared {
                 traceDowncall("ktxTexture2_WriteToMemory", This, bytes, size);
             }
             return (int)mh$.invokeExact(This, bytes, size);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -691,7 +717,7 @@ public class Ktx extends Ktx$shared {
             Ktx.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ktxTexture2_CompressBasisEx");
+        public static final MemorySegment ADDR = Ktx.findOrThrow("ktxTexture2_CompressBasisEx");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -738,8 +764,6 @@ public class Ktx extends Ktx$shared {
                 traceDowncall("ktxTexture2_CompressBasisEx", This, params);
             }
             return (int)mh$.invokeExact(This, params);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -798,7 +822,7 @@ public class Ktx extends Ktx$shared {
             Ktx.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ktxTexture2_TranscodeBasis");
+        public static final MemorySegment ADDR = Ktx.findOrThrow("ktxTexture2_TranscodeBasis");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -845,8 +869,6 @@ public class Ktx extends Ktx$shared {
                 traceDowncall("ktxTexture2_TranscodeBasis", This, fmt, transcodeFlags);
             }
             return (int)mh$.invokeExact(This, fmt, transcodeFlags);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -858,7 +880,7 @@ public class Ktx extends Ktx$shared {
             Ktx.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ktxErrorString");
+        public static final MemorySegment ADDR = Ktx.findOrThrow("ktxErrorString");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -905,8 +927,6 @@ public class Ktx extends Ktx$shared {
                 traceDowncall("ktxErrorString", error);
             }
             return (MemorySegment)mh$.invokeExact(error);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -921,7 +941,7 @@ public class Ktx extends Ktx$shared {
             Ktx.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ktxHashList_AddKVPair");
+        public static final MemorySegment ADDR = Ktx.findOrThrow("ktxHashList_AddKVPair");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -961,15 +981,13 @@ public class Ktx extends Ktx$shared {
      * ktx_error_code_e ktxHashList_AddKVPair(ktxHashList *pHead, const char *key, unsigned int valueLen, const void *value)
      * }
      */
-    public static int ktxHashList_AddKVPair(MemorySegment pHead, MemorySegment key, int valueLen, MemorySegment value_) {
+    public static int ktxHashList_AddKVPair(MemorySegment pHead, MemorySegment key, int valueLen, MemorySegment value) {
         var mh$ = ktxHashList_AddKVPair.HANDLE;
         try {
             if (TRACE_DOWNCALLS) {
-                traceDowncall("ktxHashList_AddKVPair", pHead, key, valueLen, value_);
+                traceDowncall("ktxHashList_AddKVPair", pHead, key, valueLen, value);
             }
-            return (int)mh$.invokeExact(pHead, key, valueLen, value_);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
+            return (int)mh$.invokeExact(pHead, key, valueLen, value);
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }

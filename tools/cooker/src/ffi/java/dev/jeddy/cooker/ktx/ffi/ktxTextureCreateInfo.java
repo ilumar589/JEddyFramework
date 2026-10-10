@@ -50,7 +50,7 @@ public class ktxTextureCreateInfo {
         Ktx.C_BOOL.withName("isArray"),
         Ktx.C_BOOL.withName("generateMipmaps"),
         MemoryLayout.paddingLayout(2)
-    ).withName("ktxTextureCreateInfo");
+    ).withName("$anon$746:9");
 
     /**
      * The layout of this struct
@@ -71,7 +71,7 @@ public class ktxTextureCreateInfo {
         return glInternalformat$LAYOUT;
     }
 
-    private static final long glInternalformat$OFFSET = $LAYOUT.byteOffset(groupElement("glInternalformat"));
+    private static final long glInternalformat$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -115,7 +115,7 @@ public class ktxTextureCreateInfo {
         return vkFormat$LAYOUT;
     }
 
-    private static final long vkFormat$OFFSET = $LAYOUT.byteOffset(groupElement("vkFormat"));
+    private static final long vkFormat$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -159,7 +159,7 @@ public class ktxTextureCreateInfo {
         return pDfd$LAYOUT;
     }
 
-    private static final long pDfd$OFFSET = $LAYOUT.byteOffset(groupElement("pDfd"));
+    private static final long pDfd$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -203,7 +203,7 @@ public class ktxTextureCreateInfo {
         return baseWidth$LAYOUT;
     }
 
-    private static final long baseWidth$OFFSET = $LAYOUT.byteOffset(groupElement("baseWidth"));
+    private static final long baseWidth$OFFSET = 16;
 
     /**
      * Offset for field:
@@ -247,7 +247,7 @@ public class ktxTextureCreateInfo {
         return baseHeight$LAYOUT;
     }
 
-    private static final long baseHeight$OFFSET = $LAYOUT.byteOffset(groupElement("baseHeight"));
+    private static final long baseHeight$OFFSET = 20;
 
     /**
      * Offset for field:
@@ -291,7 +291,7 @@ public class ktxTextureCreateInfo {
         return baseDepth$LAYOUT;
     }
 
-    private static final long baseDepth$OFFSET = $LAYOUT.byteOffset(groupElement("baseDepth"));
+    private static final long baseDepth$OFFSET = 24;
 
     /**
      * Offset for field:
@@ -335,7 +335,7 @@ public class ktxTextureCreateInfo {
         return numDimensions$LAYOUT;
     }
 
-    private static final long numDimensions$OFFSET = $LAYOUT.byteOffset(groupElement("numDimensions"));
+    private static final long numDimensions$OFFSET = 28;
 
     /**
      * Offset for field:
@@ -379,7 +379,7 @@ public class ktxTextureCreateInfo {
         return numLevels$LAYOUT;
     }
 
-    private static final long numLevels$OFFSET = $LAYOUT.byteOffset(groupElement("numLevels"));
+    private static final long numLevels$OFFSET = 32;
 
     /**
      * Offset for field:
@@ -423,7 +423,7 @@ public class ktxTextureCreateInfo {
         return numLayers$LAYOUT;
     }
 
-    private static final long numLayers$OFFSET = $LAYOUT.byteOffset(groupElement("numLayers"));
+    private static final long numLayers$OFFSET = 36;
 
     /**
      * Offset for field:
@@ -467,7 +467,7 @@ public class ktxTextureCreateInfo {
         return numFaces$LAYOUT;
     }
 
-    private static final long numFaces$OFFSET = $LAYOUT.byteOffset(groupElement("numFaces"));
+    private static final long numFaces$OFFSET = 40;
 
     /**
      * Offset for field:
@@ -511,7 +511,7 @@ public class ktxTextureCreateInfo {
         return isArray$LAYOUT;
     }
 
-    private static final long isArray$OFFSET = $LAYOUT.byteOffset(groupElement("isArray"));
+    private static final long isArray$OFFSET = 44;
 
     /**
      * Offset for field:
@@ -555,7 +555,7 @@ public class ktxTextureCreateInfo {
         return generateMipmaps$LAYOUT;
     }
 
-    private static final long generateMipmaps$OFFSET = $LAYOUT.byteOffset(groupElement("generateMipmaps"));
+    private static final long generateMipmaps$OFFSET = 45;
 
     /**
      * Offset for field:

@@ -12,23 +12,67 @@ import java.util.stream.*;
 import static java.lang.foreign.ValueLayout.*;
 import static java.lang.foreign.MemoryLayout.PathElement.*;
 
-public class JeddyTools extends JeddyTools$shared {
+public class JeddyTools {
 
     JeddyTools() {
         // Should not be called directly
     }
 
     static final Arena LIBRARY_ARENA = Arena.global();
+    static final boolean TRACE_DOWNCALLS = Boolean.getBoolean("jextract.trace.downcalls");
+
+    static void traceDowncall(String name, Object... args) {
+         String traceArgs = Arrays.stream(args)
+                       .map(Object::toString)
+                       .collect(Collectors.joining(", "));
+         System.out.printf("%s(%s)\n", name, traceArgs);
+    }
+
+    static MemorySegment findOrThrow(String symbol) {
+        return SYMBOL_LOOKUP.find(symbol)
+            .orElseThrow(() -> new UnsatisfiedLinkError("unresolved symbol: " + symbol));
+    }
+
+    static MethodHandle upcallHandle(Class<?> fi, String name, FunctionDescriptor fdesc) {
+        try {
+            return MethodHandles.lookup().findVirtual(fi, name, fdesc.toMethodType());
+        } catch (ReflectiveOperationException ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
+    static MemoryLayout align(MemoryLayout layout, long align) {
+        return switch (layout) {
+            case PaddingLayout p -> p;
+            case ValueLayout v -> v.withByteAlignment(align);
+            case GroupLayout g -> {
+                MemoryLayout[] alignedMembers = g.memberLayouts().stream()
+                        .map(m -> align(m, align)).toArray(MemoryLayout[]::new);
+                yield g instanceof StructLayout ?
+                        MemoryLayout.structLayout(alignedMembers) : MemoryLayout.unionLayout(alignedMembers);
+            }
+            case SequenceLayout s -> MemoryLayout.sequenceLayout(s.elementCount(), align(s.elementLayout(), align));
+        };
+    }
 
     static final SymbolLookup SYMBOL_LOOKUP = SymbolLookup.loaderLookup()
             .or(Linker.nativeLinker().defaultLookup());
 
+    public static final ValueLayout.OfBoolean C_BOOL = ValueLayout.JAVA_BOOLEAN;
+    public static final ValueLayout.OfByte C_CHAR = ValueLayout.JAVA_BYTE;
+    public static final ValueLayout.OfShort C_SHORT = ValueLayout.JAVA_SHORT;
+    public static final ValueLayout.OfInt C_INT = ValueLayout.JAVA_INT;
+    public static final ValueLayout.OfLong C_LONG_LONG = ValueLayout.JAVA_LONG;
+    public static final ValueLayout.OfFloat C_FLOAT = ValueLayout.JAVA_FLOAT;
+    public static final ValueLayout.OfDouble C_DOUBLE = ValueLayout.JAVA_DOUBLE;
+    public static final AddressLayout C_POINTER = ValueLayout.ADDRESS
+            .withTargetLayout(MemoryLayout.sequenceLayout(java.lang.Long.MAX_VALUE, JAVA_BYTE));
 
     private static class jeddy_tools_native_version {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             JeddyTools.C_INT    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("jeddy_tools_native_version");
+        public static final MemorySegment ADDR = JeddyTools.findOrThrow("jeddy_tools_native_version");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -36,7 +80,7 @@ public class JeddyTools extends JeddyTools$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * int32_t jeddy_tools_native_version(void)
+     * int32_t jeddy_tools_native_version()
      * }
      */
     public static FunctionDescriptor jeddy_tools_native_version$descriptor() {
@@ -46,7 +90,7 @@ public class JeddyTools extends JeddyTools$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * int32_t jeddy_tools_native_version(void)
+     * int32_t jeddy_tools_native_version()
      * }
      */
     public static MethodHandle jeddy_tools_native_version$handle() {
@@ -56,7 +100,7 @@ public class JeddyTools extends JeddyTools$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * int32_t jeddy_tools_native_version(void)
+     * int32_t jeddy_tools_native_version()
      * }
      */
     public static MemorySegment jeddy_tools_native_version$address() {
@@ -65,7 +109,7 @@ public class JeddyTools extends JeddyTools$shared {
 
     /**
      * {@snippet lang=c :
-     * int32_t jeddy_tools_native_version(void)
+     * int32_t jeddy_tools_native_version()
      * }
      */
     public static int jeddy_tools_native_version() {
@@ -75,8 +119,6 @@ public class JeddyTools extends JeddyTools$shared {
                 traceDowncall("jeddy_tools_native_version");
             }
             return (int)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -94,7 +136,7 @@ public class JeddyTools extends JeddyTools$shared {
             JeddyTools.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("jeddy_mikk_generate_tangents");
+        public static final MemorySegment ADDR = JeddyTools.findOrThrow("jeddy_mikk_generate_tangents");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -141,8 +183,6 @@ public class JeddyTools extends JeddyTools$shared {
                 traceDowncall("jeddy_mikk_generate_tangents", positions, normals, uvs, vertexCount, indices, triangleCount, tangentsOut);
             }
             return (int)mh$.invokeExact(positions, normals, uvs, vertexCount, indices, triangleCount, tangentsOut);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
