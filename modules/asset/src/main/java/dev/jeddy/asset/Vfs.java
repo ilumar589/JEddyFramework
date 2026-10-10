@@ -16,6 +16,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
@@ -42,6 +43,8 @@ public final class Vfs implements AutoCloseable {
     private abstract static sealed class Mount permits PakMount, DirectoryMount {
         final int id;
         final AtomicInteger readers = new AtomicInteger();
+        final AtomicInteger pins = new AtomicInteger();
+        final AtomicBoolean unmapped = new AtomicBoolean();
         volatile boolean closed;
 
         Mount(int id) {
@@ -172,7 +175,10 @@ public final class Vfs implements AutoCloseable {
         return d.root;
     }
 
-    /** Removes a mount and, for paks, unmaps the file once reads in flight on it have finished. */
+    /**
+     * Removes a mount and, for paks, unmaps the file once reads in flight on it have finished and
+     * every {@link Pin} on it is closed (the last pin to close unmaps it).
+     */
     public synchronized void unmount(int mountId) {
         Mount m = find(mountId);
         if (m == null) {
@@ -182,8 +188,79 @@ public final class Vfs implements AutoCloseable {
         mounts.remove(m);
         publish();
         awaitReaders(m);
-        if (m instanceof PakMount p) {
+        if (m.pins.get() == 0) {
+            unmap(m);
+        }
+    }
+
+    private static void unmap(Mount m) {
+        if (m instanceof PakMount p && m.unmapped.compareAndSet(false, true)) {
             p.pak.close();
+        }
+    }
+
+    /**
+     * Stored bytes of a pak entry kept mapped for as long as the pin is open: zero-copy access for
+     * consumers that keep reading the data, such as streamed audio (DESIGN §12.3). Unmounting the
+     * pak removes it from lookups at once, but the file stays mapped until the last pin closes.
+     *
+     * <p>Thread ownership: any thread; close once.
+     */
+    public static final class Pin implements AutoCloseable {
+        private final Mount mount;
+        private final MemorySegment data;
+        private final AtomicBoolean open = new AtomicBoolean(true);
+
+        private Pin(Mount mount, MemorySegment data) {
+            this.mount = mount;
+            this.data = data;
+        }
+
+        /** Returns the entry's bytes (valid until {@link #close}). */
+        public MemorySegment data() {
+            return data;
+        }
+
+        /** Releases the pin. */
+        @Override
+        public void close() {
+            if (open.compareAndSet(true, false)
+                    && mount.pins.decrementAndGet() == 0
+                    && mount.closed) {
+                unmap(mount);
+            }
+        }
+    }
+
+    /**
+     * Pins the visible copy of {@code id} if it is stored uncompressed in a pak (so its bytes can
+     * be used in place); returns {@code null} for loose files and compressed entries, which must be
+     * read with {@link #read}.
+     */
+    public Pin pin(long id) {
+        while (true) {
+            Index ix = index;
+            int loc = ix.map.get(id);
+            if (loc < 0) {
+                return null;
+            }
+            Mount m = ix.mounts[loc >>> ENTRY_BITS];
+            m.readers.incrementAndGet();
+            try {
+                if (m.closed) {
+                    continue;
+                }
+                if (m instanceof PakMount p) {
+                    int entry = loc & ENTRY_MASK;
+                    if (p.pak.codec(entry) == dev.jeddy.asset.pak.PakFormat.CODEC_STORED) {
+                        m.pins.incrementAndGet();
+                        return new Pin(m, p.pak.stored(entry));
+                    }
+                }
+                return null;
+            } finally {
+                m.readers.decrementAndGet();
+            }
         }
     }
 

@@ -107,6 +107,32 @@ class VfsTest {
     }
 
     @Test
+    void pinsKeepStoredEntriesMappedPastUnmount() throws IOException {
+        Path file = dir.resolve("pins.jpak");
+        byte[] stored = "stored bytes, read in place".getBytes(StandardCharsets.UTF_8);
+        try (PakWriter w = new PakWriter(3)) {
+            w.add("audio/theme.ogg", stored, Compression.STORE);
+            w.add(
+                    "text/notes.txt",
+                    "squeeze me ".repeat(200).getBytes(StandardCharsets.UTF_8),
+                    Compression.ZSTD);
+            w.write(file);
+        }
+        try (Vfs vfs = new Vfs()) {
+            int mount = vfs.mountPak(file);
+            assertEquals(null, vfs.pin(AssetPaths.id("text/notes.txt")), "compressed: no pin");
+            assertEquals(null, vfs.pin(AssetPaths.id("missing.bin")));
+            Vfs.Pin pin = vfs.pin(AssetPaths.id("audio/theme.ogg"));
+            assertArrayEquals(stored, pin.data().toArray(ValueLayout.JAVA_BYTE));
+            vfs.unmount(mount);
+            assertFalse(vfs.exists("audio/theme.ogg"));
+            assertArrayEquals(stored, pin.data().toArray(ValueLayout.JAVA_BYTE), "still mapped");
+            pin.close();
+            pin.close(); // idempotent
+        }
+    }
+
+    @Test
     void rescanPicksUpCookerOutput() throws IOException {
         Path cooked = Files.createDirectories(dir.resolve("cooked"));
         try (Vfs vfs = new Vfs();
