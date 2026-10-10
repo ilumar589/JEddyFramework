@@ -1,0 +1,112 @@
+name: Natives
+
+# Builds the pinned native libraries (natives/versions.json) for every platform (DESIGN §6.2,
+# TASKS M0-09). Pull requests only build. On main, if release natives-v<natives_version> does not
+# exist yet, it is published; bump natives_version in versions.json to publish a new one.
+on:
+  push:
+    branches: [main]
+    paths: ['natives/versions.json', 'natives/build.py', 'natives/shim/**', '.github/workflows/natives.yml']
+  pull_request:
+    paths: ['natives/versions.json', 'natives/build.py', 'natives/shim/**', '.github/workflows/natives.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    name: Build (linux-x64, manylinux_2_28)
+    runs-on: ubuntu-latest
+    # glibc 2.28 baseline so the libraries load on older distributions.
+    container: quay.io/pypa/manylinux_2_28_x86_64
+    env:
+      PY: /opt/python/cp312-cp312/bin/python
+    steps:
+      - name: Install build dependencies
+        run: |
+          dnf install -y --setopt=install_weak_deps=False git \
+            libX11-devel libXext-devel libXcursor-devel libXi-devel libXfixes-devel libXrandr-devel \
+            libXScrnSaver-devel libXtst-devel libxkbcommon-devel wayland-devel wayland-protocols-devel \
+            mesa-libEGL-devel mesa-libGL-devel mesa-libgbm-devel libdrm-devel \
+            alsa-lib-devel pulseaudio-libs-devel pipewire-devel dbus-devel systemd-devel
+          $PY -m pip install --quiet ninja
+          ln -sf "$($PY -c 'import ninja, os; print(os.path.join(ninja.BIN_DIR, "ninja"))')" /usr/local/bin/ninja
+          git config --global --add safe.directory '*'
+
+      - uses: actions/checkout@v5
+
+      - name: Build
+        run: |
+          $PY natives/build.py --jobs 4 \
+            --cmake-extra SDL3=-DSDL_WAYLAND_LIBDECOR=OFF \
+            --cmake-extra SDL3=-DSDL_JACK=OFF \
+            --cmake-extra SDL3=-DSDL_SNDIO=OFF \
+            --cmake-extra SDL3=-DSDL_LIBURING=OFF \
+            --cmake-extra SDL3=-DSDL_IBUS=OFF
+          cat natives/out/linux-x64/natives.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: natives-linux-x64
+          path: natives/out/natives-linux-x64.zip
+          if-no-files-found: error
+
+  windows:
+    name: Build (windows-x64, MSVC)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build
+        shell: bash
+        run: |
+          python natives/build.py --jobs 4
+          cat natives/out/windows-x64/natives.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: natives-windows-x64
+          path: natives/out/natives-windows-x64.zip
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: [linux, windows]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="natives-v$(python3 -c 'import json; print(json.load(open("natives/versions.json"))["natives_version"])')"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "::notice title=Natives::$TAG already exists; bump natives_version in natives/versions.json to publish a new release"
+            exit 0
+          fi
+          cd dist
+          sha256sum natives-*.zip | tee SHA256SUMS
+          {
+            echo "Prebuilt native libraries for Jeddy (natives/versions.json at ${GITHUB_SHA})."
+            echo
+            echo "Pin these in gradle.properties:"
+            echo '```'
+            awk '{ sub(/^natives-/, "", $2); sub(/\.zip$/, "", $2); print "jeddy.natives.sha256." $2 "=" $1 }' SHA256SUMS
+            echo '```'
+          } > notes.md
+          gh release create "$TAG" natives-*.zip SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$TAG" --notes-file notes.md
+          echo "::notice title=Natives::Published $TAG"
+          while read -r sum file; do echo "::notice title=$file::$sum"; done < SHA256SUMS

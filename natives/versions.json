@@ -1,0 +1,90 @@
+{
+  "comment": "Pinned native libraries (DESIGN §6.1/§6.2). Bump 'natives_version' whenever anything here changes.",
+  "natives_version": 1,
+  "libraries": [
+    {
+      "name": "SDL3",
+      "repo": "https://github.com/libsdl-org/SDL",
+      "tag": "release-3.4.18",
+      "commit": "829a65d769d935c4852f8159e964312c0957260a",
+      "runtime": true,
+      "license": "LICENSE.txt",
+      "cmake": [
+        "-DSDL_SHARED=ON", "-DSDL_STATIC=OFF", "-DSDL_TEST_LIBRARY=OFF", "-DSDL_TESTS=OFF",
+        "-DSDL_EXAMPLES=OFF", "-DSDL_INSTALL_DOCS=OFF", "-DSDL_INSTALL_CPACK=OFF"
+      ],
+      "files": { "linux-x64": ["libSDL3.so.0"], "windows-x64": ["SDL3.dll"] }
+    },
+    {
+      "name": "SDL3_mixer",
+      "repo": "https://github.com/libsdl-org/SDL_mixer",
+      "tag": "release-3.2.4",
+      "commit": "72a81869b45e249e8e67102db4e98dd2441f05a1",
+      "runtime": true,
+      "license": "LICENSE.txt",
+      "depends": ["SDL3"],
+      "cmake": [
+        "-DBUILD_SHARED_LIBS=ON", "-DSDLMIXER_VENDORED=OFF", "-DSDLMIXER_TESTS=OFF", "-DSDLMIXER_EXAMPLES=OFF",
+        "-DSDLMIXER_INSTALL_CPACK=OFF", "-DSDLMIXER_STRICT=OFF",
+        "-DSDLMIXER_WAVE=ON", "-DSDLMIXER_AIFF=OFF", "-DSDLMIXER_VOC=OFF", "-DSDLMIXER_AU=OFF",
+        "-DSDLMIXER_FLAC=ON", "-DSDLMIXER_FLAC_LIBFLAC=OFF", "-DSDLMIXER_FLAC_DRFLAC=ON",
+        "-DSDLMIXER_MP3=ON", "-DSDLMIXER_MP3_MPG123=OFF", "-DSDLMIXER_MP3_DRMP3=ON",
+        "-DSDLMIXER_VORBIS_STB=ON", "-DSDLMIXER_VORBIS_VORBISFILE=OFF", "-DSDLMIXER_VORBIS_TREMOR=OFF",
+        "-DSDLMIXER_OPUS=OFF", "-DSDLMIXER_GME=OFF", "-DSDLMIXER_MOD=OFF", "-DSDLMIXER_MIDI=OFF",
+        "-DSDLMIXER_WAVPACK=OFF"
+      ],
+      "files": { "linux-x64": ["libSDL3_mixer.so.0"], "windows-x64": ["SDL3_mixer.dll"] }
+    },
+    {
+      "name": "zstd",
+      "repo": "https://github.com/facebook/zstd",
+      "tag": "v1.5.7",
+      "commit": "f8745da6ff1ad1e7bab384bd1f9d742439278e99",
+      "runtime": true,
+      "license": "LICENSE",
+      "source_subdir": "build/cmake",
+      "cmake": [
+        "-DZSTD_BUILD_SHARED=ON", "-DZSTD_BUILD_STATIC=OFF", "-DZSTD_BUILD_PROGRAMS=OFF",
+        "-DZSTD_BUILD_TESTS=OFF", "-DZSTD_BUILD_CONTRIB=OFF", "-DZSTD_LEGACY_SUPPORT=OFF",
+        "-DZSTD_MULTITHREAD_SUPPORT=ON"
+      ],
+      "files": { "linux-x64": ["libzstd.so.1"], "windows-x64": ["zstd.dll"] }
+    },
+    {
+      "name": "ktx",
+      "repo": "https://github.com/KhronosGroup/KTX-Software",
+      "tag": "v4.4.2",
+      "commit": "4d6fc70eaf62ad0558e63e8d97eb9766118327a6",
+      "runtime": false,
+      "license": "LICENSE.md",
+      "cmake": [
+        "-DBUILD_SHARED_LIBS=ON", "-DKTX_FEATURE_TOOLS=OFF", "-DKTX_FEATURE_TESTS=OFF", "-DKTX_FEATURE_DOC=OFF",
+        "-DKTX_FEATURE_JNI=OFF", "-DKTX_FEATURE_PY=OFF", "-DKTX_FEATURE_GL_UPLOAD=OFF",
+        "-DKTX_FEATURE_VK_UPLOAD=OFF", "-DKTX_FEATURE_LOADTEST_APPS=OFF", "-DKTX_FEATURE_TOOLS_CTS=OFF",
+        "-DBASISU_SUPPORT_OPENCL=OFF", "-DBASISU_SUPPORT_SSE=ON", "-DASTCENC_ISA_SSE41=ON"
+      ],
+      "files": { "linux-x64": ["libktx.so.4"], "windows-x64": ["ktx.dll"] }
+    },
+    {
+      "name": "meshoptimizer",
+      "repo": "https://github.com/zeux/meshoptimizer",
+      "tag": "v1.2",
+      "commit": "9d9890c73011d75920af614485296d1e03e95448",
+      "runtime": false,
+      "license": "LICENSE.md",
+      "cmake": ["-DMESHOPT_BUILD_SHARED_LIBS=ON", "-DMESHOPT_BUILD_DEMO=OFF", "-DMESHOPT_BUILD_GLTFPACK=OFF"],
+      "files": { "linux-x64": ["libmeshoptimizer.so"], "windows-x64": ["meshoptimizer.dll"] }
+    },
+    {
+      "name": "jeddy_tools_native",
+      "repo": "https://github.com/mmikk/MikkTSpace",
+      "tag": "master",
+      "commit": "3e895b49d05ea07e4c2133156cfa94369e19e409",
+      "runtime": false,
+      "license": "mikktspace.h",
+      "cmake_source": "shim",
+      "cmake": [],
+      "files": { "linux-x64": ["libjeddy_tools_native.so"], "windows-x64": ["jeddy_tools_native.dll"] }
+    }
+  ]
+}
