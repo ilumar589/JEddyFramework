@@ -25,6 +25,12 @@ runs `BindingsPostProcessor` (`build-logic`), which makes the output portable ac
 targets (decision D22). Run the module's tests afterwards: `SdlBindingsTest` initializes every
 generated class against the shipped natives and checks the layouts the engine depends on.
 
+The committed sources come from the official jextract build `22-jextract+5-33`. The `Bindings`
+workflow regenerates them with that build on Windows and Linux for every change to these inputs,
+fails if the two platforms disagree or if the committed sources are stale, and on a branch named
+`regen/<anything>` commits the regenerated sources itself, so no local jextract is needed. Other
+jextract versions produce equivalent but textually different code.
+
 Include lists started from `jextract --dump-includes` and were trimmed by hand. Keep them that way:
 add a symbol when wrapper code needs it, never bind callbacks SDL can call on its own threads
 (DESIGN §4.4), varargs functions or opaque handle structs.

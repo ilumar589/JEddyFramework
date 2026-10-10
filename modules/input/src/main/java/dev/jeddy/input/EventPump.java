@@ -97,7 +97,7 @@ public final class EventPump implements MainThreadQueue.Handler, AutoCloseable {
     private static final long PAD_BUTTON = SDL_GamepadButtonEvent.button$offset();
     private static final long PAD_BUTTON_DOWN = SDL_GamepadButtonEvent.down$offset();
     private static final long PAD_AXIS = SDL_GamepadAxisEvent.axis$offset();
-    private static final long PAD_AXIS_VALUE = SDL_GamepadAxisEvent.value_$offset();
+    private static final long PAD_AXIS_VALUE = SDL_GamepadAxisEvent.value$offset();
 
     private static final int WHEEL_FLIPPED = SDL_MOUSEWHEEL_FLIPPED();
 
