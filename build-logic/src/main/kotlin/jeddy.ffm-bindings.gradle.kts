@@ -5,6 +5,7 @@
 // which needs jextract (and libclang) only on the machine that regenerates.
 
 import dev.jeddy.gradle.BindingsExtension
+import java.io.File
 import dev.jeddy.gradle.RegenerateBindingsTask
 
 plugins {
@@ -22,7 +23,7 @@ extensions.getByType<SourceSetContainer>().named("main") {
 // Resolved eagerly to a plain String so no lambda captures the script object (configuration cache).
 val launcherName = if (System.getProperty("os.name").lowercase().startsWith("windows")) "jextract.bat" else "jextract"
 val jextractLauncher: String = providers.gradleProperty("jextract.home").orNull
-    ?.let { home -> java.io.File(home, "bin/$launcherName").absolutePath }
+    ?.let { home -> File(home, "bin/$launcherName").absolutePath }
     ?: launcherName
 
 val regenerateAll = tasks.register("regenerateBindings") {
