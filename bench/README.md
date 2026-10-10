@@ -20,6 +20,9 @@ every push and posts the numbers as a notice annotation on the commit ("JMH resu
 | `FfmBench` | FFM call overhead with C library functions: regular vs critical, `mat4` blocks from heap arrays vs off-heap | M3-05 |
 | `ZstdBench` | zstd compress/decompress of 8 MiB of asset-like data at levels 1, 3, 19 through the FFM facade; CI also runs `zstd -b` on the same corpus | M4-01 |
 | `AssetBench` | Pak TOC binary search (10k entries), VFS index lookup, 64 KiB zstd entry read from the mapping | M4-03, M4-04 |
+| `TransformBench` | 100k-transform hierarchy update, all dirty vs 10 % of roots, sequential vs job system | M5-02 |
+| `DrawBench` | Cull + sort + records + indirect commands for 20k instances, with and without the GL submit (needs GL) | M5-08 |
+| `TextureBindingBench` | Spike: texture rebinding vs texture arrays vs bindless for 256 materials (needs GL; ADR 0001) | M5-11 |
 | `GlBench` | `glUniform4f` regular vs critical vs generated, `glUniformMatrix4fv` heap vs off-heap, 64-byte `glNamedBufferSubData` (needs a GL 4.6 context; CI uses Xvfb + llvmpipe) | M3-05 |
 
 ### FFM numbers (M3-05)
@@ -53,3 +56,15 @@ Local run, JDK 27, x64 Linux (hand-timed loops, not JMH; CI posts JMH numbers an
 | `Pak.find` (binary search, 10k entries, shuffled) | 74 ns |
 | `Vfs.size` (merged hash index) | 8.6 ns |
 | `Vfs.read` of a 64 KiB zstd entry from the mapping | 18 µs (3.6 GB/s) |
+
+### Scene and render numbers (M5)
+
+Local runs, 2-core sandbox, Mesa llvmpipe (hand-timed, not JMH):
+
+| Operation | Result |
+|---|---|
+| `TransformStore.update`, 100k, all dirty | 2.5–3.3 ms |
+| `TransformStore.update`, 100k, 10 % of roots moved | 0.6–0.8 ms |
+| `DrawBench.cullAndBuild`, 20k instances | 1.7 ms (warm) |
+| `DrawBench.cullBuildSubmit`, 20k instances (llvmpipe does vertex work on the calling thread) | 8.6 ms |
+| `TextureBindingBench`: rebind per draw / texture array (256 materials) | 3.5 / 2.6 ms |
