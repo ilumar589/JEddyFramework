@@ -5,7 +5,8 @@ plugins {
 dependencies {
     api(project(":core"))
     api(project(":math"))
-    implementation(project(":gl"))
-    implementation(project(":window"))
-    implementation(project(":asset"))
+    // Public signatures use GLCapabilities, Window and asset readers.
+    api(project(":gl"))
+    api(project(":window"))
+    api(project(":asset"))
 }
