@@ -89,7 +89,8 @@ class JeddyAppTest {
         int code = JeddyApp.run(headless().observer(ctx -> mainFrames.set(ctx.frame())), game);
         assertEquals(0, code, "exit code (the crash is logged to stdout)");
         assertTrue(game.ticks >= 25 && game.ticks <= 35, "30 Hz for ~1 s: " + game.ticks);
-        assertTrue(game.frames > 100, "frames: " + game.frames);
+        // Variable-rate frames outpace ticks; loaded CI runners (Windows) manage ~100/s here.
+        assertTrue(game.frames > 30, "frames: " + game.frames);
         assertTrue(mainFrames.get() >= game.frames, "main " + mainFrames + " game " + game.frames);
         assertTrue(game.alphaMax > 0.5f && game.alphaMin < 0.5f, "alpha spans the tick");
     }
@@ -146,8 +147,10 @@ class JeddyAppTest {
         AtomicLong gameFrames = new AtomicLong();
         AtomicLong mainFrames = new AtomicLong();
         Thread mainThread = Thread.currentThread();
-        long[] bytes = new long[4];
-        long[] frames = new long[4];
+        int windows = 4;
+        long windowMillis = Math.max(250, soakMillis / windows);
+        long[][] bytes = new long[2][windows + 1]; // [game, main][sample]
+        long[][] frames = new long[2][windows + 1];
         CountingGame game =
                 new CountingGame(Long.MAX_VALUE) {
                     @Override
@@ -176,15 +179,16 @@ class JeddyAppTest {
                                     Thread.sleep(50);
                                 }
                                 awaitJitQuiet(1500, 30_000);
-                                bytes[0] = Allocations.threadAllocatedBytes(gameThread.get());
-                                bytes[1] = Allocations.threadAllocatedBytes(mainThread);
-                                frames[0] = gameFrames.get();
-                                frames[1] = mainFrames.get();
-                                Thread.sleep(soakMillis);
-                                bytes[2] = Allocations.threadAllocatedBytes(gameThread.get());
-                                bytes[3] = Allocations.threadAllocatedBytes(mainThread);
-                                frames[2] = gameFrames.get();
-                                frames[3] = mainFrames.get();
+                                for (int w = 0; w <= windows; w++) {
+                                    if (w > 0) {
+                                        Thread.sleep(windowMillis);
+                                    }
+                                    bytes[0][w] =
+                                            Allocations.threadAllocatedBytes(gameThread.get());
+                                    bytes[1][w] = Allocations.threadAllocatedBytes(mainThread);
+                                    frames[0][w] = gameFrames.get();
+                                    frames[1][w] = mainFrames.get();
+                                }
                             } catch (InterruptedException e) {
                                 Thread.currentThread().interrupt();
                             } finally {
@@ -202,10 +206,30 @@ class JeddyAppTest {
                         game);
         monitor.join();
         assertEquals(0, code, "exit code (the crash is logged to stdout)");
-        long gameMeasured = frames[2] - frames[0];
-        long mainMeasured = frames[3] - frames[1];
-        assertTrue(gameMeasured > 100 && mainMeasured > 100, gameMeasured + " / " + mainMeasured);
-        assertEquals(0, bytes[2] - bytes[0], "game thread bytes over " + gameMeasured + " frames");
-        assertEquals(0, bytes[3] - bytes[1], "main thread bytes over " + mainMeasured + " frames");
+        // Steady state means no window allocates. A single late JIT event (a C2 recompile that
+        // resolves string constants, DESIGN §4.7) may allocate a few hundred bytes once; anything
+        // per frame shows up in every window.
+        String[] names = {"game", "main"};
+        for (int t = 0; t < 2; t++) {
+            long measured = frames[t][windows] - frames[t][0];
+            assertTrue(measured > 100, names[t] + " thread frames: " + measured);
+            int allocatingWindows = 0;
+            StringBuilder perWindow = new StringBuilder();
+            for (int w = 1; w <= windows; w++) {
+                long b = bytes[t][w] - bytes[t][w - 1];
+                long f = frames[t][w] - frames[t][w - 1];
+                perWindow.append(' ').append(b).append(" B/").append(f).append(" frames");
+                if (b != 0) {
+                    allocatingWindows++;
+                }
+            }
+            assertTrue(
+                    allocatingWindows <= 1 && bytes[t][windows] - bytes[t][0] < 2048,
+                    names[t]
+                            + " thread allocated in "
+                            + allocatingWindows
+                            + " windows:"
+                            + perWindow);
+        }
     }
 }

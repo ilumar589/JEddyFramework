@@ -123,6 +123,26 @@ public final class IntHeap {
         return top;
     }
 
+    /** Removes {@code item} if it is in the heap. Returns whether it was. */
+    public boolean remove(int item) {
+        if (!contains(item)) {
+            return false;
+        }
+        int at = position[item];
+        position[item] = -1;
+        if (--size > at) {
+            int moved = items[size];
+            items[at] = moved;
+            keys[at] = keys[size];
+            position[moved] = at;
+            siftUp(at);
+            if (items[at] == moved) {
+                siftDown(at);
+            }
+        }
+        return true;
+    }
+
     /** Removes every item in O(size). */
     public void clear() {
         for (int i = 0; i < size; i++) {

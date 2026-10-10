@@ -5,6 +5,8 @@
 module dev.jeddy.compress {
     requires transitive dev.jeddy.core;
 
-// Exported together with the first public type (javac rejects exporting a package with no types):
-// exports dev.jeddy.compress;
+    exports dev.jeddy.compress;
+    exports dev.jeddy.compress.ffi to
+            dev.jeddy.asset,
+            dev.jeddy.cooker;
 }

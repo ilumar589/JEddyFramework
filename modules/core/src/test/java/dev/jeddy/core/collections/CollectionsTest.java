@@ -243,6 +243,36 @@ class CollectionsTest {
     }
 
     @Test
+    void intHeapRemovesAndRekeysArbitraryItems() {
+        Random r = new Random(5);
+        IntHeap h = new IntHeap(4, 4);
+        float[] key = new float[500];
+        boolean[] in = new boolean[500];
+        for (int i = 0; i < 500; i++) {
+            key[i] = r.nextFloat();
+            h.push(i, key[i]);
+            in[i] = true;
+        }
+        for (int i = 0; i < 500; i += 2) {
+            assertTrue(h.remove(i));
+            assertFalse(h.remove(i));
+            in[i] = false;
+        }
+        for (int i = 1; i < 500; i += 4) {
+            key[i] += r.nextFloat() - 0.5f; // up or down
+            h.push(i, key[i]);
+        }
+        assertEquals(250, h.size());
+        float last = Float.NEGATIVE_INFINITY;
+        while (!h.isEmpty()) {
+            int item = h.pop();
+            assertTrue(in[item]);
+            assertTrue(key[item] >= last, "order");
+            last = key[item];
+        }
+    }
+
+    @Test
     void intRingFifoAndLifo() {
         IntRing r = new IntRing(2);
         for (int i = 0; i < 10; i++) {

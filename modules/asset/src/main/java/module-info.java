@@ -4,8 +4,9 @@
  */
 module dev.jeddy.asset {
     requires transitive dev.jeddy.core;
-    requires dev.jeddy.compress;
+    requires transitive dev.jeddy.compress;
 
-// Exported together with the first public type (javac rejects exporting a package with no types):
-// exports dev.jeddy.asset;
+    exports dev.jeddy.asset;
+    exports dev.jeddy.asset.format;
+    exports dev.jeddy.asset.pak;
 }

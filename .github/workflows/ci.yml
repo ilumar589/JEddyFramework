@@ -134,7 +134,13 @@ jobs:
           LIBGL_ALWAYS_SOFTWARE: '1'
           MESA_GL_VERSION_OVERRIDE: '4.6'
           MESA_GLSL_VERSION_OVERRIDE: '460'
+          JEDDY_ZSTD_CORPUS: ${{ github.workspace }}/zstd-corpus.bin
         run: xvfb-run -a ./gradlew :bench:jmh "-Pjmh.args=-f 1 -wi 2 -i 3 -w 500ms -r 500ms"
+
+      # TASKS M4-01: the facade's throughput against the zstd CLI on the same corpus and machine.
+      - name: zstd CLI on the ZstdBench corpus
+        if: always()
+        run: bash .github/scripts/zstd-cli-bench.sh zstd-corpus.bin
 
       - name: Report
         if: always()

@@ -16,6 +16,11 @@ for r in results:
     m = r["primaryMetric"]
     err = m.get("scoreError")
     err_txt = f" ± {err:.3g}" if isinstance(err, (int, float)) and err == err else ""
-    lines.append(f"{name[0]}.{name[1]}: {m['score']:.4g}{err_txt} {m['scoreUnit']}")
+    params = r.get("params") or {}
+    ptxt = "(" + ", ".join(f"{k}={v}" for k, v in params.items()) + ")" if params else ""
+    extra = ""
+    if name[0] == "ZstdBench" and m["scoreUnit"] == "ms/op" and m["score"] > 0:
+        extra = f" = {8 * 1048576 / 1e6 / (m['score'] / 1000):.0f} MB/s"  # 8 MiB per op
+    lines.append(f"{name[0]}.{name[1]}{ptxt}: {m['score']:.4g}{err_txt} {m['scoreUnit']}{extra}")
 msg = "%0A".join(lines)
 print(f"::notice title=JMH results ({len(lines)} benchmarks)::{msg}")

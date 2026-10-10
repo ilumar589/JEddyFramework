@@ -18,6 +18,8 @@ every push and posts the numbers as a notice annotation on the commit ("JMH resu
 | `MathBench` | TRS composition, hierarchy pass, sphere culling for 10k items; `Mat4` multiply | M1-12 |
 | `JobBench` | 1M-element `parallelFor` vs sequential (scaling target ≥ 6× on 8 cores); empty dispatch cost | M1-07 |
 | `FfmBench` | FFM call overhead with C library functions: regular vs critical, `mat4` blocks from heap arrays vs off-heap | M3-05 |
+| `ZstdBench` | zstd compress/decompress of 8 MiB of asset-like data at levels 1, 3, 19 through the FFM facade; CI also runs `zstd -b` on the same corpus | M4-01 |
+| `AssetBench` | Pak TOC binary search (10k entries), VFS index lookup, 64 KiB zstd entry read from the mapping | M4-03, M4-04 |
 | `GlBench` | `glUniform4f` regular vs critical vs generated, `glUniformMatrix4fv` heap vs off-heap, 64-byte `glNamedBufferSubData` (needs a GL 4.6 context; CI uses Xvfb + llvmpipe) | M3-05 |
 
 ### FFM numbers (M3-05)
@@ -38,3 +40,16 @@ blocks as cheap as off-heap ones; the generated wrappers add nothing. The allow-
 
 Vectorization of the math kernels is checked with JMH's `-prof perfasm` (needs `hsdis`), not
 `-XX:+PrintCompilation`.
+
+### Asset numbers (M4)
+
+Local run, JDK 27, x64 Linux (hand-timed loops, not JMH; CI posts JMH numbers and the
+`zstd -b` numbers for the same corpus side by side):
+
+| Operation | Result |
+|---|---|
+| zstd level 1 / 3 / 19 compress, 8 MiB | 290 / 256 / 2 MB/s |
+| zstd level 1 / 3 / 19 decompress, 8 MiB | 735 / 828 / 924 MB/s |
+| `Pak.find` (binary search, 10k entries, shuffled) | 74 ns |
+| `Vfs.size` (merged hash index) | 8.6 ns |
+| `Vfs.read` of a 64 KiB zstd entry from the mapping | 18 µs (3.6 GB/s) |
