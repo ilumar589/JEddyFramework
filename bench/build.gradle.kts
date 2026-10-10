@@ -10,4 +10,5 @@ dependencies {
     implementation(project(":compress"))
     implementation(project(":asset"))
     implementation(project(":scene"))
+    implementation(project(":render"))
 }

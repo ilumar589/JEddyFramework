@@ -87,12 +87,12 @@ class MeshRegistryTest {
             int program =
                     GLShaders.program(
                             "#version 460 core\n"
-                                + "layout(location = 0) in vec3 p;\n"
-                                + "layout(location = 1) in vec4 q;\n"
-                                + "void main() { gl_Position = vec4(p, 1.0); }\n",
+                                    + "layout(location = 0) in vec3 p;\n"
+                                    + "layout(location = 1) in vec4 q;\n"
+                                    + "void main() { gl_Position = vec4(p, 1.0); }\n",
                             "#version 460 core\n"
-                                + "layout(location = 0) out vec4 c;\n"
-                                + "void main() { c = vec4(1.0, 1.0, 0.0, 1.0); }\n");
+                                    + "layout(location = 0) out vec4 c;\n"
+                                    + "void main() { c = vec4(1.0, 1.0, 0.0, 1.0); }\n");
             int size = 64;
             glViewport(0, 0, size, size);
             MemorySegment clear = ARENA.allocateFrom(ValueLayout.JAVA_FLOAT, 0f, 0f, 0f, 1f);
