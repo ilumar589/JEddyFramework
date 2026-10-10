@@ -20,6 +20,8 @@ jobs:
     name: JMH (full, -prof gc)
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    permissions:
+      contents: write   # pushes the baseline branch when write-baseline is set
     steps:
       - uses: actions/checkout@v5
 
@@ -47,6 +49,19 @@ jobs:
           if [ "${{ inputs.write-baseline }}" = "true" ]; then args="--write-baseline"; fi
           python3 .github/scripts/jmh-annotate.py bench/build/reports/jmh/results.json
           python3 .github/scripts/jmh-check.py bench/build/reports/jmh/results.json bench/baseline/linux-x64.json $args
+
+      # A branch with the new baseline, to merge through a pull request (DESIGN D77).
+      - name: Push the baseline branch
+        if: inputs.write-baseline
+        run: |
+          branch="bench-baseline-${GITHUB_RUN_ID}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add bench/baseline/linux-x64.json
+          git commit -m "bench: JMH baseline (linux-x64) from nightly run ${GITHUB_RUN_ID}"
+          git push origin "$branch"
+          echo "::notice title=JMH baseline::pushed branch $branch; open a pull request to adopt it"
 
       - name: Upload results
         if: always()
