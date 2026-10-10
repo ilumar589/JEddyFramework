@@ -8,4 +8,5 @@ module dev.jeddy.physics {
 
     exports dev.jeddy.physics.bvh;
     exports dev.jeddy.physics.grid;
+    exports dev.jeddy.physics.query;
 }
