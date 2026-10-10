@@ -6,9 +6,11 @@ Fetches three KayKit asset packs (CC0 1.0, https://kaylousberg.com) at pinned co
 * assembles the "crypt" level from Dungeon Remastered pieces laid out on a 4 m grid
   (assets/levels/crypt.glb), with node names the physics bake rules key on
   (floor_*, wall_*, prop_*, decor_*, light_*);
-* copies the party (Adventurers) and the enemies (Skeletons) without their 76 animations each
-  (the engine has no animation module yet, so characters render in their bind pose), with
-  textures embedded (assets/characters/*.glb);
+* copies the party (Adventurers) and the enemies (Skeletons) without their 76 animations each,
+  with textures embedded (assets/characters/*.glb);
+* writes one animation library per rig (assets/characters/anims/heroes.glb and skeletons.glb,
+  TASKS M12-06): the rig's nodes without meshes and the subset of clips the demo plays, constant
+  channels reduced to a single key (lossless);
 * writes assets/levels/crypt.physics.json (collision rules, navmesh, occlusion) and
   assets/levels/crypt.spawns.json (party, enemies and torch lights for the demo).
 
@@ -411,8 +413,86 @@ def strip_character(src_path, out_path):
     return b.write(out_path)
 
 
-LICENSE = """KayKit content in this folder (levels/crypt.glb and characters/*.glb) is built by
-samples/iso-demo/tools/kaykit.py from:
+# Clips the demo plays (TASKS M12-07), per rig.
+HERO_CLIPS = ["Idle", "Walking_A", "Running_A", "1H_Melee_Attack_Chop", "2H_Melee_Attack_Chop",
+              "Dualwield_Melee_Attack_Stab", "Spellcast_Shoot", "Spellcast_Long", "Hit_A",
+              "Death_A", "Cheer"]
+SKELETON_CLIPS = ["Idle", "Idle_Combat", "Walking_D_Skeletons", "Running_A",
+                  "1H_Melee_Attack_Chop", "2H_Melee_Attack_Chop", "Spellcast_Shoot", "Hit_A",
+                  "Death_A", "Skeletons_Awaken_Standing", "Taunt"]
+
+COMPONENTS = {"SCALAR": 1, "VEC3": 3, "VEC4": 4}
+
+
+def read_floats(j, bin_, a):
+    """An accessor's float values as tuples."""
+    acc = j["accessors"][a]
+    if acc["componentType"] != 5126 or "sparse" in acc or acc.get("normalized"):
+        raise ValueError("animation accessor %d is not plain float" % a)
+    n = COMPONENTS[acc["type"]]
+    view = j["bufferViews"][acc["bufferView"]]
+    stride = view.get("byteStride", 4 * n)
+    start = view.get("byteOffset", 0) + acc.get("byteOffset", 0)
+    return [struct.unpack_from("<%df" % n, bin_, start + i * stride) for i in range(acc["count"])]
+
+
+def write_floats(b, values, type_, cache, minmax=False):
+    key = (type_, tuple(values))
+    if key in cache:
+        return cache[key]
+    data = b"".join(struct.pack("<%df" % len(v), *v) for v in values)
+    acc = {"bufferView": b.view(data), "componentType": 5126, "count": len(values), "type": type_}
+    if minmax:
+        acc["min"] = [min(v[k] for v in values) for k in range(len(values[0]))]
+        acc["max"] = [max(v[k] for v in values) for k in range(len(values[0]))]
+    b.j["accessors"].append(acc)
+    cache[key] = len(b.j["accessors"]) - 1
+    return cache[key]
+
+
+def write_animation_library(src_path, out_path, clips):
+    """The rig of a character (nodes only: no meshes, skins or textures) and the named clips."""
+    j, bin_ = read_glb(src_path)
+    b = Builder()
+    for n in j["nodes"]:
+        b.j["nodes"].append({k: n[k] for k in ("name", "translation", "rotation", "scale",
+                                                "children") if k in n})
+    b.j["scenes"] = [{"nodes": list(j["scenes"][j.get("scene", 0)]["nodes"])}]
+    by_name = {a["name"]: a for a in j.get("animations", [])}
+    missing = [c for c in clips if c not in by_name]
+    if missing:
+        raise ValueError("%s has no clips %s" % (src_path, missing))
+    cache = {}
+    keys = kept = 0
+    animations = []
+    for name in clips:
+        a = by_name[name]
+        samplers, channels = [], []
+        for ch in a["channels"]:
+            sm = a["samplers"][ch["sampler"]]
+            interpolation = sm.get("interpolation", "LINEAR")
+            times = read_floats(j, bin_, sm["input"])
+            values = read_floats(j, bin_, sm["output"])
+            keys += len(times)
+            if interpolation != "CUBICSPLINE" and all(v == values[0] for v in values):
+                times, values = times[:1], values[:1]  # constant: one key holds it
+            kept += len(times)
+            out_type = j["accessors"][sm["output"]]["type"]
+            samplers.append({"input": write_floats(b, times, "SCALAR", cache, True),
+                             "output": write_floats(b, values, out_type, cache),
+                             "interpolation": interpolation})
+            channels.append({"sampler": len(samplers) - 1, "target": dict(ch["target"])})
+        animations.append({"name": name, "samplers": samplers, "channels": channels})
+    b.j["animations"] = animations
+    for key in ("meshes",):
+        if not b.j[key]:
+            del b.j[key]
+    size = b.write(out_path)
+    return size, len(clips), keys, kept
+
+
+LICENSE = """KayKit content in this folder (levels/crypt.glb, characters/*.glb and
+characters/anims/*.glb) is built by samples/iso-demo/tools/kaykit.py from:
 
   KayKit : Dungeon Remastered 1.0
   KayKit : Character Pack : Adventurers 1.0
@@ -447,6 +527,13 @@ def main():
         n = strip_character(os.path.join(pack_dir(src, "skeletons"), f"Skeleton_{kind}.glb"),
                             os.path.join(out, "characters", f"skeleton_{kind.lower()}.glb"))
         print(f"characters/skeleton_{kind.lower()}.glb: {n} bytes")
+    for rig, path, clips in (
+            ("heroes", os.path.join(pack_dir(src, "heroes"), "Knight.glb"), HERO_CLIPS),
+            ("skeletons", os.path.join(pack_dir(src, "skeletons"), "Skeleton_Warrior.glb"),
+             SKELETON_CLIPS)):
+        size, count, keys, kept = write_animation_library(
+            path, os.path.join(out, "characters", "anims", rig + ".glb"), clips)
+        print(f"characters/anims/{rig}.glb: {size} bytes, {count} clips, {kept} of {keys} keys")
     with open(os.path.join(out, "levels", "KAYKIT-LICENSE.txt"), "w", newline="\n") as f:
         f.write(LICENSE)
     return 0

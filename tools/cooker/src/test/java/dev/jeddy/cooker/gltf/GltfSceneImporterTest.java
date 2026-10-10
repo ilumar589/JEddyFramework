@@ -149,6 +149,59 @@ class GltfSceneImporterTest {
     }
 
     @Test
+    void cooksAnimationLibrariesWithoutMeshes() throws Exception {
+        // A rig and its clips only (TASKS M12-06): what tools/kaykit.py writes per rig.
+        GltfBuilder b = new GltfBuilder();
+        b.add("nodes", Map.of("name", "root", "children", List.of(1)));
+        b.add("nodes", Map.of("name", "hips", "translation", List.of(0.0, 1.0, 0.0)));
+        b.add("scenes", Map.of("nodes", List.of(0)));
+        b.root.put("scene", 0);
+        int times = b.floats(new float[] {0, 0.5f, 1}, "SCALAR");
+        int one = b.floats(new float[] {0}, "SCALAR");
+        int bob = b.floats(new float[] {0, 1, 0, 0, 1.2f, 0, 0, 1, 0}, "VEC3");
+        int turn = b.floats(new float[] {0, 0, 0, 1}, "VEC4");
+        b.add(
+                "animations",
+                Map.of(
+                        "name", "Walking_A",
+                        "samplers",
+                                List.of(
+                                        Map.of("input", times, "output", bob),
+                                        Map.of("input", one, "output", turn)),
+                        "channels",
+                                List.of(
+                                        Map.of(
+                                                "sampler",
+                                                0,
+                                                "target",
+                                                Map.of("node", 1, "path", "translation")),
+                                        Map.of(
+                                                "sampler",
+                                                1,
+                                                "target",
+                                                Map.of("node", 1, "path", "rotation")))));
+        Path src = dir.resolve("assets");
+        Path out = dir.resolve("cooked");
+        Files.createDirectories(src.resolve("anims"));
+        b.writeGlb(src.resolve("anims/heroes.glb"));
+        try (Cooker c = new Cooker(CookerConfig.of(src, out).withThreads(2))) {
+            CookReport r = c.cookAll();
+            CookReport.Item item = r.item("anims/heroes.glb");
+            assertEquals(Status.COOKED, item.status(), r.toJson());
+            assertEquals(List.of("anims/heroes.jscene"), item.outputs());
+            SceneData scene = SceneData.read(read(out.resolve("anims/heroes.jscene")));
+            assertEquals(2, scene.nodeCount());
+            assertEquals(0, scene.meshCount());
+            assertEquals("hips", scene.nodeName(1));
+            SceneData.Animation walk = scene.animations().get(0);
+            assertEquals("Walking_A", walk.name());
+            assertEquals(1f, walk.duration());
+            assertEquals(2, walk.channels().size());
+            assertEquals(1, walk.channels().get(1).times().length, "a single-key channel");
+        }
+    }
+
+    @Test
     void cooksAGlbIntoSceneMeshesMaterialsAndTextures() throws Exception {
         Path src = dir.resolve("assets");
         Path out = dir.resolve("cooked");
