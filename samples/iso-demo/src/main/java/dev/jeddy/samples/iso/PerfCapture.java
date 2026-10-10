@@ -71,6 +71,11 @@ final class PerfCapture {
     /** Extra Markdown appended to the report (the allocation probe's table). */
     String notes = "";
 
+    /**
+     * The allocation probe's second-half allocations by frame and system ({@code --alloc-probe}).
+     */
+    String probeEvents = "";
+
     private long instanceSum;
     private int instanceFrames;
 
@@ -357,6 +362,7 @@ final class PerfCapture {
         json.put("allocatedBytesSecondHalfByThread", halves);
         json.put("allocationEvents", events.toString());
         json.put("jitAllocationEvents", jitEvents.toString());
+        json.put("probeAllocationEvents", probeEvents);
         Map<String, Object> gc = new LinkedHashMap<>();
         gc.put("collections", (double) gcCount);
         gc.put("collectionMs", (double) gcMillis);
@@ -487,6 +493,11 @@ final class PerfCapture {
                     .append('\n');
         }
         md.append(notes);
+        if (!probeEvents.isEmpty()) {
+            md.append("\nGame-thread allocations in the second half by system: ")
+                    .append(probeEvents)
+                    .append('\n');
+        }
         Files.writeString(dir.resolve("perf.md"), md.toString());
         List<String> failed = new ArrayList<>();
         for (String[] r : rows) {

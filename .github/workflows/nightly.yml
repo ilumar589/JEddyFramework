@@ -8,7 +8,11 @@ on:
   workflow_dispatch:
     inputs:
       write-baseline:
-        description: 'Write bench/baseline/linux-x64.json from this run (uploaded as an artifact)'
+        description: 'Write bench/baseline/linux-x64.json from this run (pushed as a branch)'
+        type: boolean
+        default: false
+      perf-only:
+        description: 'Only the 10-minute perf capture (skip JMH)'
         type: boolean
         default: false
 
@@ -18,6 +22,7 @@ permissions:
 jobs:
   jmh:
     name: JMH (full, -prof gc)
+    if: ${{ !inputs.perf-only }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
     permissions:
@@ -52,7 +57,7 @@ jobs:
 
       # A branch with the new baseline, to merge through a pull request (DESIGN D77).
       - name: Push the baseline branch
-        if: inputs.write-baseline
+        if: ${{ !cancelled() && inputs.write-baseline }}
         run: |
           branch="bench-baseline-${GITHUB_RUN_ID}"
           git config user.name "github-actions[bot]"

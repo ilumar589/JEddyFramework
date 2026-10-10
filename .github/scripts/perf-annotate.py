@@ -23,6 +23,8 @@ if perf.get("allocationEvents"):
     lines.append("Allocating frames: " + perf["allocationEvents"])
 if perf.get("jitAllocationEvents"):
     lines.append("JIT warm-up (excused, DESIGN D70): " + perf["jitAllocationEvents"])
+if perf.get("probeAllocationEvents"):
+    lines.append("Game thread by system (--alloc-probe): " + perf["probeAllocationEvents"])
 if perf.get("jitLog"):
     lines.append("JIT log: " + str(perf["jitLog"]))
 print("::notice title=Perf capture::" + "%0A".join(lines))
