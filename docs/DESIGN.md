@@ -71,6 +71,7 @@
 | `asset` | `dev.jeddy.asset` | Runtime side of the pipeline: VFS, `.jpak` archives, async loader, format readers, hot reload | core, compress | Requested ("PBR asset pipeline") |
 | `audio` | `dev.jeddy.audio` | SDL3_mixer wrapper: voice pool, buses, 3D emitters, music and ambience | core, math, sdl, asset | Requested |
 | `physics` | `dev.jeddy.physics` | Collision BVH, broadphase grid, queries, navmesh runtime, pathfinding, crowd/formations, visibility, triggers | core, math | Added in kickoff |
+| `animation` | `dev.jeddy.animation` | Skeletons, baked clips, per-instance animation state (clip, synchronized 1D blend, crossfade), job-parallel pose and skinning-palette evaluation | core, math, asset | Added in M12: characters move like characters. Like `physics`, it knows neither `render` nor `scene`; `app` feeds its palettes and joint matrices to renderables |
 | `scene`* | `dev.jeddy.scene` | Entity handles, sparse-set component stores, SoA transform hierarchy | core, math | Gameplay needs one authoritative transform store. `app` sync/extract systems copy from it into render, physics and audio, which never depend on `scene` |
 | `app`* | `dev.jeddy.app` | Application lifecycle, thread orchestration, main loop, world integration (scene→render, physics→scene, audio), settings, crash handling | everything above | Ties the leaf modules together so that they stay independent of each other |
 | `tools/cooker`* | `dev.jeddy.cooker` | Offline asset cooking: glTF, textures, materials, shaders, navmesh/BVH bake, pak building, CLI and Gradle plugin | core, math, compress, asset, physics + libktx/meshoptimizer bindings | The offline half of "PBR asset pipeline" |
@@ -104,7 +105,10 @@ graph TD
   physics --> math
   scene[scene*] --> math
   scene --> core
+  animation[animation] --> math
+  animation --> asset
   app[app*] --> render
+  app --> animation
   app --> input
   app --> audio
   app --> physics
@@ -117,7 +121,7 @@ graph TD
 
 **Rules (enforced by `module-info.java`):**
 - No cycles, and leaf modules never depend on `app`.
-- `physics`, `scene` and `render` don't know about each other. `app` (or the game) copies data between them in explicit *sync/extract* systems. This keeps every leaf testable alone and makes the data flow visible.
+- `physics`, `scene`, `animation` and `render` don't know about each other. `app` (or the game) copies data between them in explicit *sync/extract* systems. This keeps every leaf testable alone and makes the data flow visible.
 - Raw binding packages (`dev.jeddy.sdl.ffi`, `dev.jeddy.gl.ffi`, `dev.jeddy.compress.ffi`) are **qualified exports** (`exports … to …`) or not exported. Games use the idiomatic wrappers.
 - Runtime modules have **no third-party dependencies**. `tools/cooker` may use some, but so far needs none: images decode through ImageIO plus built-in TGA and Radiance HDR readers, and JSON through `core.json` (D38).
 
@@ -486,7 +490,7 @@ Convex prisms (polygon footprint and Y range), boxes and spheres. Agents are tes
 
 ---
 
-## 13. `scene` and `app`
+## 13. `scene`, `app` and `animation`
 
 ### 13.1 `scene`
 - `EntityPool` (generational handles) and sparse-set component stores with SoA columns (`FloatColumn`, `IntColumn`, `LongColumn`).
@@ -508,6 +512,14 @@ Convex prisms (polygon footprint and Y range), boxes and spheres. Agents are tes
 - `samples/iso-demo`: a KayKit crypt (CC0, fetched from pinned commits and assembled by `tools/kaykit.py` into one glTF level plus character files, D68) with a six-member party, 64 skeletons, formations, box selection, fireballs (decal template, overlap query, light, particles, positional sound), fog of war, torches with shadows and a turn-based movement-range overlay. Sounds are synthesized by `tools/sounds.py`.
 - `--perf SECONDS` scripts it (formation tours, wandering skeletons, a fireball every 1.5 s, an orbiting camera; 300 agents, 16k extra static props, 256 point lights with 4 shadowed) and `PerfCapture` measures after a warm-up in time, frames and gameplay: per-frame game and main thread CPU, GPU time per frame-graph pass, allocated bytes of the game, main and worker threads, and GC counts and pauses. It writes `perf.json` and `perf.md` against the §14 budgets; `--fail-on` turns budgets into an exit code for CI. Steady-state allocation is judged on the second half of the window (D66); an allocating frame that coincides with a C2 compile in the run's JIT log is reported as JIT warm-up instead of failing (D70); `--alloc-probe` attributes game-thread bytes to the systems of a frame and lists the second half's allocating frames by system. The capture also checks that the JVM runs with the launcher flags (`flags`). CI adds a class-load log (classes loaded in the second half are late linkage) and, on request, JFR allocation stacks (`.github/scripts/late-classes.py`, `alloc-stacks.py`).
 - `--headless` runs the game thread on CPU-only meshes (`MeshAssets.registerHeadless`) with no GL context, so CI measures the game thread budget and allocation on plain runners; GPU numbers need real hardware.
+
+### 13.4 `animation` (M12)
+- **Skeleton** (`Skeleton.of(scene, skin)`): the joints of one glTF skin in skin order (the joint indices of the mesh skin stream), each with its parent joint, bind-pose local TRS and inverse bind matrix (3×4, converted from glTF's column-major 4×4), plus a static *pre-transform* that folds in the non-joint nodes between a joint and its nearest joint ancestor (or the scene root: an armature node with a rotation or a 0.01 scale). Joints are evaluated in scene-node order, which is parents first. Joint names hash to `StrId`s for lookups (attachments, clip binding).
+- **Clips** (`Clip.bake(library, animation, skeleton, rate)`): the raw glTF channels kept in `.jscene` (D39) are resampled at load time, at a fixed rate (30 Hz default), into one contiguous block per frame of joint-local TRS (10 floats per joint). Joints the clip does not animate keep the bind pose; linear channels resample with lerp/slerp, step and cubic-spline channels exactly at the sample times; rotations are kept in one hemisphere from frame to frame. Channels bind to joints **by node name**, so one animation library (a `.jscene` holding a rig and its clips, no meshes) serves every character with that rig. Sampling is two frames and a lerp/nlerp per joint: no key search, sequential memory, about 1.2 KB per joint-second (D79). An optional root lock keeps a joint's horizontal translation at its first frame (clips play in place; crowds and gameplay move the character).
+- **Instances** (`Animations`, SoA, game thread): up to `maxInstances` skeleton instances with joint ranges in flat `float[]` arrays sized at creation. Each instance plays a **state**: one clip, or a 1D blend of two clips whose normalized times stay in sync (walk/run by speed); with a playback speed, looping or holding the last frame (one-shots, death), and a **crossfade** from the previous state. `update(dt, jobs)` runs per frame (not per tick, so no pose interpolation is needed) in parallel over instances: advance times, sample and blend up to four clip samples per joint (nlerp blending), local → model joint matrices, skinning palettes (model × inverse bind) and a model-space bounding sphere from the joints. Inactive instances (hidden in the fog of war) keep their last pose and cost nothing. Allocation-free after creation.
+- **Rendering (D80):** GPU skinning. The skin stream (`u16 ×4` joints, `unorm16 ×4` weights) gets a mega buffer parallel to the vertex space, allocated with the first skinned mesh (16 B per vertex slot), and attributes 4–5 of the shared vertex array. Each frame the packet carries the palettes of the visible instances (`RenderPacket.addPalette`, three rows per joint) and each skinned instance its palette base in flag bits 12–31 (`setPalette`). The renderer uploads them to a frame-ring storage buffer (binding 9); skinned draws use the `SKINNED` variant (engine feature bit 15) of the lit, depth/shadow and outline programs, which blends four palette rows before the instance transform. Skinned materials get their own program slots, prepared on the render thread before the draw build. GPU-driven static instances never skin.
+- **World integration (`app`):** `World.instantiateAnimated` spawns a scene with an `Animations` instance per skin: skinned mesh nodes become renderables on child entities with identity transforms (glTF ignores a skinned mesh node's own transform), mesh nodes under joints become **attachments** that follow their joint (weapons, shields, helmets: root × joint model × static offset at extract time), and everything else is instantiated as before. `extract` adds each visible instance's palette once per frame, tags its renderables and bounds them with the joint sphere.
+- **Not yet:** root-motion extraction, foot IK, additive layers, animation events, clip compression, GPU-side palette evaluation, asset-type integration for clips (games bake on the game thread at spawn time and cache by rig).
 
 ---
 
@@ -592,7 +604,7 @@ JeddyFramework/
 ---
 
 ## 16. Future modules (not scheduled)
-- `animation`: skeletal sampling (SoA, parallel), blending, root motion, foot IK, GPU skinning (the skin stream is already reserved).
+- `animation` beyond M12 (§13.4): root-motion extraction, foot IK, additive layers, events, clip compression.
 - `ui`: game UI (inventory, dialogue, character sheet). The debug UI may use Dear ImGui through cimgui and FFM.
 - `rules`: Pathfinder-like stats, dice, conditions, initiative, turn-based combat flow.
 - `save`: SoA snapshotting, versioned binary save games.
@@ -677,3 +689,5 @@ JeddyFramework/
 | 2026-10-10 | D76 | The Javadoc site is aggregated from the libraries' own `javadoc` outputs through a consumable configuration (usage `jeddy-javadoc-site`), not one combined javadoc run, so each module keeps its JPMS view; doclint runs with `all,-missing` (prose documents behaviour, a `@param` per argument would mostly repeat names). `docs.yml` deploys to GitHub Pages only when the repository variable `PAGES_ENABLED` is `true` |
 | 2026-10-10 | D77 | Nightly JMH compares every score against a committed baseline per platform (`bench/baseline/linux-x64.json`, written by a manual run with `write-baseline`, which pushes it as a branch to merge) with a 25% threshold, wide because shared runners are noisy, and sweeps `-prof gc`: benchmarks of hot paths must stay under 16 B/op plus 64 B per ms of operation time. `gc.alloc.rate.norm` sums every thread of the fork, so long operations pick up the background threads' rate (the first nightly saw 3–29 B per ms, constant within each fork); exact per-thread checks are the `@NoAllocation` tests. The ten-minute perf capture runs nightly with `--fail-on alloc,game` |
 | 2026-10-10 | D78 | The framework is MIT-licensed (owner's choice). Published POMs declare it; bundled native libraries keep their own licenses (zlib, BSD-3-Clause, Apache-2.0, MIT), whose files ship next to them in `natives/<platform>/licenses/` and in images, and `THIRD-PARTY-NOTICES.md` lists them with the demo's CC0 content. 0.1.0 is the first tagged release |
+| 2026-10-10 | D79 | Animation clips are resampled at load time into fixed-rate frames of joint-local TRS rather than sampled from glTF keys at run time: sampling becomes two frames and a lerp per joint, with no per-channel key search or cursor state, and the memory (about 1.2 KB per joint-second at 30 Hz) is small next to textures. Clips bind to skeletons by joint name, so a rig's clips live once in an animation library. Quantization waits for a measured need |
+| 2026-10-10 | D80 | GPU skinning with a skin stream parallel to the vertex space (one vertex array for every mesh; the 16 B per vertex slot is only allocated once a skinned mesh exists) and per-frame palettes in a storage buffer, addressed through flag bits 12–31 of the instance record, so the 64-byte record and the static scene path stay unchanged. Skinned draws are their own program slots (`SKINNED` variant) |

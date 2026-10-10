@@ -29,6 +29,7 @@ graph LR
   M8 --> M10
   M9 --> M10
   M10 --> M11[M11 Hardening & distribution]
+  M11 --> M12[M12 Animation]
 ```
 
 **Parallel tracks after M1:** A: platform → GL → render (M2, M3, M5, M7) · B: physics/nav (M8) · C: assets (M4, M6) · D: audio (M9).
@@ -172,5 +173,15 @@ The tracks are *mostly* independent. Dotted edges are the few late cross-track d
 
 ---
 
+## M12: Animation (§13.4)
+- [ ] **M12-01** Design and plan: DESIGN §13.4, D79–D80, this milestone · S
+- [ ] **M12-02** `animation` module: `Skeleton.of(scene, skin)` (skin order, parents, bind pose, inverse binds, pre-transforms, joint names) and `Clip.bake` (fixed-rate resampling of linear, step and cubic channels, binding by joint name, root lock); tests against hand-computed poses · M · Deps: M12-01
+- [ ] **M12-03** `Animations`: states (clip, synchronized two-clip blend, speed, loop or hold), crossfades, job-parallel sampling, local → model, palettes and joint bounds; allocation tests and `AnimationBench` (300 instances × 41 joints) · M · Deps: M12-02 · AC: update of 300 KayKit rigs ≤ 1 ms with the job system
+- [ ] **M12-04** GPU skinning: skin stream buffer, palettes in the packet and a storage buffer, `SKINNED` variants of the lit, depth/shadow and outline programs, skinned program slots; GPU test of a bent skinned strip · L · Deps: M12-03
+- [ ] **M12-05** World integration: `instantiateAnimated`, skinned renderables, bone attachments, palette extraction and bounds; tests · M · Deps: M12-04
+- [ ] **M12-06** Content: `tools/kaykit.py` writes animation libraries (heroes and skeletons rigs with a clip subset); the cooker keeps them in `.jscene` · S · Deps: M12-02
+- [ ] **M12-07** Iso demo: party and skeletons animated (idle, walk/run blended by crowd speed, attacks and casts, hit reactions, death), animations in the perf scene with its budgets in CI · M · Deps: M12-05, M12-06
+- [ ] **M12-08** Docs: `animation` README, getting-started section, Javadoc site · S · Deps: M12-07
+
 ## Backlog (unscheduled)
-`animation` module (the demo's characters stand in their bind pose) · declarative system scheduler (D67) · game UI / Dear ImGui debug UI via FFM · `rules` (Pathfinder-like) · save system · dialogue and quest scripting · VFX authoring · Tracy integration · LZ4 codec · BC6H via KTX v5 · Chase-Lev work stealing (if M1-07 shows contention) · `value record` migration once JEP 401 is final · Vector API once final · hierarchical pathfinding
+animation beyond M12: root-motion extraction, foot IK, additive layers, events, clip compression · declarative system scheduler (D67) · game UI / Dear ImGui debug UI via FFM · `rules` (Pathfinder-like) · save system · dialogue and quest scripting · VFX authoring · Tracy integration · LZ4 codec · BC6H via KTX v5 · Chase-Lev work stealing (if M1-07 shows contention) · `value record` migration once JEP 401 is final · Vector API once final · hierarchical pathfinding
