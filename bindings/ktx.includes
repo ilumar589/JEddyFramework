@@ -1,0 +1,37 @@
+# Curated jextract include list for libktx 4.4.2 (DESIGN §6.4, TASKS M6-01): the cooker creates
+# textures, compresses them to UASTC (ktxTexture2_CompressBasisEx), transcodes to BC7/BC5/BC4,
+# applies zstd supercompression and writes KTX2 to memory. Runtime code never links libktx.
+--include-function ktxErrorString
+--include-function ktxHashList_AddKVPair
+--include-function ktxTexture2_CompressBasisEx
+--include-function ktxTexture2_Create
+--include-function ktxTexture2_CreateCopy
+--include-function ktxTexture2_CreateFromMemory
+--include-function ktxTexture2_DeflateZstd
+--include-function ktxTexture2_Destroy
+--include-function ktxTexture2_GetImageOffset
+--include-function ktxTexture2_GetOETF
+--include-function ktxTexture2_NeedsTranscoding
+--include-function ktxTexture2_TranscodeBasis
+--include-function ktxTexture2_WriteToMemory
+--include-struct ktxBasisParams
+--include-struct ktxOrientation
+--include-struct ktxTexture2
+--include-typedef ktxTextureCreateInfo
+--include-constant KHR_DF_TRANSFER_LINEAR
+--include-constant KHR_DF_TRANSFER_SRGB
+--include-constant KTX_PACK_UASTC_FAVOR_BC7_ERROR
+--include-constant KTX_PACK_UASTC_LEVEL_DEFAULT
+--include-constant KTX_PACK_UASTC_LEVEL_FASTER
+--include-constant KTX_PACK_UASTC_LEVEL_FASTEST
+--include-constant KTX_PACK_UASTC_LEVEL_SLOWER
+--include-constant KTX_PACK_UASTC_LEVEL_VERYSLOW
+--include-constant KTX_SUCCESS
+--include-constant KTX_TEXTURE_CREATE_ALLOC_STORAGE
+--include-constant KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT
+--include-constant KTX_TEXTURE_CREATE_NO_STORAGE
+--include-constant KTX_TF_HIGH_QUALITY
+--include-constant KTX_TTF_BC4_R
+--include-constant KTX_TTF_BC5_RG
+--include-constant KTX_TTF_BC7_RGBA
+--include-constant KTX_TTF_RGBA32

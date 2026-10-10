@@ -16,6 +16,8 @@ on:
       - 'build-logic/src/main/kotlin/jeddy.ffm-bindings.gradle.kts'
       - 'modules/*/src/ffi/**'
       - 'modules/*/build.gradle.kts'
+      - 'tools/*/src/ffi/**'
+      - 'tools/*/build.gradle.kts'
       - '.github/workflows/bindings.yml'
   push:
     branches: ['regen/**']
@@ -82,13 +84,13 @@ jobs:
         id: compare
         shell: bash
         run: |
-          # jextract only writes under modules/<name>/src/ffi.
-          git add -A -- modules
-          git diff --cached --stat -- modules > ffi-diff-stat.txt
+          # jextract only writes under modules/<name>/src/ffi and tools/<name>/src/ffi.
+          git add -A -- modules tools
+          git diff --cached --stat -- modules tools > ffi-diff-stat.txt
           if [ -s ffi-diff-stat.txt ]; then
             encode() { sed -e 's/%/%25/g' -e 's/\r//g' | awk 'BEGIN { ORS = "%0A" } { print }'; }
             echo "::warning title=Generated bindings differ from the committed ones (${{ runner.os }})::$(head -n 40 ffi-diff-stat.txt | encode)"
-            echo "::warning title=First lines of the diff (${{ runner.os }})::$(git diff --cached -- modules | head -n 120 | encode)"
+            echo "::warning title=First lines of the diff (${{ runner.os }})::$(git diff --cached -- modules tools | head -n 120 | encode)"
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "Generated bindings match the committed sources."
@@ -97,7 +99,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: ffi-${{ runner.os }}
-          path: modules/*/src/ffi/
+          path: |
+            modules/*/src/ffi/
+            tools/*/src/ffi/
           retention-days: 7
 
       - name: Commit regenerated sources (regen/** branches)
