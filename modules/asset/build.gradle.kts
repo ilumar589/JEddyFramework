@@ -4,5 +4,6 @@ plugins {
 
 dependencies {
     api(project(":core"))
-    implementation(project(":compress"))
+    // Pak's API takes ZstdDecompressor and returns ZstdDictionary.
+    api(project(":compress"))
 }

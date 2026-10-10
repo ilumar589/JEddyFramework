@@ -7,4 +7,5 @@ dependencies {
     implementation(project(":math"))
     implementation(project(":gl"))
     implementation(project(":window"))
+    implementation(project(":compress"))
 }
