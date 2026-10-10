@@ -163,15 +163,18 @@ class SceneRendererTest {
     private int[] screen(float x, float y, float z) {
         float[] ndc = new float[3];
         Mat4Ops.project(packet.viewProjection, 0, x, y, z, ndc, 0);
-        return new int[] {
-            (int) ((ndc[0] * 0.5f + 0.5f) * SIZE), (int) ((ndc[1] * 0.5f + 0.5f) * SIZE)
-        };
+        int[] p = {(int) ((ndc[0] * 0.5f + 0.5f) * SIZE), (int) ((ndc[1] * 0.5f + 0.5f) * SIZE)};
+        assertTrue(
+                p[0] >= 0 && p[0] < SIZE && p[1] >= 0 && p[1] < SIZE,
+                "(" + x + ", " + y + ", " + z + ") is on screen");
+        return p;
     }
 
     @Test
     void whiteFurnaceReflectsTheEnvironment() {
         long errors = GLDebug.errorCount();
         renderer.environment().setUniform(1, 1, 1);
+        lookFrom(0, 0, 6, 0, 0, 0); // all four spheres in view
         float[][] params = {{0, 0.2f}, {0, 0.8f}, {1, 0.2f}, {1, 0.8f}};
         for (int i = 0; i < params.length; i++) {
             addSphere(-1.5f + i, 0, 0, material(params[i][0], params[i][1], 1, 1, 1));
@@ -503,5 +506,42 @@ class SceneRendererTest {
         render();
         assertEquals(
                 renders + 12, renderer.localShadows().staticRenders(), "static geometry changed");
+    }
+
+    @Test
+    void ambientOcclusionDarkensTheContactBetweenSphereAndGround() {
+        renderer.environment().setUniform(1, 1, 1);
+        lookFrom(0, 3, 3, 0, -0.4f, 0);
+        int white = material(0, 0.9f, 1, 1, 1);
+        addSphere(0, 0, 0, white);
+        float[] world = new float[12];
+        AffineOps.identity(world, 0);
+        world[7] = -0.4f;
+        int g = packet.add(world, 0, world, 0, ground, white, 0, 0);
+        packet.setBounds(g, 0, -0.4f, 0, 4.3f);
+        render();
+        int half = SIZE / 2;
+        MemorySegment ao = ARENA.allocate((long) half * half * 4, 16);
+        glGetTextureImage(renderer.aoTexture(), 0, GL_RED, GL_FLOAT, (int) ao.byteSize(), ao);
+        int[] crease = screen(0, -0.4f, 0.47f); // in front of the contact
+        int[] open = screen(-1.0f, -0.4f, 0.5f);
+        float creaseAo =
+                ao.getAtIndex(ValueLayout.JAVA_FLOAT, (crease[1] / 2) * half + crease[0] / 2);
+        float openAo = ao.getAtIndex(ValueLayout.JAVA_FLOAT, (open[1] / 2) * half + open[0] / 2);
+        assertTrue(openAo > 0.9f, "open ground is unoccluded: " + openAo);
+        // A 0.4 m sphere 0.2 m away hides about a quarter of the cosine-weighted hemisphere.
+        assertTrue(
+                creaseAo < 0.85f && creaseAo < openAo - 0.12f,
+                "the crease is occluded: " + creaseAo + " vs " + openAo);
+        // The lit pass applies it to ambient light.
+        float creaseLit = hdr(crease[0], crease[1], 0);
+        float openLit = hdr(open[0], open[1], 0);
+        assertTrue(
+                creaseLit < openLit * 0.9f,
+                "ambient light in the crease: " + creaseLit + " vs " + openLit);
+        // The top of the sphere faces open sky.
+        int[] top = screen(0, 0.39f, 0.05f);
+        float topAo = ao.getAtIndex(ValueLayout.JAVA_FLOAT, (top[1] / 2) * half + top[0] / 2);
+        assertTrue(topAo > 0.85f, "sphere top: " + topAo);
     }
 }

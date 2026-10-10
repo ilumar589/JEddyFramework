@@ -17,6 +17,7 @@ import dev.jeddy.render.light.Environment;
 import dev.jeddy.render.light.LightClusters;
 import dev.jeddy.render.material.MaterialSystem;
 import dev.jeddy.render.mesh.MeshRegistry;
+import dev.jeddy.render.post.Gtao;
 import dev.jeddy.render.shader.ProgramCache;
 import dev.jeddy.render.shader.ShaderFeatures;
 import dev.jeddy.render.shadow.LocalShadows;
@@ -49,24 +50,37 @@ public final class SceneRenderer implements AutoCloseable {
      * @param maxMaterials initial material capacity
      * @param sunShadows cascade settings, or {@code null} for no sun shadows
      * @param localShadows spot and point shadow atlas settings, or {@code null} for none
+     * @param ambientOcclusion half-resolution GTAO settings, or {@code null} for none
      */
     public record Config(
             long ringBytesPerFrame,
             int maxMaterials,
             SunShadows.Config sunShadows,
-            LocalShadows.Config localShadows) {
-        /** 32 MiB per frame, 256 materials, default sun cascades and shadow atlas. */
+            LocalShadows.Config localShadows,
+            Gtao.Config ambientOcclusion) {
+        /** 32 MiB per frame, 256 materials, default shadows and ambient occlusion. */
         public static final Config DEFAULT =
-                new Config(32L << 20, 256, SunShadows.Config.DEFAULT, LocalShadows.Config.DEFAULT);
+                new Config(
+                        32L << 20,
+                        256,
+                        SunShadows.Config.DEFAULT,
+                        LocalShadows.Config.DEFAULT,
+                        Gtao.Config.DEFAULT);
 
         /** Returns a copy with other sun shadow settings ({@code null} turns them off). */
         public Config withSunShadows(SunShadows.Config value) {
-            return new Config(ringBytesPerFrame, maxMaterials, value, localShadows);
+            return new Config(
+                    ringBytesPerFrame, maxMaterials, value, localShadows, ambientOcclusion);
         }
 
         /** Returns a copy with other local shadow settings ({@code null} turns them off). */
         public Config withLocalShadows(LocalShadows.Config value) {
-            return new Config(ringBytesPerFrame, maxMaterials, sunShadows, value);
+            return new Config(ringBytesPerFrame, maxMaterials, sunShadows, value, ambientOcclusion);
+        }
+
+        /** Returns a copy with other ambient occlusion settings ({@code null} turns it off). */
+        public Config withAmbientOcclusion(Gtao.Config value) {
+            return new Config(ringBytesPerFrame, maxMaterials, sunShadows, localShadows, value);
         }
     }
 
@@ -78,6 +92,7 @@ public final class SceneRenderer implements AutoCloseable {
     private final LightClusters clusters;
     private final SunShadows sunShadows;
     private final LocalShadows localShadows;
+    private final Gtao gtao;
     private final FrameRing ring;
     private final Culling culling;
     private final DrawBuilder draws;
@@ -94,6 +109,8 @@ public final class SceneRenderer implements AutoCloseable {
     private final int clusterItems;
     private final int sunCascades;
     private final int shadowAtlas;
+    private final int aoRaw;
+    private final int ao;
     private int[] visible = new int[1024];
     private RenderPacket packet;
     private long frameOffset;
@@ -134,6 +151,13 @@ public final class SceneRenderer implements AutoCloseable {
         MemorySegment id = arena.allocate(4);
         glCreateVertexArrays(1, id);
         emptyVao = id.get(ValueLayout.JAVA_INT, 0);
+        gtao =
+                config.ambientOcclusion() == null
+                        ? null
+                        : new Gtao(device, programs, config.ambientOcclusion(), emptyVao);
+        if (gtao != null) {
+            materials.setGlobalFeatures(materials.globalFeatures() | MaterialSystem.SCREEN_AO);
+        }
         skyProgram =
                 programs.define(
                         "sky", "engine/fullscreen.vert", "pbr/sky.frag", ShaderFeatures.NONE);
@@ -161,12 +185,25 @@ public final class SceneRenderer implements AutoCloseable {
         graph.addPass("sun shadows", this::sunShadowPass).writes(sunCascades);
         graph.addPass("local shadows", this::localShadowPass).writes(shadowAtlas);
         graph.addPass("depth prepass", this::depthPrepass).depth(depth, 0f);
-        graph.addPass("opaque", this::opaque)
-                .color(hdr, 0, 0, 0, 1)
-                .depthReadOnly(depth)
-                .readsStorage(clusterItems)
-                .readsTexture(sunCascades)
-                .readsTexture(shadowAtlas);
+        aoRaw = graph.texture("ao raw", GL_R8, 0.5f);
+        ao = graph.texture("ao", GL_R8, 0.5f);
+        if (gtao != null) {
+            graph.addPass("ao", this::aoPass).readsTexture(depth).color(aoRaw);
+            graph.addPass("ao blur", this::aoBlurPass)
+                    .readsTexture(aoRaw)
+                    .readsTexture(depth)
+                    .color(ao);
+        }
+        FrameGraph.Pass opaque =
+                graph.addPass("opaque", this::opaque)
+                        .color(hdr, 0, 0, 0, 1)
+                        .depthReadOnly(depth)
+                        .readsStorage(clusterItems)
+                        .readsTexture(sunCascades)
+                        .readsTexture(shadowAtlas);
+        if (gtao != null) {
+            opaque.readsTexture(ao);
+        }
         graph.addPass("sky", this::sky).color(hdr).depthReadOnly(depth);
         graph.addPass("resolve", this::resolve).readsTexture(hdr).color(FrameGraph.BACKBUFFER);
     }
@@ -194,6 +231,16 @@ public final class SceneRenderer implements AutoCloseable {
     /** Returns the spot and point light shadows, or {@code null} when disabled. */
     public LocalShadows localShadows() {
         return localShadows;
+    }
+
+    /** Returns the ambient occlusion, or {@code null} when disabled. */
+    public Gtao ambientOcclusion() {
+        return gtao;
+    }
+
+    /** Returns the GL name of the blurred half-resolution AO target (0 when disabled). */
+    public int aoTexture() {
+        return gtao == null ? 0 : graph.glTexture(ao);
     }
 
     /** Returns the frame graph (debug views, timings, extra passes). */
@@ -344,9 +391,24 @@ public final class SceneRenderer implements AutoCloseable {
         draws.submit(ctx.state(), ring, materials.depthOnly);
     }
 
+    private void aoPass(PassContext ctx) {
+        StateCache state = ctx.state();
+        state.bindUniform(FRAME_BINDING, ring.glName(), frameOffset, FRAME_BYTES);
+        gtao.occlusion(state, ctx.texture(depth));
+    }
+
+    private void aoBlurPass(PassContext ctx) {
+        StateCache state = ctx.state();
+        state.bindUniform(FRAME_BINDING, ring.glName(), frameOffset, FRAME_BYTES);
+        gtao.blur(state, ctx.texture(aoRaw), ctx.texture(depth));
+    }
+
     private void opaque(PassContext ctx) {
         StateCache state = ctx.state();
         state.bindUniform(FRAME_BINDING, ring.glName(), frameOffset, FRAME_BYTES);
+        if (gtao != null) {
+            gtao.bind(state, ctx.texture(ao));
+        }
         environment.bind(state);
         clusters.bind(state, ring);
         if (sunShadows != null) {
