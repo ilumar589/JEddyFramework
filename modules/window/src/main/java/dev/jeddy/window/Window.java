@@ -10,6 +10,7 @@ import dev.jeddy.sdl.SdlEventType;
 import dev.jeddy.sdl.SdlException;
 import dev.jeddy.sdl.SdlThread;
 import dev.jeddy.sdl.ffi.SDL_DisplayMode;
+import dev.jeddy.sdl.ffi.SDL_Rect;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -37,6 +38,7 @@ public final class Window implements AutoCloseable {
     private final int id;
     private final MemorySegment intPair;
     private final MemorySegment displayMode;
+    private final MemorySegment rect;
     private MemorySegment glContext = MemorySegment.NULL;
 
     private int width;
@@ -51,6 +53,9 @@ public final class Window implements AutoCloseable {
     private boolean focused;
     private boolean closeRequested;
     private boolean fullscreen;
+    private boolean textInput;
+    private boolean relativeMouse;
+    private boolean mouseGrab;
     private WindowMode mode = WindowMode.WINDOWED;
     private VSync vsync = VSync.OFF;
 
@@ -60,6 +65,7 @@ public final class Window implements AutoCloseable {
         this.id = SDL_GetWindowID(handle);
         this.intPair = arena.allocate(ValueLayout.JAVA_INT, 2);
         this.displayMode = arena.allocate(SDL_DisplayMode.layout());
+        this.rect = arena.allocate(SDL_Rect.layout());
     }
 
     /**
@@ -339,6 +345,87 @@ public final class Window implements AutoCloseable {
     public void raise() {
         SdlThread.assertMainThread("SDL_RaiseWindow");
         SDL_RaiseWindow(handle);
+    }
+
+    /**
+     * Starts text input (IME and on-screen keyboards) for a UI text field. Text arrives as text
+     * input events until {@link #stopTextInput()}. Allocates nothing.
+     *
+     * @param x left of the text field, window coordinates
+     * @param y top of the text field
+     * @param w width of the text field
+     * @param h height of the text field
+     * @param cursor caret offset from {@code x}, so IME candidate windows open next to it
+     */
+    public void startTextInput(int x, int y, int w, int h, int cursor) {
+        SdlThread.assertMainThread("SDL_StartTextInput");
+        SDL_Rect.x(rect, x);
+        SDL_Rect.y(rect, y);
+        SDL_Rect.w(rect, w);
+        SDL_Rect.h(rect, h);
+        SDL_SetTextInputArea(handle, rect, cursor);
+        if (!textInput) {
+            Sdl.check(SDL_StartTextInput(handle), "SDL_StartTextInput");
+            textInput = true;
+        }
+    }
+
+    /** Stops text input; key presses no longer produce text. */
+    public void stopTextInput() {
+        SdlThread.assertMainThread("SDL_StopTextInput");
+        if (textInput) {
+            SDL_StopTextInput(handle);
+            textInput = false;
+        }
+    }
+
+    /** Returns {@code true} between {@link #startTextInput} and {@link #stopTextInput()}. */
+    public boolean isTextInputActive() {
+        return textInput;
+    }
+
+    /**
+     * Turns relative mouse mode on or off: the cursor is hidden and confined, and motion events
+     * report unbounded deltas (camera rotation while a button is held). Logs a warning and stays
+     * off where the video driver lacks it.
+     */
+    public void setRelativeMouseMode(boolean enabled) {
+        SdlThread.assertMainThread("SDL_SetWindowRelativeMouseMode");
+        if (enabled != relativeMouse) {
+            if (SDL_SetWindowRelativeMouseMode(handle, enabled)) {
+                relativeMouse = enabled;
+            } else {
+                LOG.warn("relative mouse mode unavailable: {}", Sdl.error());
+            }
+        }
+    }
+
+    /** Returns whether relative mouse mode is on. */
+    public boolean isRelativeMouseMode() {
+        return relativeMouse;
+    }
+
+    /**
+     * Confines the cursor to the window (windowed edge scrolling). Exclusive fullscreen always
+     * confines it.
+     */
+    public void setMouseGrab(boolean grab) {
+        SdlThread.assertMainThread("SDL_SetWindowMouseGrab");
+        if (grab != mouseGrab) {
+            SDL_SetWindowMouseGrab(handle, grab);
+            mouseGrab = grab;
+        }
+    }
+
+    /** Returns whether the cursor is confined to the window. */
+    public boolean isMouseGrabbed() {
+        return mouseGrab;
+    }
+
+    /** Moves the cursor to a position in window coordinates. */
+    public void warpMouse(float x, float y) {
+        SdlThread.assertMainThread("SDL_WarpMouseInWindow");
+        SDL_WarpMouseInWindow(handle, x, y);
     }
 
     /**

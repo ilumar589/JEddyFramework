@@ -70,8 +70,8 @@ The tracks are *mostly* independent. Dotted edges are the few late cross-track d
 - [x] **M2-01** SDL3 and SDL3_mixer include lists. Generate with `regenerateBindings`, diff Windows vs Linux output, commit `src/ffi/java` (§6.4) · M · Deps: M0-10, M0-08 · *Done: `bindings/sdl3.includes`, `bindings/sdl3_mixer.includes`; portability via `BindingsPostProcessor` plus `SdlBindingsTest` on both CI OSes, and the `Bindings` workflow regenerates on Windows and Linux with official jextract and diffs (D22)*
 - [x] **M2-02** `sdl` wrapper utilities: error to exception (`SDL_GetError`), properties helper, main-thread assertion · S · Deps: M2-01
 - [x] **M2-03** `window`: `Platform.init` on the main thread, window creation, GL 4.6 core context attributes, displays/DPI, windowed/borderless/exclusive modes, VSync modes, frame limiter (`SDL_DelayPrecise`), minimize handling · L · Deps: M2-02 · AC: works on Windows, X11 and Wayland, and handles resize, fullscreen toggles and DPI changes
-- [ ] **M2-04** Event pump: one preallocated `SDL_Event` segment, `static final` field offsets, 8-int encoded records into an `SpscIntRing` · M · Deps: M2-03, M1-06 · AC: 0 B/frame while moving the mouse and typing
-- [ ] **M2-05** `input` device state: keyboard/mouse with frame-stamp edges, text input mode · M · Deps: M2-04
+- [x] **M2-04** Event pump: one preallocated `SDL_Event` segment, `static final` field offsets, 8-int encoded records into an `SpscIntRing` · M · Deps: M2-03, M1-06 · AC: 0 B/frame while moving the mouse and typing
+- [x] **M2-05** `input` device state: keyboard/mouse with frame-stamp edges, text input mode · M · Deps: M2-04
 - [ ] **M2-06** Action mapping: actions, bindings, chords, axes, context stack, rebinding and persistence · L · Deps: M2-05
 - [ ] **M2-07** CRPG gestures: click vs drag, double-click, box select, edge scroll, camera rotate/zoom/pan inputs. Cursor manager (custom color cursors) in `window`, switched through the main-thread command queue · M · Deps: M2-06, M2-10
 - [ ] **M2-08** Gamepads: hotplug, mapping DB, virtual cursor, rumble · M · Deps: M2-05
