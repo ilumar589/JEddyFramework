@@ -2,7 +2,9 @@
   "default": "data",
   "level": 19,
   "paks": [
-    {"name": "shared", "include": ["engine/**", "shaders/**", "config/**"]},
-    {"name": "yard", "include": ["models/yard/**", "models/yard.jscene"]}
+    {"name": "shared", "include": ["engine/**", "shaders/**", "config/**", "audio/**"]},
+    {"name": "yard", "include": ["models/yard/**", "models/yard.jscene"]},
+    {"name": "crypt", "include": ["levels/**"]},
+    {"name": "characters", "include": ["characters/**"]}
   ]
 }

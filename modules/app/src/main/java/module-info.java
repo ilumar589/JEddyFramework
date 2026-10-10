@@ -17,4 +17,5 @@ module dev.jeddy.app {
     exports dev.jeddy.app;
     exports dev.jeddy.app.audio;
     exports dev.jeddy.app.physics;
+    exports dev.jeddy.app.world;
 }

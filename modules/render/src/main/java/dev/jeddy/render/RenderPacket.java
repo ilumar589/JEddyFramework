@@ -687,6 +687,31 @@ public final class RenderPacket {
     /** Bumped by the game whenever static geometry changes (invalidates cached shadow maps). */
     public int staticVersion;
 
+    /**
+     * Grows the arrays to hold at least this many instances, lights, decals, emitters and debug
+     * lines, so a game whose peak is known up front never grows them mid-run (cold path; the counts
+     * are unchanged).
+     */
+    public void reserve(
+            int instances, int lightCount, int decalCount, int emitterCount, int lines) {
+        if (instances > capacity) {
+            allocate(instances);
+        }
+        if (lightCount * LIGHT_FLOATS > lights.length) {
+            lights = Arrays.copyOf(lights, lightCount * LIGHT_FLOATS);
+        }
+        if (decalCount * DECAL_FLOATS > decals.length) {
+            decals = Arrays.copyOf(decals, decalCount * DECAL_FLOATS);
+        }
+        if (emitterCount * EMITTER_FLOATS > emitters.length) {
+            emitters = Arrays.copyOf(emitters, emitterCount * EMITTER_FLOATS);
+        }
+        if (lines > debugColors.length) {
+            debugLines = Arrays.copyOf(debugLines, lines * 6);
+            debugColors = Arrays.copyOf(debugColors, lines);
+        }
+    }
+
     /** Sets the debug line count, growing the arrays if needed. */
     public void resizeDebugLines(int n) {
         if (n > debugColors.length) {

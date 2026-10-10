@@ -1,0 +1,236 @@
+package dev.jeddy.samples.iso;
+
+import dev.jeddy.app.world.AgentSync;
+import dev.jeddy.app.world.World;
+import dev.jeddy.asset.format.SceneData;
+import dev.jeddy.physics.crowd.AgentParams;
+import dev.jeddy.physics.crowd.Crowd;
+import dev.jeddy.physics.crowd.Formation;
+import dev.jeddy.physics.crowd.FormationMove;
+import dev.jeddy.render.RenderPacket;
+
+/**
+ * The player's six adventurers (TASKS M10-03): selection by click, box and keys, highlight
+ * outlines, and move orders, alone or in one of a few formations with paced walking.
+ *
+ * <p>Thread ownership: the game thread. Allocates nothing after construction.
+ */
+final class Party {
+    static final int SIZE = 6;
+    static final float SIGHT = 14;
+
+    /** Formation names for the HUD, upper case for the debug font. */
+    static final String[] FORMATION_NAMES = {"WEDGE", "BOX", "LINE", "COLUMN", "CIRCLE"};
+
+    final int[] agent = new int[SIZE];
+    final int[] root = new int[SIZE];
+    final boolean[] selected = new boolean[SIZE];
+    final int[] selection = new int[SIZE];
+    int selectionCount;
+    int hovered = -1;
+    int formation;
+
+    private final Crowd crowd;
+    private final World world;
+    private final FormationMove mover;
+    private final Formation[] formations = {
+        Formation.wedge(SIZE, 1.7f),
+        Formation.box(SIZE, 3, 1.6f),
+        Formation.line(SIZE, 1.5f),
+        Formation.column(SIZE, 1.6f),
+        Formation.circle(SIZE, 2.2f)
+    };
+    private final int[] style = new int[SIZE];
+
+    Party(Level level, World world, AgentSync sync, SceneData[] models) {
+        this.crowd = level.crowd;
+        this.world = world;
+        mover = new FormationMove(crowd, level.query, SIZE);
+        AgentParams params = new AgentParams();
+        params.radius = 0.4f;
+        params.maxSpeed = 3.6f;
+        params.maxAcceleration = 14f;
+        params.separationWeight = 1.5f;
+        // Start in a box around the first party spawn point, facing +x (into the crypt).
+        float cx = level.partySpawns[0] + 2;
+        float cz = level.partySpawns[2] + 2;
+        float[] p = new float[3];
+        for (int i = 0; i < SIZE; i++) {
+            float x = cx + (i % 3 - 1) * 1.6f;
+            float z = cz + (i / 3 - 0.5f) * 1.8f;
+            if (!level.snap(x, 0, z, 2f, p)) {
+                level.snap(cx, 0, cz, 4f, p);
+            }
+            agent[i] = crowd.addAgent(p[0], p[1], p[2], params);
+            root[i] = Characters.spawn(world, models[i], p[0], p[1], p[2], Characters.FACE_PLUS_X);
+            sync.bind(agent[i], root[i], Characters.FACE_PLUS_X);
+        }
+        select(0, false);
+    }
+
+    /** Returns the party member of crowd agent {@code a}, or -1. */
+    int memberOf(int a) {
+        for (int i = 0; i < SIZE; i++) {
+            if (agent[i] == a) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    void select(int member, boolean additive) {
+        if (!additive) {
+            for (int i = 0; i < SIZE; i++) {
+                selected[i] = false;
+            }
+        }
+        selected[member] = !additive || !selected[member];
+        rebuildSelection();
+    }
+
+    void selectAll() {
+        for (int i = 0; i < SIZE; i++) {
+            selected[i] = true;
+        }
+        rebuildSelection();
+    }
+
+    /**
+     * Selects the members whose bodies project into the window rectangle (window coordinates),
+     * using the camera's view-projection {@code vp} (column-major).
+     */
+    void selectBox(
+            float[] vp,
+            float windowWidth,
+            float windowHeight,
+            float minX,
+            float minY,
+            float maxX,
+            float maxY,
+            boolean additive) {
+        boolean any = false;
+        for (int i = 0; i < SIZE; i++) {
+            int a = agent[i];
+            float x = crowd.x(a);
+            float y = crowd.y(a) + 0.9f;
+            float z = crowd.z(a);
+            float cw = vp[3] * x + vp[7] * y + vp[11] * z + vp[15];
+            if (cw <= 0) {
+                continue;
+            }
+            float sx = ((vp[0] * x + vp[4] * y + vp[8] * z + vp[12]) / cw + 1) * 0.5f * windowWidth;
+            float sy =
+                    (1 - (vp[1] * x + vp[5] * y + vp[9] * z + vp[13]) / cw) * 0.5f * windowHeight;
+            boolean inside = sx >= minX && sx <= maxX && sy >= minY && sy <= maxY;
+            if (inside && !any && !additive) {
+                for (int k = 0; k < SIZE; k++) {
+                    selected[k] = false;
+                }
+            }
+            if (inside) {
+                selected[i] = true;
+                any = true;
+            }
+        }
+        rebuildSelection();
+    }
+
+    private void rebuildSelection() {
+        selectionCount = 0;
+        for (int i = 0; i < SIZE; i++) {
+            if (selected[i]) {
+                selection[selectionCount++] = agent[i];
+            }
+        }
+    }
+
+    /** First selected member, or -1. */
+    int leader() {
+        for (int i = 0; i < SIZE; i++) {
+            if (selected[i]) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    void cycleFormation() {
+        formation = (formation + 1) % formations.length;
+    }
+
+    /** Sends the selection to {@code (x, y, z)}: one member walks there, a group forms up. */
+    void order(float x, float y, float z) {
+        if (selectionCount == 0) {
+            return;
+        }
+        if (selectionCount == 1) {
+            mover.release();
+            crowd.requestMoveTarget(selection[0], x, y, z);
+            return;
+        }
+        mover.order(selection, selectionCount, formations[formation], x, y, z, 0, 0);
+    }
+
+    /** Orders everyone (scripted runs). */
+    void orderAll(float x, float y, float z) {
+        for (int i = 0; i < SIZE; i++) {
+            selected[i] = true;
+        }
+        rebuildSelection();
+        order(x, y, z);
+    }
+
+    /** Paces formation members (once per tick). */
+    void tick() {
+        mover.update();
+    }
+
+    /** Average position of the party (or of the selection, if {@code selectionOnly}). */
+    void center(boolean selectionOnly, float[] out) {
+        float x = 0;
+        float y = 0;
+        float z = 0;
+        int n = 0;
+        for (int i = 0; i < SIZE; i++) {
+            if (selectionOnly && !selected[i]) {
+                continue;
+            }
+            x += crowd.x(agent[i]);
+            y += crowd.y(agent[i]);
+            z += crowd.z(agent[i]);
+            n++;
+        }
+        if (n == 0) {
+            center(false, out);
+            return;
+        }
+        out[0] = x / n;
+        out[1] = y / n;
+        out[2] = z / n;
+    }
+
+    /** Pushes outline styles that changed (selected beats hovered). */
+    void updateHighlights() {
+        for (int i = 0; i < SIZE; i++) {
+            int s =
+                    selected[i]
+                            ? RenderPacket.HIGHLIGHT_SELECTED
+                            : hovered == i ? RenderPacket.HIGHLIGHT_HOVER : 0;
+            if (s != style[i]) {
+                style[i] = s;
+                world.setGroupHighlight(root[i], s);
+            }
+        }
+    }
+
+    /** Selection rings under the selected members. */
+    void extract(RenderPacket p) {
+        for (int i = 0; i < SIZE; i++) {
+            if (selected[i]) {
+                int a = agent[i];
+                p.addSelectionCircle(
+                        crowd.x(a), crowd.y(a), crowd.z(a), 0.65f, 0.3f, 1f, 0.45f, 0.9f);
+            }
+        }
+    }
+}

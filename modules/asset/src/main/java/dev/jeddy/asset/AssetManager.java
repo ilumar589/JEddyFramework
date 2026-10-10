@@ -655,7 +655,10 @@ public final class AssetManager implements AutoCloseable {
             while (running) {
                 int s = ioQueue.poll();
                 if (s == MpmcIntQueue.EMPTY) {
-                    LockSupport.parkNanos(this, 50_000_000L);
+                    // Untimed: schedule() unparks after queueing. A timed poll would unmount and
+                    // remount this virtual thread 20 times a second, allocating a stack chunk
+                    // each time even while nothing loads (D65).
+                    LockSupport.park(this);
                     continue;
                 }
                 try {

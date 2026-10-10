@@ -9,5 +9,6 @@ module dev.jeddy.gl {
     exports dev.jeddy.gl.ffi to
             dev.jeddy.render,
             dev.jeddy.app,
-            dev.jeddy.samples.triangle;
+            dev.jeddy.samples.triangle,
+            dev.jeddy.samples.iso;
 }

@@ -156,12 +156,12 @@ The tracks are *mostly* independent. Dotted edges are the few late cross-track d
 - [x] **M9-05** Music state machine with crossfades and stingers. Ambient zones and random one-shots (via M8-13 triggers) · M · Deps: M9-03, M8-13 · *Done: `MusicPlayer` (states, crossfades, stingers with ducking), `Ambience` (counted zone loops, scheduled random one-shots on temporary emitters), `app.audio.AmbienceTriggers` from `Triggers` events; `AudioTest`, `AmbienceTriggersTest`*
 
 ## M10: Iso demo and performance validation
-- [ ] **M10-01** Source a CC0 test level and characters (for example Kenney/KayKit/glTF sample assets), cook them into a pak · M · Deps: M6-09
-- [ ] **M10-02** `app` integration systems: scene→render extract, physics→scene sync, audio listener and emitters · M · Deps: M5-06, M8-03, M9-04
-- [ ] **M10-03** Gameplay slice: 6-member party, click-to-move with formations, box select, camera controls, pause (RTwP) · L · Deps: M10-02, M8-09
-- [ ] **M10-04** Combat slice: 64 enemies pathing and avoiding, AoE targeting decal + overlap query, spell lights, fog of war, turn-based movement-range overlay · L · Deps: M10-03, M7-07, M7-10, M8-12
-- [ ] **M10-05** Perf scene and automated capture (10-minute run): frame times, GC logs, allocation, GPU timings checked against the §14 budgets. Write a fix list · M · Deps: M10-04
-- [ ] **M10-06** Fix-list burn-down until all budgets pass · L · Deps: M10-05
+- [x] **M10-01** Source a CC0 test level and characters (for example Kenney/KayKit/glTF sample assets), cook them into a pak · M · Deps: M6-09 · *KayKit Dungeon Remastered, Adventurers and Skeletons (CC0) at pinned commits; `tools/kaykit.py` builds `crypt.glb` from an ASCII map plus nine character files; `crypt` and `characters` paks (D68)*
+- [x] **M10-02** `app` integration systems: scene→render extract, physics→scene sync, audio listener and emitters · M · Deps: M5-06, M8-03, M9-04 · *`World`, `WorldRenderer`, `WorldAssets`, `AgentSync`, `AudioSync`; flattened scene instancing, groups; `MeshAssets` wires materials and has a headless type (DESIGN §13.2)*
+- [x] **M10-03** Gameplay slice: 6-member party, click-to-move with formations, box select, camera controls, pause (RTwP) · L · Deps: M10-02, M8-09
+- [x] **M10-04** Combat slice: 64 enemies pathing and avoiding, AoE targeting decal + overlap query, spell lights, fog of war, turn-based movement-range overlay · L · Deps: M10-03, M7-07, M7-10, M8-12 · *Fireball with particles and positional sound; torches with shadows*
+- [x] **M10-05** Perf scene and automated capture (10-minute run): frame times, GC logs, allocation, GPU timings checked against the §14 budgets. Write a fix list · M · Deps: M10-04 · *`--perf` / `PerfCapture`, `--headless`; CI `perf` job; results and fix list in docs/perf/m10.md*
+- [ ] **M10-06** Fix-list burn-down until all budgets pass · L · Deps: M10-05 · *In progress: F1–F9 fixed; the CPU budgets pass (game thread p99 4.6 ms with 300 agents, 0 B steady state, no GC in 10 minutes, area load 0.46 s). Main-thread and GPU budgets need a run on the reference hardware (docs/perf/m10.md, O1–O2)*
 
 ## M11: Hardening and distribution
 - [ ] **M11-01** `jlink` runtime image plus `jpackage` (Windows installer and Linux package) · M
@@ -173,4 +173,4 @@ The tracks are *mostly* independent. Dotted edges are the few late cross-track d
 ---
 
 ## Backlog (unscheduled)
-`animation` module · game UI / Dear ImGui debug UI via FFM · `rules` (Pathfinder-like) · save system · dialogue and quest scripting · VFX authoring · Tracy integration · LZ4 codec · BC6H via KTX v5 · Chase-Lev work stealing (if M1-07 shows contention) · `value record` migration once JEP 401 is final · Vector API once final · hierarchical pathfinding
+`animation` module (the demo's characters stand in their bind pose) · declarative system scheduler (D67) · game UI / Dear ImGui debug UI via FFM · `rules` (Pathfinder-like) · save system · dialogue and quest scripting · VFX authoring · Tracy integration · LZ4 codec · BC6H via KTX v5 · Chase-Lev work stealing (if M1-07 shows contention) · `value record` migration once JEP 401 is final · Vector API once final · hierarchical pathfinding

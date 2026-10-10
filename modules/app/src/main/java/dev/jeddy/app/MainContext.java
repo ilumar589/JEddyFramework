@@ -1,5 +1,6 @@
 package dev.jeddy.app;
 
+import dev.jeddy.core.job.JobSystem;
 import dev.jeddy.input.EventPump;
 import dev.jeddy.window.Cursors;
 import dev.jeddy.window.MainThreadQueue;
@@ -15,13 +16,21 @@ public final class MainContext {
     final Cursors cursors;
     final EventPump pump;
     final MainThreadQueue queue;
+    final JobSystem jobs;
     long frame;
 
-    MainContext(Window window, Cursors cursors, EventPump pump, MainThreadQueue queue) {
+    MainContext(
+            Window window, Cursors cursors, EventPump pump, MainThreadQueue queue, JobSystem jobs) {
         this.window = window;
         this.cursors = cursors;
         this.pump = pump;
         this.queue = queue;
+        this.jobs = jobs;
+    }
+
+    /** Returns the job system shared by both threads. */
+    public JobSystem jobs() {
+        return jobs;
     }
 
     /** Returns the window. */

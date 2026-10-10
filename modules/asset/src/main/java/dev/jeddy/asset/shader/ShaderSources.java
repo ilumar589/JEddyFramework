@@ -30,7 +30,9 @@ public interface ShaderSources {
 
     /**
      * Sources from {@code anchor}'s module or class loader, under {@code root} (no slash at the
-     * end).
+     * end). On the module path this only finds resources in packages that {@code anchor}'s module
+     * opens (resource directories are encapsulated packages); a module serves its own shaders with
+     * a loader written in that module instead (the engine's: {@code EngineShaders}).
      */
     static ShaderSources classpath(Class<?> anchor, String root) {
         return path -> {

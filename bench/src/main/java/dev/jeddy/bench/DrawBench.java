@@ -111,9 +111,7 @@ public class DrawBench {
         jobs = new JobSystem(JobSystem.defaultWorkerCount());
         device = new GpuDevice(caps);
         meshes = new MeshRegistry(device, null, 1 << 16, 1 << 16);
-        var engine =
-                dev.jeddy.asset.shader.ShaderSources.classpath(
-                        MeshRegistry.class, "/dev/jeddy/render/shaders");
+        var engine = dev.jeddy.render.shader.EngineShaders.sources();
         programs =
                 new ProgramCache(
                         path ->
