@@ -56,7 +56,7 @@ public class SDL_PinchFingerEvent {
         return type$LAYOUT;
     }
 
-    private static final long type$OFFSET = $LAYOUT.byteOffset(groupElement("type"));
+    private static final long type$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -100,7 +100,7 @@ public class SDL_PinchFingerEvent {
         return reserved$LAYOUT;
     }
 
-    private static final long reserved$OFFSET = $LAYOUT.byteOffset(groupElement("reserved"));
+    private static final long reserved$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -144,7 +144,7 @@ public class SDL_PinchFingerEvent {
         return timestamp$LAYOUT;
     }
 
-    private static final long timestamp$OFFSET = $LAYOUT.byteOffset(groupElement("timestamp"));
+    private static final long timestamp$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -188,7 +188,7 @@ public class SDL_PinchFingerEvent {
         return scale$LAYOUT;
     }
 
-    private static final long scale$OFFSET = $LAYOUT.byteOffset(groupElement("scale"));
+    private static final long scale$OFFSET = 16;
 
     /**
      * Offset for field:
@@ -232,7 +232,7 @@ public class SDL_PinchFingerEvent {
         return windowID$LAYOUT;
     }
 
-    private static final long windowID$OFFSET = $LAYOUT.byteOffset(groupElement("windowID"));
+    private static final long windowID$OFFSET = 20;
 
     /**
      * Offset for field:

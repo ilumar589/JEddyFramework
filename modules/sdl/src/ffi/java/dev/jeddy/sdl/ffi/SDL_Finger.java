@@ -55,7 +55,7 @@ public class SDL_Finger {
         return id$LAYOUT;
     }
 
-    private static final long id$OFFSET = $LAYOUT.byteOffset(groupElement("id"));
+    private static final long id$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -99,7 +99,7 @@ public class SDL_Finger {
         return x$LAYOUT;
     }
 
-    private static final long x$OFFSET = $LAYOUT.byteOffset(groupElement("x"));
+    private static final long x$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -143,7 +143,7 @@ public class SDL_Finger {
         return y$LAYOUT;
     }
 
-    private static final long y$OFFSET = $LAYOUT.byteOffset(groupElement("y"));
+    private static final long y$OFFSET = 12;
 
     /**
      * Offset for field:
@@ -187,7 +187,7 @@ public class SDL_Finger {
         return pressure$LAYOUT;
     }
 
-    private static final long pressure$OFFSET = $LAYOUT.byteOffset(groupElement("pressure"));
+    private static final long pressure$OFFSET = 16;
 
     /**
      * Offset for field:

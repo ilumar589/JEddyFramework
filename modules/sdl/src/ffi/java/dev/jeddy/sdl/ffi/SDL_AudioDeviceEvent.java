@@ -62,7 +62,7 @@ public class SDL_AudioDeviceEvent {
         return type$LAYOUT;
     }
 
-    private static final long type$OFFSET = $LAYOUT.byteOffset(groupElement("type"));
+    private static final long type$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -106,7 +106,7 @@ public class SDL_AudioDeviceEvent {
         return reserved$LAYOUT;
     }
 
-    private static final long reserved$OFFSET = $LAYOUT.byteOffset(groupElement("reserved"));
+    private static final long reserved$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -150,7 +150,7 @@ public class SDL_AudioDeviceEvent {
         return timestamp$LAYOUT;
     }
 
-    private static final long timestamp$OFFSET = $LAYOUT.byteOffset(groupElement("timestamp"));
+    private static final long timestamp$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -194,7 +194,7 @@ public class SDL_AudioDeviceEvent {
         return which$LAYOUT;
     }
 
-    private static final long which$OFFSET = $LAYOUT.byteOffset(groupElement("which"));
+    private static final long which$OFFSET = 16;
 
     /**
      * Offset for field:
@@ -238,7 +238,7 @@ public class SDL_AudioDeviceEvent {
         return recording$LAYOUT;
     }
 
-    private static final long recording$OFFSET = $LAYOUT.byteOffset(groupElement("recording"));
+    private static final long recording$OFFSET = 20;
 
     /**
      * Offset for field:
@@ -282,7 +282,7 @@ public class SDL_AudioDeviceEvent {
         return padding1$LAYOUT;
     }
 
-    private static final long padding1$OFFSET = $LAYOUT.byteOffset(groupElement("padding1"));
+    private static final long padding1$OFFSET = 21;
 
     /**
      * Offset for field:
@@ -326,7 +326,7 @@ public class SDL_AudioDeviceEvent {
         return padding2$LAYOUT;
     }
 
-    private static final long padding2$OFFSET = $LAYOUT.byteOffset(groupElement("padding2"));
+    private static final long padding2$OFFSET = 22;
 
     /**
      * Offset for field:
@@ -370,7 +370,7 @@ public class SDL_AudioDeviceEvent {
         return padding3$LAYOUT;
     }
 
-    private static final long padding3$OFFSET = $LAYOUT.byteOffset(groupElement("padding3"));
+    private static final long padding3$OFFSET = 23;
 
     /**
      * Offset for field:

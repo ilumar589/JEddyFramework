@@ -126,7 +126,7 @@ public class SDL_Event {
         return type$LAYOUT;
     }
 
-    private static final long type$OFFSET = $LAYOUT.byteOffset(groupElement("type"));
+    private static final long type$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -170,7 +170,7 @@ public class SDL_Event {
         return common$LAYOUT;
     }
 
-    private static final long common$OFFSET = $LAYOUT.byteOffset(groupElement("common"));
+    private static final long common$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -214,7 +214,7 @@ public class SDL_Event {
         return display$LAYOUT;
     }
 
-    private static final long display$OFFSET = $LAYOUT.byteOffset(groupElement("display"));
+    private static final long display$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -258,7 +258,7 @@ public class SDL_Event {
         return window$LAYOUT;
     }
 
-    private static final long window$OFFSET = $LAYOUT.byteOffset(groupElement("window"));
+    private static final long window$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -302,7 +302,7 @@ public class SDL_Event {
         return kdevice$LAYOUT;
     }
 
-    private static final long kdevice$OFFSET = $LAYOUT.byteOffset(groupElement("kdevice"));
+    private static final long kdevice$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -346,7 +346,7 @@ public class SDL_Event {
         return key$LAYOUT;
     }
 
-    private static final long key$OFFSET = $LAYOUT.byteOffset(groupElement("key"));
+    private static final long key$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -390,7 +390,7 @@ public class SDL_Event {
         return edit$LAYOUT;
     }
 
-    private static final long edit$OFFSET = $LAYOUT.byteOffset(groupElement("edit"));
+    private static final long edit$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -434,7 +434,7 @@ public class SDL_Event {
         return edit_candidates$LAYOUT;
     }
 
-    private static final long edit_candidates$OFFSET = $LAYOUT.byteOffset(groupElement("edit_candidates"));
+    private static final long edit_candidates$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -478,7 +478,7 @@ public class SDL_Event {
         return text$LAYOUT;
     }
 
-    private static final long text$OFFSET = $LAYOUT.byteOffset(groupElement("text"));
+    private static final long text$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -522,7 +522,7 @@ public class SDL_Event {
         return mdevice$LAYOUT;
     }
 
-    private static final long mdevice$OFFSET = $LAYOUT.byteOffset(groupElement("mdevice"));
+    private static final long mdevice$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -566,7 +566,7 @@ public class SDL_Event {
         return motion$LAYOUT;
     }
 
-    private static final long motion$OFFSET = $LAYOUT.byteOffset(groupElement("motion"));
+    private static final long motion$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -610,7 +610,7 @@ public class SDL_Event {
         return button$LAYOUT;
     }
 
-    private static final long button$OFFSET = $LAYOUT.byteOffset(groupElement("button"));
+    private static final long button$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -654,7 +654,7 @@ public class SDL_Event {
         return wheel$LAYOUT;
     }
 
-    private static final long wheel$OFFSET = $LAYOUT.byteOffset(groupElement("wheel"));
+    private static final long wheel$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -698,7 +698,7 @@ public class SDL_Event {
         return jdevice$LAYOUT;
     }
 
-    private static final long jdevice$OFFSET = $LAYOUT.byteOffset(groupElement("jdevice"));
+    private static final long jdevice$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -742,7 +742,7 @@ public class SDL_Event {
         return jaxis$LAYOUT;
     }
 
-    private static final long jaxis$OFFSET = $LAYOUT.byteOffset(groupElement("jaxis"));
+    private static final long jaxis$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -786,7 +786,7 @@ public class SDL_Event {
         return jball$LAYOUT;
     }
 
-    private static final long jball$OFFSET = $LAYOUT.byteOffset(groupElement("jball"));
+    private static final long jball$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -830,7 +830,7 @@ public class SDL_Event {
         return jhat$LAYOUT;
     }
 
-    private static final long jhat$OFFSET = $LAYOUT.byteOffset(groupElement("jhat"));
+    private static final long jhat$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -874,7 +874,7 @@ public class SDL_Event {
         return jbutton$LAYOUT;
     }
 
-    private static final long jbutton$OFFSET = $LAYOUT.byteOffset(groupElement("jbutton"));
+    private static final long jbutton$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -918,7 +918,7 @@ public class SDL_Event {
         return jbattery$LAYOUT;
     }
 
-    private static final long jbattery$OFFSET = $LAYOUT.byteOffset(groupElement("jbattery"));
+    private static final long jbattery$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -962,7 +962,7 @@ public class SDL_Event {
         return gdevice$LAYOUT;
     }
 
-    private static final long gdevice$OFFSET = $LAYOUT.byteOffset(groupElement("gdevice"));
+    private static final long gdevice$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -1006,7 +1006,7 @@ public class SDL_Event {
         return gaxis$LAYOUT;
     }
 
-    private static final long gaxis$OFFSET = $LAYOUT.byteOffset(groupElement("gaxis"));
+    private static final long gaxis$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -1050,7 +1050,7 @@ public class SDL_Event {
         return gbutton$LAYOUT;
     }
 
-    private static final long gbutton$OFFSET = $LAYOUT.byteOffset(groupElement("gbutton"));
+    private static final long gbutton$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -1094,7 +1094,7 @@ public class SDL_Event {
         return gtouchpad$LAYOUT;
     }
 
-    private static final long gtouchpad$OFFSET = $LAYOUT.byteOffset(groupElement("gtouchpad"));
+    private static final long gtouchpad$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -1138,7 +1138,7 @@ public class SDL_Event {
         return gsensor$LAYOUT;
     }
 
-    private static final long gsensor$OFFSET = $LAYOUT.byteOffset(groupElement("gsensor"));
+    private static final long gsensor$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -1182,7 +1182,7 @@ public class SDL_Event {
         return adevice$LAYOUT;
     }
 
-    private static final long adevice$OFFSET = $LAYOUT.byteOffset(groupElement("adevice"));
+    private static final long adevice$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -1226,7 +1226,7 @@ public class SDL_Event {
         return cdevice$LAYOUT;
     }
 
-    private static final long cdevice$OFFSET = $LAYOUT.byteOffset(groupElement("cdevice"));
+    private static final long cdevice$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -1270,7 +1270,7 @@ public class SDL_Event {
         return sensor$LAYOUT;
     }
 
-    private static final long sensor$OFFSET = $LAYOUT.byteOffset(groupElement("sensor"));
+    private static final long sensor$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -1314,7 +1314,7 @@ public class SDL_Event {
         return quit$LAYOUT;
     }
 
-    private static final long quit$OFFSET = $LAYOUT.byteOffset(groupElement("quit"));
+    private static final long quit$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -1358,7 +1358,7 @@ public class SDL_Event {
         return user$LAYOUT;
     }
 
-    private static final long user$OFFSET = $LAYOUT.byteOffset(groupElement("user"));
+    private static final long user$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -1402,7 +1402,7 @@ public class SDL_Event {
         return tfinger$LAYOUT;
     }
 
-    private static final long tfinger$OFFSET = $LAYOUT.byteOffset(groupElement("tfinger"));
+    private static final long tfinger$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -1446,7 +1446,7 @@ public class SDL_Event {
         return pinch$LAYOUT;
     }
 
-    private static final long pinch$OFFSET = $LAYOUT.byteOffset(groupElement("pinch"));
+    private static final long pinch$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -1490,7 +1490,7 @@ public class SDL_Event {
         return pproximity$LAYOUT;
     }
 
-    private static final long pproximity$OFFSET = $LAYOUT.byteOffset(groupElement("pproximity"));
+    private static final long pproximity$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -1534,7 +1534,7 @@ public class SDL_Event {
         return ptouch$LAYOUT;
     }
 
-    private static final long ptouch$OFFSET = $LAYOUT.byteOffset(groupElement("ptouch"));
+    private static final long ptouch$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -1578,7 +1578,7 @@ public class SDL_Event {
         return pmotion$LAYOUT;
     }
 
-    private static final long pmotion$OFFSET = $LAYOUT.byteOffset(groupElement("pmotion"));
+    private static final long pmotion$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -1622,7 +1622,7 @@ public class SDL_Event {
         return pbutton$LAYOUT;
     }
 
-    private static final long pbutton$OFFSET = $LAYOUT.byteOffset(groupElement("pbutton"));
+    private static final long pbutton$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -1666,7 +1666,7 @@ public class SDL_Event {
         return paxis$LAYOUT;
     }
 
-    private static final long paxis$OFFSET = $LAYOUT.byteOffset(groupElement("paxis"));
+    private static final long paxis$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -1710,7 +1710,7 @@ public class SDL_Event {
         return render$LAYOUT;
     }
 
-    private static final long render$OFFSET = $LAYOUT.byteOffset(groupElement("render"));
+    private static final long render$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -1754,7 +1754,7 @@ public class SDL_Event {
         return drop$LAYOUT;
     }
 
-    private static final long drop$OFFSET = $LAYOUT.byteOffset(groupElement("drop"));
+    private static final long drop$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -1798,7 +1798,7 @@ public class SDL_Event {
         return clipboard$LAYOUT;
     }
 
-    private static final long clipboard$OFFSET = $LAYOUT.byteOffset(groupElement("clipboard"));
+    private static final long clipboard$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -1842,7 +1842,7 @@ public class SDL_Event {
         return padding$LAYOUT;
     }
 
-    private static final long padding$OFFSET = $LAYOUT.byteOffset(groupElement("padding"));
+    private static final long padding$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -1894,7 +1894,7 @@ public class SDL_Event {
      * }
      */
     public static byte padding(MemorySegment union, long index0) {
-        return (byte)padding$ELEM_HANDLE.get(union, padding$OFFSET, index0);
+        return (byte)padding$ELEM_HANDLE.get(union, 0L, index0);
     }
 
     /**
@@ -1904,7 +1904,7 @@ public class SDL_Event {
      * }
      */
     public static void padding(MemorySegment union, long index0, byte fieldValue) {
-        padding$ELEM_HANDLE.set(union, padding$OFFSET, index0, fieldValue);
+        padding$ELEM_HANDLE.set(union, 0L, index0, fieldValue);
     }
 
     /**

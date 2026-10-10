@@ -69,7 +69,7 @@ public class SDL_KeyboardEvent {
         return type$LAYOUT;
     }
 
-    private static final long type$OFFSET = $LAYOUT.byteOffset(groupElement("type"));
+    private static final long type$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -113,7 +113,7 @@ public class SDL_KeyboardEvent {
         return reserved$LAYOUT;
     }
 
-    private static final long reserved$OFFSET = $LAYOUT.byteOffset(groupElement("reserved"));
+    private static final long reserved$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -157,7 +157,7 @@ public class SDL_KeyboardEvent {
         return timestamp$LAYOUT;
     }
 
-    private static final long timestamp$OFFSET = $LAYOUT.byteOffset(groupElement("timestamp"));
+    private static final long timestamp$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -201,7 +201,7 @@ public class SDL_KeyboardEvent {
         return windowID$LAYOUT;
     }
 
-    private static final long windowID$OFFSET = $LAYOUT.byteOffset(groupElement("windowID"));
+    private static final long windowID$OFFSET = 16;
 
     /**
      * Offset for field:
@@ -245,7 +245,7 @@ public class SDL_KeyboardEvent {
         return which$LAYOUT;
     }
 
-    private static final long which$OFFSET = $LAYOUT.byteOffset(groupElement("which"));
+    private static final long which$OFFSET = 20;
 
     /**
      * Offset for field:
@@ -289,7 +289,7 @@ public class SDL_KeyboardEvent {
         return scancode$LAYOUT;
     }
 
-    private static final long scancode$OFFSET = $LAYOUT.byteOffset(groupElement("scancode"));
+    private static final long scancode$OFFSET = 24;
 
     /**
      * Offset for field:
@@ -333,7 +333,7 @@ public class SDL_KeyboardEvent {
         return key$LAYOUT;
     }
 
-    private static final long key$OFFSET = $LAYOUT.byteOffset(groupElement("key"));
+    private static final long key$OFFSET = 28;
 
     /**
      * Offset for field:
@@ -377,7 +377,7 @@ public class SDL_KeyboardEvent {
         return mod$LAYOUT;
     }
 
-    private static final long mod$OFFSET = $LAYOUT.byteOffset(groupElement("mod"));
+    private static final long mod$OFFSET = 32;
 
     /**
      * Offset for field:
@@ -421,7 +421,7 @@ public class SDL_KeyboardEvent {
         return raw$LAYOUT;
     }
 
-    private static final long raw$OFFSET = $LAYOUT.byteOffset(groupElement("raw"));
+    private static final long raw$OFFSET = 34;
 
     /**
      * Offset for field:
@@ -465,7 +465,7 @@ public class SDL_KeyboardEvent {
         return down$LAYOUT;
     }
 
-    private static final long down$OFFSET = $LAYOUT.byteOffset(groupElement("down"));
+    private static final long down$OFFSET = 36;
 
     /**
      * Offset for field:
@@ -509,7 +509,7 @@ public class SDL_KeyboardEvent {
         return repeat$LAYOUT;
     }
 
-    private static final long repeat$OFFSET = $LAYOUT.byteOffset(groupElement("repeat"));
+    private static final long repeat$OFFSET = 37;
 
     /**
      * Offset for field:

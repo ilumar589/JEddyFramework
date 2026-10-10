@@ -51,7 +51,7 @@ public class SDL_CursorFrameInfo {
         return surface$LAYOUT;
     }
 
-    private static final long surface$OFFSET = $LAYOUT.byteOffset(groupElement("surface"));
+    private static final long surface$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -95,7 +95,7 @@ public class SDL_CursorFrameInfo {
         return duration$LAYOUT;
     }
 
-    private static final long duration$OFFSET = $LAYOUT.byteOffset(groupElement("duration"));
+    private static final long duration$OFFSET = 8;
 
     /**
      * Offset for field:

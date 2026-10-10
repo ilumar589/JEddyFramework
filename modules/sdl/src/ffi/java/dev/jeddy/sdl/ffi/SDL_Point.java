@@ -50,7 +50,7 @@ public class SDL_Point {
         return x$LAYOUT;
     }
 
-    private static final long x$OFFSET = $LAYOUT.byteOffset(groupElement("x"));
+    private static final long x$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -94,7 +94,7 @@ public class SDL_Point {
         return y$LAYOUT;
     }
 
-    private static final long y$OFFSET = $LAYOUT.byteOffset(groupElement("y"));
+    private static final long y$OFFSET = 4;
 
     /**
      * Offset for field:

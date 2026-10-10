@@ -62,7 +62,7 @@ public class SDL_MessageBoxData {
         return flags$LAYOUT;
     }
 
-    private static final long flags$OFFSET = $LAYOUT.byteOffset(groupElement("flags"));
+    private static final long flags$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -106,7 +106,7 @@ public class SDL_MessageBoxData {
         return window$LAYOUT;
     }
 
-    private static final long window$OFFSET = $LAYOUT.byteOffset(groupElement("window"));
+    private static final long window$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -150,7 +150,7 @@ public class SDL_MessageBoxData {
         return title$LAYOUT;
     }
 
-    private static final long title$OFFSET = $LAYOUT.byteOffset(groupElement("title"));
+    private static final long title$OFFSET = 16;
 
     /**
      * Offset for field:
@@ -194,7 +194,7 @@ public class SDL_MessageBoxData {
         return message$LAYOUT;
     }
 
-    private static final long message$OFFSET = $LAYOUT.byteOffset(groupElement("message"));
+    private static final long message$OFFSET = 24;
 
     /**
      * Offset for field:
@@ -238,7 +238,7 @@ public class SDL_MessageBoxData {
         return numbuttons$LAYOUT;
     }
 
-    private static final long numbuttons$OFFSET = $LAYOUT.byteOffset(groupElement("numbuttons"));
+    private static final long numbuttons$OFFSET = 32;
 
     /**
      * Offset for field:
@@ -282,7 +282,7 @@ public class SDL_MessageBoxData {
         return buttons$LAYOUT;
     }
 
-    private static final long buttons$OFFSET = $LAYOUT.byteOffset(groupElement("buttons"));
+    private static final long buttons$OFFSET = 40;
 
     /**
      * Offset for field:
@@ -326,7 +326,7 @@ public class SDL_MessageBoxData {
         return colorScheme$LAYOUT;
     }
 
-    private static final long colorScheme$OFFSET = $LAYOUT.byteOffset(groupElement("colorScheme"));
+    private static final long colorScheme$OFFSET = 48;
 
     /**
      * Offset for field:

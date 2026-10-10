@@ -54,7 +54,7 @@ public class SDL_Rect {
         return x$LAYOUT;
     }
 
-    private static final long x$OFFSET = $LAYOUT.byteOffset(groupElement("x"));
+    private static final long x$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -98,7 +98,7 @@ public class SDL_Rect {
         return y$LAYOUT;
     }
 
-    private static final long y$OFFSET = $LAYOUT.byteOffset(groupElement("y"));
+    private static final long y$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -142,7 +142,7 @@ public class SDL_Rect {
         return w$LAYOUT;
     }
 
-    private static final long w$OFFSET = $LAYOUT.byteOffset(groupElement("w"));
+    private static final long w$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -186,7 +186,7 @@ public class SDL_Rect {
         return h$LAYOUT;
     }
 
-    private static final long h$OFFSET = $LAYOUT.byteOffset(groupElement("h"));
+    private static final long h$OFFSET = 12;
 
     /**
      * Offset for field:

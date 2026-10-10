@@ -59,7 +59,7 @@ public class SDL_DisplayEvent {
         return type$LAYOUT;
     }
 
-    private static final long type$OFFSET = $LAYOUT.byteOffset(groupElement("type"));
+    private static final long type$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -103,7 +103,7 @@ public class SDL_DisplayEvent {
         return reserved$LAYOUT;
     }
 
-    private static final long reserved$OFFSET = $LAYOUT.byteOffset(groupElement("reserved"));
+    private static final long reserved$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -147,7 +147,7 @@ public class SDL_DisplayEvent {
         return timestamp$LAYOUT;
     }
 
-    private static final long timestamp$OFFSET = $LAYOUT.byteOffset(groupElement("timestamp"));
+    private static final long timestamp$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -191,7 +191,7 @@ public class SDL_DisplayEvent {
         return displayID$LAYOUT;
     }
 
-    private static final long displayID$OFFSET = $LAYOUT.byteOffset(groupElement("displayID"));
+    private static final long displayID$OFFSET = 16;
 
     /**
      * Offset for field:
@@ -235,7 +235,7 @@ public class SDL_DisplayEvent {
         return data1$LAYOUT;
     }
 
-    private static final long data1$OFFSET = $LAYOUT.byteOffset(groupElement("data1"));
+    private static final long data1$OFFSET = 20;
 
     /**
      * Offset for field:
@@ -279,7 +279,7 @@ public class SDL_DisplayEvent {
         return data2$LAYOUT;
     }
 
-    private static final long data2$OFFSET = $LAYOUT.byteOffset(groupElement("data2"));
+    private static final long data2$OFFSET = 24;
 
     /**
      * Offset for field:

@@ -63,7 +63,7 @@ public class SDL_DropEvent {
         return type$LAYOUT;
     }
 
-    private static final long type$OFFSET = $LAYOUT.byteOffset(groupElement("type"));
+    private static final long type$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -107,7 +107,7 @@ public class SDL_DropEvent {
         return reserved$LAYOUT;
     }
 
-    private static final long reserved$OFFSET = $LAYOUT.byteOffset(groupElement("reserved"));
+    private static final long reserved$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -151,7 +151,7 @@ public class SDL_DropEvent {
         return timestamp$LAYOUT;
     }
 
-    private static final long timestamp$OFFSET = $LAYOUT.byteOffset(groupElement("timestamp"));
+    private static final long timestamp$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -195,7 +195,7 @@ public class SDL_DropEvent {
         return windowID$LAYOUT;
     }
 
-    private static final long windowID$OFFSET = $LAYOUT.byteOffset(groupElement("windowID"));
+    private static final long windowID$OFFSET = 16;
 
     /**
      * Offset for field:
@@ -239,7 +239,7 @@ public class SDL_DropEvent {
         return x$LAYOUT;
     }
 
-    private static final long x$OFFSET = $LAYOUT.byteOffset(groupElement("x"));
+    private static final long x$OFFSET = 20;
 
     /**
      * Offset for field:
@@ -283,7 +283,7 @@ public class SDL_DropEvent {
         return y$LAYOUT;
     }
 
-    private static final long y$OFFSET = $LAYOUT.byteOffset(groupElement("y"));
+    private static final long y$OFFSET = 24;
 
     /**
      * Offset for field:
@@ -327,7 +327,7 @@ public class SDL_DropEvent {
         return source$LAYOUT;
     }
 
-    private static final long source$OFFSET = $LAYOUT.byteOffset(groupElement("source"));
+    private static final long source$OFFSET = 32;
 
     /**
      * Offset for field:
@@ -371,7 +371,7 @@ public class SDL_DropEvent {
         return data$LAYOUT;
     }
 
-    private static final long data$OFFSET = $LAYOUT.byteOffset(groupElement("data"));
+    private static final long data$OFFSET = 40;
 
     /**
      * Offset for field:

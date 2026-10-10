@@ -12,17 +12,61 @@ import java.util.stream.*;
 import static java.lang.foreign.ValueLayout.*;
 import static java.lang.foreign.MemoryLayout.PathElement.*;
 
-class SDL3_1 extends SDL3$shared {
+public class SDL3_1 {
 
     SDL3_1() {
         // Should not be called directly
     }
 
     static final Arena LIBRARY_ARENA = Arena.global();
+    static final boolean TRACE_DOWNCALLS = Boolean.getBoolean("jextract.trace.downcalls");
+
+    static void traceDowncall(String name, Object... args) {
+         String traceArgs = Arrays.stream(args)
+                       .map(Object::toString)
+                       .collect(Collectors.joining(", "));
+         System.out.printf("%s(%s)\n", name, traceArgs);
+    }
+
+    static MemorySegment findOrThrow(String symbol) {
+        return SYMBOL_LOOKUP.find(symbol)
+            .orElseThrow(() -> new UnsatisfiedLinkError("unresolved symbol: " + symbol));
+    }
+
+    static MethodHandle upcallHandle(Class<?> fi, String name, FunctionDescriptor fdesc) {
+        try {
+            return MethodHandles.lookup().findVirtual(fi, name, fdesc.toMethodType());
+        } catch (ReflectiveOperationException ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
+    static MemoryLayout align(MemoryLayout layout, long align) {
+        return switch (layout) {
+            case PaddingLayout p -> p;
+            case ValueLayout v -> v.withByteAlignment(align);
+            case GroupLayout g -> {
+                MemoryLayout[] alignedMembers = g.memberLayouts().stream()
+                        .map(m -> align(m, align)).toArray(MemoryLayout[]::new);
+                yield g instanceof StructLayout ?
+                        MemoryLayout.structLayout(alignedMembers) : MemoryLayout.unionLayout(alignedMembers);
+            }
+            case SequenceLayout s -> MemoryLayout.sequenceLayout(s.elementCount(), align(s.elementLayout(), align));
+        };
+    }
 
     static final SymbolLookup SYMBOL_LOOKUP = SymbolLookup.loaderLookup()
             .or(Linker.nativeLinker().defaultLookup());
 
+    public static final ValueLayout.OfBoolean C_BOOL = ValueLayout.JAVA_BOOLEAN;
+    public static final ValueLayout.OfByte C_CHAR = ValueLayout.JAVA_BYTE;
+    public static final ValueLayout.OfShort C_SHORT = ValueLayout.JAVA_SHORT;
+    public static final ValueLayout.OfInt C_INT = ValueLayout.JAVA_INT;
+    public static final ValueLayout.OfLong C_LONG_LONG = ValueLayout.JAVA_LONG;
+    public static final ValueLayout.OfFloat C_FLOAT = ValueLayout.JAVA_FLOAT;
+    public static final ValueLayout.OfDouble C_DOUBLE = ValueLayout.JAVA_DOUBLE;
+    public static final AddressLayout C_POINTER = ValueLayout.ADDRESS
+            .withTargetLayout(MemoryLayout.sequenceLayout(java.lang.Long.MAX_VALUE, JAVA_BYTE));
     private static final int SDL_GL_CONTEXT_PROFILE_CORE = (int)1L;
     /**
      * {@snippet lang=c :
@@ -255,7 +299,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_malloc");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_malloc");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -302,8 +346,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_malloc", size);
             }
             return (MemorySegment)mh$.invokeExact(size);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -316,7 +358,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_calloc");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_calloc");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -363,8 +405,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_calloc", nmemb, size);
             }
             return (MemorySegment)mh$.invokeExact(nmemb, size);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -375,7 +415,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_free");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_free");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -422,8 +462,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_free", mem);
             }
             mh$.invokeExact(mem);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -436,7 +474,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_aligned_alloc");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_aligned_alloc");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -483,8 +521,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_aligned_alloc", alignment, size);
             }
             return (MemorySegment)mh$.invokeExact(alignment, size);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -495,7 +531,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_aligned_free");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_aligned_free");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -542,8 +578,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_aligned_free", mem);
             }
             mh$.invokeExact(mem);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -553,7 +587,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_INT    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetNumAllocations");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetNumAllocations");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -561,7 +595,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern int SDL_GetNumAllocations(void)
+     * extern int SDL_GetNumAllocations()
      * }
      */
     public static FunctionDescriptor SDL_GetNumAllocations$descriptor() {
@@ -571,7 +605,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern int SDL_GetNumAllocations(void)
+     * extern int SDL_GetNumAllocations()
      * }
      */
     public static MethodHandle SDL_GetNumAllocations$handle() {
@@ -581,7 +615,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern int SDL_GetNumAllocations(void)
+     * extern int SDL_GetNumAllocations()
      * }
      */
     public static MemorySegment SDL_GetNumAllocations$address() {
@@ -590,7 +624,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern int SDL_GetNumAllocations(void)
+     * extern int SDL_GetNumAllocations()
      * }
      */
     public static int SDL_GetNumAllocations() {
@@ -600,8 +634,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetNumAllocations");
             }
             return (int)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -611,7 +643,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_BOOL    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_OutOfMemory");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_OutOfMemory");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -619,7 +651,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern bool SDL_OutOfMemory(void)
+     * extern bool SDL_OutOfMemory()
      * }
      */
     public static FunctionDescriptor SDL_OutOfMemory$descriptor() {
@@ -629,7 +661,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern bool SDL_OutOfMemory(void)
+     * extern bool SDL_OutOfMemory()
      * }
      */
     public static MethodHandle SDL_OutOfMemory$handle() {
@@ -639,7 +671,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern bool SDL_OutOfMemory(void)
+     * extern bool SDL_OutOfMemory()
      * }
      */
     public static MemorySegment SDL_OutOfMemory$address() {
@@ -648,7 +680,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern bool SDL_OutOfMemory(void)
+     * extern bool SDL_OutOfMemory()
      * }
      */
     public static boolean SDL_OutOfMemory() {
@@ -658,8 +690,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_OutOfMemory");
             }
             return (boolean)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -669,7 +699,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_POINTER    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetError");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetError");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -677,7 +707,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern const char *SDL_GetError(void)
+     * extern const char *SDL_GetError()
      * }
      */
     public static FunctionDescriptor SDL_GetError$descriptor() {
@@ -687,7 +717,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern const char *SDL_GetError(void)
+     * extern const char *SDL_GetError()
      * }
      */
     public static MethodHandle SDL_GetError$handle() {
@@ -697,7 +727,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern const char *SDL_GetError(void)
+     * extern const char *SDL_GetError()
      * }
      */
     public static MemorySegment SDL_GetError$address() {
@@ -706,7 +736,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern const char *SDL_GetError(void)
+     * extern const char *SDL_GetError()
      * }
      */
     public static MemorySegment SDL_GetError() {
@@ -716,8 +746,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetError");
             }
             return (MemorySegment)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -727,7 +755,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_BOOL    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_ClearError");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_ClearError");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -735,7 +763,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern bool SDL_ClearError(void)
+     * extern bool SDL_ClearError()
      * }
      */
     public static FunctionDescriptor SDL_ClearError$descriptor() {
@@ -745,7 +773,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern bool SDL_ClearError(void)
+     * extern bool SDL_ClearError()
      * }
      */
     public static MethodHandle SDL_ClearError$handle() {
@@ -755,7 +783,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern bool SDL_ClearError(void)
+     * extern bool SDL_ClearError()
      * }
      */
     public static MemorySegment SDL_ClearError$address() {
@@ -764,7 +792,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern bool SDL_ClearError(void)
+     * extern bool SDL_ClearError()
      * }
      */
     public static boolean SDL_ClearError() {
@@ -774,8 +802,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_ClearError");
             }
             return (boolean)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -845,7 +871,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_INT    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGlobalProperties");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGlobalProperties");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -853,7 +879,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern SDL_PropertiesID SDL_GetGlobalProperties(void)
+     * extern SDL_PropertiesID SDL_GetGlobalProperties()
      * }
      */
     public static FunctionDescriptor SDL_GetGlobalProperties$descriptor() {
@@ -863,7 +889,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern SDL_PropertiesID SDL_GetGlobalProperties(void)
+     * extern SDL_PropertiesID SDL_GetGlobalProperties()
      * }
      */
     public static MethodHandle SDL_GetGlobalProperties$handle() {
@@ -873,7 +899,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern SDL_PropertiesID SDL_GetGlobalProperties(void)
+     * extern SDL_PropertiesID SDL_GetGlobalProperties()
      * }
      */
     public static MemorySegment SDL_GetGlobalProperties$address() {
@@ -882,7 +908,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern SDL_PropertiesID SDL_GetGlobalProperties(void)
+     * extern SDL_PropertiesID SDL_GetGlobalProperties()
      * }
      */
     public static int SDL_GetGlobalProperties() {
@@ -892,8 +918,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGlobalProperties");
             }
             return (int)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -903,7 +927,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_INT    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_CreateProperties");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_CreateProperties");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -911,7 +935,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern SDL_PropertiesID SDL_CreateProperties(void)
+     * extern SDL_PropertiesID SDL_CreateProperties()
      * }
      */
     public static FunctionDescriptor SDL_CreateProperties$descriptor() {
@@ -921,7 +945,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern SDL_PropertiesID SDL_CreateProperties(void)
+     * extern SDL_PropertiesID SDL_CreateProperties()
      * }
      */
     public static MethodHandle SDL_CreateProperties$handle() {
@@ -931,7 +955,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern SDL_PropertiesID SDL_CreateProperties(void)
+     * extern SDL_PropertiesID SDL_CreateProperties()
      * }
      */
     public static MemorySegment SDL_CreateProperties$address() {
@@ -940,7 +964,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern SDL_PropertiesID SDL_CreateProperties(void)
+     * extern SDL_PropertiesID SDL_CreateProperties()
      * }
      */
     public static int SDL_CreateProperties() {
@@ -950,8 +974,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_CreateProperties");
             }
             return (int)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -964,7 +986,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_CopyProperties");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_CopyProperties");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1011,8 +1033,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_CopyProperties", src, dst);
             }
             return (boolean)mh$.invokeExact(src, dst);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1024,7 +1044,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_LockProperties");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_LockProperties");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1071,8 +1091,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_LockProperties", props);
             }
             return (boolean)mh$.invokeExact(props);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1083,7 +1101,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_UnlockProperties");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_UnlockProperties");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1130,8 +1148,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_UnlockProperties", props);
             }
             mh$.invokeExact(props);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1145,7 +1161,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetPointerProperty");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetPointerProperty");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1185,15 +1201,13 @@ class SDL3_1 extends SDL3$shared {
      * extern bool SDL_SetPointerProperty(SDL_PropertiesID props, const char *name, void *value)
      * }
      */
-    public static boolean SDL_SetPointerProperty(int props, MemorySegment name, MemorySegment value_) {
+    public static boolean SDL_SetPointerProperty(int props, MemorySegment name, MemorySegment value) {
         var mh$ = SDL_SetPointerProperty.HANDLE;
         try {
             if (TRACE_DOWNCALLS) {
-                traceDowncall("SDL_SetPointerProperty", props, name, value_);
+                traceDowncall("SDL_SetPointerProperty", props, name, value);
             }
-            return (boolean)mh$.invokeExact(props, name, value_);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
+            return (boolean)mh$.invokeExact(props, name, value);
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1207,7 +1221,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetStringProperty");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetStringProperty");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1247,15 +1261,13 @@ class SDL3_1 extends SDL3$shared {
      * extern bool SDL_SetStringProperty(SDL_PropertiesID props, const char *name, const char *value)
      * }
      */
-    public static boolean SDL_SetStringProperty(int props, MemorySegment name, MemorySegment value_) {
+    public static boolean SDL_SetStringProperty(int props, MemorySegment name, MemorySegment value) {
         var mh$ = SDL_SetStringProperty.HANDLE;
         try {
             if (TRACE_DOWNCALLS) {
-                traceDowncall("SDL_SetStringProperty", props, name, value_);
+                traceDowncall("SDL_SetStringProperty", props, name, value);
             }
-            return (boolean)mh$.invokeExact(props, name, value_);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
+            return (boolean)mh$.invokeExact(props, name, value);
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1269,7 +1281,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetNumberProperty");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetNumberProperty");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1309,15 +1321,13 @@ class SDL3_1 extends SDL3$shared {
      * extern bool SDL_SetNumberProperty(SDL_PropertiesID props, const char *name, Sint64 value)
      * }
      */
-    public static boolean SDL_SetNumberProperty(int props, MemorySegment name, long value_) {
+    public static boolean SDL_SetNumberProperty(int props, MemorySegment name, long value) {
         var mh$ = SDL_SetNumberProperty.HANDLE;
         try {
             if (TRACE_DOWNCALLS) {
-                traceDowncall("SDL_SetNumberProperty", props, name, value_);
+                traceDowncall("SDL_SetNumberProperty", props, name, value);
             }
-            return (boolean)mh$.invokeExact(props, name, value_);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
+            return (boolean)mh$.invokeExact(props, name, value);
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1331,7 +1341,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_FLOAT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetFloatProperty");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetFloatProperty");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1371,15 +1381,13 @@ class SDL3_1 extends SDL3$shared {
      * extern bool SDL_SetFloatProperty(SDL_PropertiesID props, const char *name, float value)
      * }
      */
-    public static boolean SDL_SetFloatProperty(int props, MemorySegment name, float value_) {
+    public static boolean SDL_SetFloatProperty(int props, MemorySegment name, float value) {
         var mh$ = SDL_SetFloatProperty.HANDLE;
         try {
             if (TRACE_DOWNCALLS) {
-                traceDowncall("SDL_SetFloatProperty", props, name, value_);
+                traceDowncall("SDL_SetFloatProperty", props, name, value);
             }
-            return (boolean)mh$.invokeExact(props, name, value_);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
+            return (boolean)mh$.invokeExact(props, name, value);
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1393,7 +1401,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_BOOL
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetBooleanProperty");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetBooleanProperty");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1433,15 +1441,13 @@ class SDL3_1 extends SDL3$shared {
      * extern bool SDL_SetBooleanProperty(SDL_PropertiesID props, const char *name, bool value)
      * }
      */
-    public static boolean SDL_SetBooleanProperty(int props, MemorySegment name, boolean value_) {
+    public static boolean SDL_SetBooleanProperty(int props, MemorySegment name, boolean value) {
         var mh$ = SDL_SetBooleanProperty.HANDLE;
         try {
             if (TRACE_DOWNCALLS) {
-                traceDowncall("SDL_SetBooleanProperty", props, name, value_);
+                traceDowncall("SDL_SetBooleanProperty", props, name, value);
             }
-            return (boolean)mh$.invokeExact(props, name, value_);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
+            return (boolean)mh$.invokeExact(props, name, value);
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1454,7 +1460,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_HasProperty");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_HasProperty");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1501,8 +1507,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_HasProperty", props, name);
             }
             return (boolean)mh$.invokeExact(props, name);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1515,7 +1519,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetPropertyType");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetPropertyType");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1562,8 +1566,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetPropertyType", props, name);
             }
             return (int)mh$.invokeExact(props, name);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1577,7 +1579,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetPointerProperty");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetPointerProperty");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1624,8 +1626,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetPointerProperty", props, name, default_value);
             }
             return (MemorySegment)mh$.invokeExact(props, name, default_value);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1639,7 +1639,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetStringProperty");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetStringProperty");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1686,8 +1686,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetStringProperty", props, name, default_value);
             }
             return (MemorySegment)mh$.invokeExact(props, name, default_value);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1701,7 +1699,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetNumberProperty");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetNumberProperty");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1748,8 +1746,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetNumberProperty", props, name, default_value);
             }
             return (long)mh$.invokeExact(props, name, default_value);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1763,7 +1759,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_FLOAT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetFloatProperty");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetFloatProperty");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1810,8 +1806,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetFloatProperty", props, name, default_value);
             }
             return (float)mh$.invokeExact(props, name, default_value);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1825,7 +1819,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_BOOL
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetBooleanProperty");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetBooleanProperty");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1872,8 +1866,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetBooleanProperty", props, name, default_value);
             }
             return (boolean)mh$.invokeExact(props, name, default_value);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1886,7 +1878,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_ClearProperty");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_ClearProperty");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1933,8 +1925,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_ClearProperty", props, name);
             }
             return (boolean)mh$.invokeExact(props, name);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1945,7 +1935,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_DestroyProperties");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_DestroyProperties");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1992,8 +1982,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_DestroyProperties", props);
             }
             mh$.invokeExact(props);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2087,7 +2075,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_IOFromFile");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_IOFromFile");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2134,8 +2122,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_IOFromFile", file, mode);
             }
             return (MemorySegment)mh$.invokeExact(file, mode);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2148,7 +2134,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_IOFromMem");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_IOFromMem");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2195,8 +2181,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_IOFromMem", mem, size);
             }
             return (MemorySegment)mh$.invokeExact(mem, size);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2209,7 +2193,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_IOFromConstMem");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_IOFromConstMem");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2256,8 +2240,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_IOFromConstMem", mem, size);
             }
             return (MemorySegment)mh$.invokeExact(mem, size);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2267,7 +2249,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_POINTER    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_IOFromDynamicMem");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_IOFromDynamicMem");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2275,7 +2257,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern SDL_IOStream *SDL_IOFromDynamicMem(void)
+     * extern SDL_IOStream *SDL_IOFromDynamicMem()
      * }
      */
     public static FunctionDescriptor SDL_IOFromDynamicMem$descriptor() {
@@ -2285,7 +2267,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern SDL_IOStream *SDL_IOFromDynamicMem(void)
+     * extern SDL_IOStream *SDL_IOFromDynamicMem()
      * }
      */
     public static MethodHandle SDL_IOFromDynamicMem$handle() {
@@ -2295,7 +2277,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern SDL_IOStream *SDL_IOFromDynamicMem(void)
+     * extern SDL_IOStream *SDL_IOFromDynamicMem()
      * }
      */
     public static MemorySegment SDL_IOFromDynamicMem$address() {
@@ -2304,7 +2286,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern SDL_IOStream *SDL_IOFromDynamicMem(void)
+     * extern SDL_IOStream *SDL_IOFromDynamicMem()
      * }
      */
     public static MemorySegment SDL_IOFromDynamicMem() {
@@ -2314,8 +2296,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_IOFromDynamicMem");
             }
             return (MemorySegment)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2327,7 +2307,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_CloseIO");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_CloseIO");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2374,8 +2354,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_CloseIO", context);
             }
             return (boolean)mh$.invokeExact(context);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2387,7 +2365,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetIOProperties");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetIOProperties");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2434,8 +2412,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetIOProperties", context);
             }
             return (int)mh$.invokeExact(context);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2447,7 +2423,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetIOStatus");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetIOStatus");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2494,8 +2470,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetIOStatus", context);
             }
             return (int)mh$.invokeExact(context);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2507,7 +2481,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetIOSize");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetIOSize");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2554,8 +2528,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetIOSize", context);
             }
             return (long)mh$.invokeExact(context);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2569,7 +2541,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SeekIO");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SeekIO");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2616,8 +2588,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SeekIO", context, offset, whence);
             }
             return (long)mh$.invokeExact(context, offset, whence);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2629,7 +2599,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_TellIO");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_TellIO");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2676,8 +2646,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_TellIO", context);
             }
             return (long)mh$.invokeExact(context);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2691,7 +2659,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_ReadIO");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_ReadIO");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2738,8 +2706,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_ReadIO", context, ptr, size);
             }
             return (long)mh$.invokeExact(context, ptr, size);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2753,7 +2719,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_WriteIO");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_WriteIO");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2800,8 +2766,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_WriteIO", context, ptr, size);
             }
             return (long)mh$.invokeExact(context, ptr, size);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2813,7 +2777,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_FlushIO");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_FlushIO");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2860,8 +2824,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_FlushIO", context);
             }
             return (boolean)mh$.invokeExact(context);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2875,7 +2837,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_BOOL
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_LoadFile_IO");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_LoadFile_IO");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2922,8 +2884,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_LoadFile_IO", src, datasize, closeio);
             }
             return (MemorySegment)mh$.invokeExact(src, datasize, closeio);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2936,7 +2896,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_LoadFile");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_LoadFile");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2983,8 +2943,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_LoadFile", file, datasize);
             }
             return (MemorySegment)mh$.invokeExact(file, datasize);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2999,7 +2957,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_BOOL
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SaveFile_IO");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SaveFile_IO");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3046,8 +3004,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SaveFile_IO", src, data, datasize, closeio);
             }
             return (boolean)mh$.invokeExact(src, data, datasize, closeio);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3061,7 +3017,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SaveFile");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SaveFile");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3108,8 +3064,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SaveFile", file, data, datasize);
             }
             return (boolean)mh$.invokeExact(file, data, datasize);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3233,7 +3187,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_POINTER    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetCurrentAudioDriver");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetCurrentAudioDriver");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3241,7 +3195,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern const char *SDL_GetCurrentAudioDriver(void)
+     * extern const char *SDL_GetCurrentAudioDriver()
      * }
      */
     public static FunctionDescriptor SDL_GetCurrentAudioDriver$descriptor() {
@@ -3251,7 +3205,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern const char *SDL_GetCurrentAudioDriver(void)
+     * extern const char *SDL_GetCurrentAudioDriver()
      * }
      */
     public static MethodHandle SDL_GetCurrentAudioDriver$handle() {
@@ -3261,7 +3215,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern const char *SDL_GetCurrentAudioDriver(void)
+     * extern const char *SDL_GetCurrentAudioDriver()
      * }
      */
     public static MemorySegment SDL_GetCurrentAudioDriver$address() {
@@ -3270,7 +3224,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern const char *SDL_GetCurrentAudioDriver(void)
+     * extern const char *SDL_GetCurrentAudioDriver()
      * }
      */
     public static MemorySegment SDL_GetCurrentAudioDriver() {
@@ -3280,8 +3234,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetCurrentAudioDriver");
             }
             return (MemorySegment)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3293,7 +3245,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetAudioPlaybackDevices");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetAudioPlaybackDevices");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3340,8 +3292,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetAudioPlaybackDevices", count);
             }
             return (MemorySegment)mh$.invokeExact(count);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3353,7 +3303,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetAudioDeviceName");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetAudioDeviceName");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3400,8 +3350,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetAudioDeviceName", devid);
             }
             return (MemorySegment)mh$.invokeExact(devid);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3415,7 +3363,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetAudioDeviceFormat");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetAudioDeviceFormat");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3462,8 +3410,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetAudioDeviceFormat", devid, spec, sample_frames);
             }
             return (boolean)mh$.invokeExact(devid, spec, sample_frames);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3475,7 +3421,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetAudioFormatName");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetAudioFormatName");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3522,8 +3468,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetAudioFormatName", format);
             }
             return (MemorySegment)mh$.invokeExact(format);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4200,7 +4144,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_CreateSurface");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_CreateSurface");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4247,8 +4191,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_CreateSurface", width, height, format);
             }
             return (MemorySegment)mh$.invokeExact(width, height, format);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4264,7 +4206,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_CreateSurfaceFrom");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_CreateSurfaceFrom");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4311,8 +4253,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_CreateSurfaceFrom", width, height, format, pixels, pitch);
             }
             return (MemorySegment)mh$.invokeExact(width, height, format, pixels, pitch);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4323,7 +4263,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_DestroySurface");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_DestroySurface");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4370,8 +4310,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_DestroySurface", surface);
             }
             mh$.invokeExact(surface);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4383,7 +4321,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetClipboardText");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetClipboardText");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4430,8 +4368,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetClipboardText", text);
             }
             return (boolean)mh$.invokeExact(text);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4441,7 +4377,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_POINTER    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetClipboardText");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetClipboardText");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4449,7 +4385,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern char *SDL_GetClipboardText(void)
+     * extern char *SDL_GetClipboardText()
      * }
      */
     public static FunctionDescriptor SDL_GetClipboardText$descriptor() {
@@ -4459,7 +4395,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern char *SDL_GetClipboardText(void)
+     * extern char *SDL_GetClipboardText()
      * }
      */
     public static MethodHandle SDL_GetClipboardText$handle() {
@@ -4469,7 +4405,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern char *SDL_GetClipboardText(void)
+     * extern char *SDL_GetClipboardText()
      * }
      */
     public static MemorySegment SDL_GetClipboardText$address() {
@@ -4478,7 +4414,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern char *SDL_GetClipboardText(void)
+     * extern char *SDL_GetClipboardText()
      * }
      */
     public static MemorySegment SDL_GetClipboardText() {
@@ -4488,8 +4424,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetClipboardText");
             }
             return (MemorySegment)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4499,7 +4433,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_BOOL    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_HasClipboardText");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_HasClipboardText");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4507,7 +4441,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern bool SDL_HasClipboardText(void)
+     * extern bool SDL_HasClipboardText()
      * }
      */
     public static FunctionDescriptor SDL_HasClipboardText$descriptor() {
@@ -4517,7 +4451,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern bool SDL_HasClipboardText(void)
+     * extern bool SDL_HasClipboardText()
      * }
      */
     public static MethodHandle SDL_HasClipboardText$handle() {
@@ -4527,7 +4461,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern bool SDL_HasClipboardText(void)
+     * extern bool SDL_HasClipboardText()
      * }
      */
     public static MemorySegment SDL_HasClipboardText$address() {
@@ -4536,7 +4470,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern bool SDL_HasClipboardText(void)
+     * extern bool SDL_HasClipboardText()
      * }
      */
     public static boolean SDL_HasClipboardText() {
@@ -4546,8 +4480,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_HasClipboardText");
             }
             return (boolean)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4559,7 +4491,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetPrimarySelectionText");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetPrimarySelectionText");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4606,8 +4538,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetPrimarySelectionText", text);
             }
             return (boolean)mh$.invokeExact(text);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4617,7 +4547,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_POINTER    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetPrimarySelectionText");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetPrimarySelectionText");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4625,7 +4555,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern char *SDL_GetPrimarySelectionText(void)
+     * extern char *SDL_GetPrimarySelectionText()
      * }
      */
     public static FunctionDescriptor SDL_GetPrimarySelectionText$descriptor() {
@@ -4635,7 +4565,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern char *SDL_GetPrimarySelectionText(void)
+     * extern char *SDL_GetPrimarySelectionText()
      * }
      */
     public static MethodHandle SDL_GetPrimarySelectionText$handle() {
@@ -4645,7 +4575,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern char *SDL_GetPrimarySelectionText(void)
+     * extern char *SDL_GetPrimarySelectionText()
      * }
      */
     public static MemorySegment SDL_GetPrimarySelectionText$address() {
@@ -4654,7 +4584,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern char *SDL_GetPrimarySelectionText(void)
+     * extern char *SDL_GetPrimarySelectionText()
      * }
      */
     public static MemorySegment SDL_GetPrimarySelectionText() {
@@ -4664,8 +4594,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetPrimarySelectionText");
             }
             return (MemorySegment)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4675,7 +4603,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_BOOL    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_HasPrimarySelectionText");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_HasPrimarySelectionText");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4683,7 +4611,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern bool SDL_HasPrimarySelectionText(void)
+     * extern bool SDL_HasPrimarySelectionText()
      * }
      */
     public static FunctionDescriptor SDL_HasPrimarySelectionText$descriptor() {
@@ -4693,7 +4621,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern bool SDL_HasPrimarySelectionText(void)
+     * extern bool SDL_HasPrimarySelectionText()
      * }
      */
     public static MethodHandle SDL_HasPrimarySelectionText$handle() {
@@ -4703,7 +4631,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern bool SDL_HasPrimarySelectionText(void)
+     * extern bool SDL_HasPrimarySelectionText()
      * }
      */
     public static MemorySegment SDL_HasPrimarySelectionText$address() {
@@ -4712,7 +4640,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern bool SDL_HasPrimarySelectionText(void)
+     * extern bool SDL_HasPrimarySelectionText()
      * }
      */
     public static boolean SDL_HasPrimarySelectionText() {
@@ -4722,8 +4650,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_HasPrimarySelectionText");
             }
             return (boolean)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4733,7 +4659,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_INT    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetNumLogicalCPUCores");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetNumLogicalCPUCores");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4741,7 +4667,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern int SDL_GetNumLogicalCPUCores(void)
+     * extern int SDL_GetNumLogicalCPUCores()
      * }
      */
     public static FunctionDescriptor SDL_GetNumLogicalCPUCores$descriptor() {
@@ -4751,7 +4677,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern int SDL_GetNumLogicalCPUCores(void)
+     * extern int SDL_GetNumLogicalCPUCores()
      * }
      */
     public static MethodHandle SDL_GetNumLogicalCPUCores$handle() {
@@ -4761,7 +4687,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern int SDL_GetNumLogicalCPUCores(void)
+     * extern int SDL_GetNumLogicalCPUCores()
      * }
      */
     public static MemorySegment SDL_GetNumLogicalCPUCores$address() {
@@ -4770,7 +4696,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern int SDL_GetNumLogicalCPUCores(void)
+     * extern int SDL_GetNumLogicalCPUCores()
      * }
      */
     public static int SDL_GetNumLogicalCPUCores() {
@@ -4780,8 +4706,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetNumLogicalCPUCores");
             }
             return (int)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4791,7 +4715,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_INT    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetCPUCacheLineSize");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetCPUCacheLineSize");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4799,7 +4723,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern int SDL_GetCPUCacheLineSize(void)
+     * extern int SDL_GetCPUCacheLineSize()
      * }
      */
     public static FunctionDescriptor SDL_GetCPUCacheLineSize$descriptor() {
@@ -4809,7 +4733,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern int SDL_GetCPUCacheLineSize(void)
+     * extern int SDL_GetCPUCacheLineSize()
      * }
      */
     public static MethodHandle SDL_GetCPUCacheLineSize$handle() {
@@ -4819,7 +4743,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern int SDL_GetCPUCacheLineSize(void)
+     * extern int SDL_GetCPUCacheLineSize()
      * }
      */
     public static MemorySegment SDL_GetCPUCacheLineSize$address() {
@@ -4828,7 +4752,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern int SDL_GetCPUCacheLineSize(void)
+     * extern int SDL_GetCPUCacheLineSize()
      * }
      */
     public static int SDL_GetCPUCacheLineSize() {
@@ -4838,8 +4762,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetCPUCacheLineSize");
             }
             return (int)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4849,7 +4771,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_BOOL    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_HasSSE42");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_HasSSE42");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4857,7 +4779,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern bool SDL_HasSSE42(void)
+     * extern bool SDL_HasSSE42()
      * }
      */
     public static FunctionDescriptor SDL_HasSSE42$descriptor() {
@@ -4867,7 +4789,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern bool SDL_HasSSE42(void)
+     * extern bool SDL_HasSSE42()
      * }
      */
     public static MethodHandle SDL_HasSSE42$handle() {
@@ -4877,7 +4799,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern bool SDL_HasSSE42(void)
+     * extern bool SDL_HasSSE42()
      * }
      */
     public static MemorySegment SDL_HasSSE42$address() {
@@ -4886,7 +4808,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern bool SDL_HasSSE42(void)
+     * extern bool SDL_HasSSE42()
      * }
      */
     public static boolean SDL_HasSSE42() {
@@ -4896,8 +4818,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_HasSSE42");
             }
             return (boolean)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4907,7 +4827,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_BOOL    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_HasAVX2");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_HasAVX2");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4915,7 +4835,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern bool SDL_HasAVX2(void)
+     * extern bool SDL_HasAVX2()
      * }
      */
     public static FunctionDescriptor SDL_HasAVX2$descriptor() {
@@ -4925,7 +4845,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern bool SDL_HasAVX2(void)
+     * extern bool SDL_HasAVX2()
      * }
      */
     public static MethodHandle SDL_HasAVX2$handle() {
@@ -4935,7 +4855,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern bool SDL_HasAVX2(void)
+     * extern bool SDL_HasAVX2()
      * }
      */
     public static MemorySegment SDL_HasAVX2$address() {
@@ -4944,7 +4864,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern bool SDL_HasAVX2(void)
+     * extern bool SDL_HasAVX2()
      * }
      */
     public static boolean SDL_HasAVX2() {
@@ -4954,8 +4874,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_HasAVX2");
             }
             return (boolean)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4965,7 +4883,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_BOOL    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_HasAVX512F");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_HasAVX512F");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4973,7 +4891,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern bool SDL_HasAVX512F(void)
+     * extern bool SDL_HasAVX512F()
      * }
      */
     public static FunctionDescriptor SDL_HasAVX512F$descriptor() {
@@ -4983,7 +4901,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern bool SDL_HasAVX512F(void)
+     * extern bool SDL_HasAVX512F()
      * }
      */
     public static MethodHandle SDL_HasAVX512F$handle() {
@@ -4993,7 +4911,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern bool SDL_HasAVX512F(void)
+     * extern bool SDL_HasAVX512F()
      * }
      */
     public static MemorySegment SDL_HasAVX512F$address() {
@@ -5002,7 +4920,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern bool SDL_HasAVX512F(void)
+     * extern bool SDL_HasAVX512F()
      * }
      */
     public static boolean SDL_HasAVX512F() {
@@ -5012,8 +4930,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_HasAVX512F");
             }
             return (boolean)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5023,7 +4939,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_INT    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetSystemRAM");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetSystemRAM");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5031,7 +4947,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern int SDL_GetSystemRAM(void)
+     * extern int SDL_GetSystemRAM()
      * }
      */
     public static FunctionDescriptor SDL_GetSystemRAM$descriptor() {
@@ -5041,7 +4957,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern int SDL_GetSystemRAM(void)
+     * extern int SDL_GetSystemRAM()
      * }
      */
     public static MethodHandle SDL_GetSystemRAM$handle() {
@@ -5051,7 +4967,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern int SDL_GetSystemRAM(void)
+     * extern int SDL_GetSystemRAM()
      * }
      */
     public static MemorySegment SDL_GetSystemRAM$address() {
@@ -5060,7 +4976,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern int SDL_GetSystemRAM(void)
+     * extern int SDL_GetSystemRAM()
      * }
      */
     public static int SDL_GetSystemRAM() {
@@ -5070,8 +4986,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetSystemRAM");
             }
             return (int)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5081,7 +4995,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_LONG_LONG    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetSIMDAlignment");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetSIMDAlignment");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5089,7 +5003,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern size_t SDL_GetSIMDAlignment(void)
+     * extern size_t SDL_GetSIMDAlignment()
      * }
      */
     public static FunctionDescriptor SDL_GetSIMDAlignment$descriptor() {
@@ -5099,7 +5013,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern size_t SDL_GetSIMDAlignment(void)
+     * extern size_t SDL_GetSIMDAlignment()
      * }
      */
     public static MethodHandle SDL_GetSIMDAlignment$handle() {
@@ -5109,7 +5023,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern size_t SDL_GetSIMDAlignment(void)
+     * extern size_t SDL_GetSIMDAlignment()
      * }
      */
     public static MemorySegment SDL_GetSIMDAlignment$address() {
@@ -5118,7 +5032,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern size_t SDL_GetSIMDAlignment(void)
+     * extern size_t SDL_GetSIMDAlignment()
      * }
      */
     public static long SDL_GetSIMDAlignment() {
@@ -5128,8 +5042,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetSIMDAlignment");
             }
             return (long)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5139,7 +5051,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_INT    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetSystemPageSize");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetSystemPageSize");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5147,7 +5059,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern int SDL_GetSystemPageSize(void)
+     * extern int SDL_GetSystemPageSize()
      * }
      */
     public static FunctionDescriptor SDL_GetSystemPageSize$descriptor() {
@@ -5157,7 +5069,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern int SDL_GetSystemPageSize(void)
+     * extern int SDL_GetSystemPageSize()
      * }
      */
     public static MethodHandle SDL_GetSystemPageSize$handle() {
@@ -5167,7 +5079,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern int SDL_GetSystemPageSize(void)
+     * extern int SDL_GetSystemPageSize()
      * }
      */
     public static MemorySegment SDL_GetSystemPageSize$address() {
@@ -5176,7 +5088,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern int SDL_GetSystemPageSize(void)
+     * extern int SDL_GetSystemPageSize()
      * }
      */
     public static int SDL_GetSystemPageSize() {
@@ -5186,8 +5098,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetSystemPageSize");
             }
             return (int)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5650,7 +5560,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_INT    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetNumVideoDrivers");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetNumVideoDrivers");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5658,7 +5568,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern int SDL_GetNumVideoDrivers(void)
+     * extern int SDL_GetNumVideoDrivers()
      * }
      */
     public static FunctionDescriptor SDL_GetNumVideoDrivers$descriptor() {
@@ -5668,7 +5578,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern int SDL_GetNumVideoDrivers(void)
+     * extern int SDL_GetNumVideoDrivers()
      * }
      */
     public static MethodHandle SDL_GetNumVideoDrivers$handle() {
@@ -5678,7 +5588,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern int SDL_GetNumVideoDrivers(void)
+     * extern int SDL_GetNumVideoDrivers()
      * }
      */
     public static MemorySegment SDL_GetNumVideoDrivers$address() {
@@ -5687,7 +5597,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern int SDL_GetNumVideoDrivers(void)
+     * extern int SDL_GetNumVideoDrivers()
      * }
      */
     public static int SDL_GetNumVideoDrivers() {
@@ -5697,8 +5607,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetNumVideoDrivers");
             }
             return (int)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5710,7 +5618,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetVideoDriver");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetVideoDriver");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5757,8 +5665,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetVideoDriver", index);
             }
             return (MemorySegment)mh$.invokeExact(index);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5768,7 +5674,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_POINTER    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetCurrentVideoDriver");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetCurrentVideoDriver");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5776,7 +5682,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern const char *SDL_GetCurrentVideoDriver(void)
+     * extern const char *SDL_GetCurrentVideoDriver()
      * }
      */
     public static FunctionDescriptor SDL_GetCurrentVideoDriver$descriptor() {
@@ -5786,7 +5692,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern const char *SDL_GetCurrentVideoDriver(void)
+     * extern const char *SDL_GetCurrentVideoDriver()
      * }
      */
     public static MethodHandle SDL_GetCurrentVideoDriver$handle() {
@@ -5796,7 +5702,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern const char *SDL_GetCurrentVideoDriver(void)
+     * extern const char *SDL_GetCurrentVideoDriver()
      * }
      */
     public static MemorySegment SDL_GetCurrentVideoDriver$address() {
@@ -5805,7 +5711,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern const char *SDL_GetCurrentVideoDriver(void)
+     * extern const char *SDL_GetCurrentVideoDriver()
      * }
      */
     public static MemorySegment SDL_GetCurrentVideoDriver() {
@@ -5815,8 +5721,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetCurrentVideoDriver");
             }
             return (MemorySegment)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5826,7 +5730,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_INT    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetSystemTheme");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetSystemTheme");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5834,7 +5738,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern SDL_SystemTheme SDL_GetSystemTheme(void)
+     * extern SDL_SystemTheme SDL_GetSystemTheme()
      * }
      */
     public static FunctionDescriptor SDL_GetSystemTheme$descriptor() {
@@ -5844,7 +5748,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern SDL_SystemTheme SDL_GetSystemTheme(void)
+     * extern SDL_SystemTheme SDL_GetSystemTheme()
      * }
      */
     public static MethodHandle SDL_GetSystemTheme$handle() {
@@ -5854,7 +5758,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern SDL_SystemTheme SDL_GetSystemTheme(void)
+     * extern SDL_SystemTheme SDL_GetSystemTheme()
      * }
      */
     public static MemorySegment SDL_GetSystemTheme$address() {
@@ -5863,7 +5767,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern SDL_SystemTheme SDL_GetSystemTheme(void)
+     * extern SDL_SystemTheme SDL_GetSystemTheme()
      * }
      */
     public static int SDL_GetSystemTheme() {
@@ -5873,8 +5777,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetSystemTheme");
             }
             return (int)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5886,7 +5788,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetDisplays");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetDisplays");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5933,8 +5835,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetDisplays", count);
             }
             return (MemorySegment)mh$.invokeExact(count);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5944,7 +5844,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_INT    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetPrimaryDisplay");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetPrimaryDisplay");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5952,7 +5852,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern SDL_DisplayID SDL_GetPrimaryDisplay(void)
+     * extern SDL_DisplayID SDL_GetPrimaryDisplay()
      * }
      */
     public static FunctionDescriptor SDL_GetPrimaryDisplay$descriptor() {
@@ -5962,7 +5862,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern SDL_DisplayID SDL_GetPrimaryDisplay(void)
+     * extern SDL_DisplayID SDL_GetPrimaryDisplay()
      * }
      */
     public static MethodHandle SDL_GetPrimaryDisplay$handle() {
@@ -5972,7 +5872,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern SDL_DisplayID SDL_GetPrimaryDisplay(void)
+     * extern SDL_DisplayID SDL_GetPrimaryDisplay()
      * }
      */
     public static MemorySegment SDL_GetPrimaryDisplay$address() {
@@ -5981,7 +5881,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern SDL_DisplayID SDL_GetPrimaryDisplay(void)
+     * extern SDL_DisplayID SDL_GetPrimaryDisplay()
      * }
      */
     public static int SDL_GetPrimaryDisplay() {
@@ -5991,8 +5891,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetPrimaryDisplay");
             }
             return (int)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6004,7 +5902,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetDisplayProperties");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetDisplayProperties");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -6051,8 +5949,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetDisplayProperties", displayID);
             }
             return (int)mh$.invokeExact(displayID);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6064,7 +5960,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetDisplayName");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetDisplayName");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -6111,8 +6007,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetDisplayName", displayID);
             }
             return (MemorySegment)mh$.invokeExact(displayID);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6125,7 +6019,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetDisplayBounds");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetDisplayBounds");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -6172,8 +6066,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetDisplayBounds", displayID, rect);
             }
             return (boolean)mh$.invokeExact(displayID, rect);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6186,7 +6078,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetDisplayUsableBounds");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetDisplayUsableBounds");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -6233,8 +6125,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetDisplayUsableBounds", displayID, rect);
             }
             return (boolean)mh$.invokeExact(displayID, rect);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6246,7 +6136,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetNaturalDisplayOrientation");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetNaturalDisplayOrientation");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -6293,8 +6183,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetNaturalDisplayOrientation", displayID);
             }
             return (int)mh$.invokeExact(displayID);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6306,7 +6194,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetCurrentDisplayOrientation");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetCurrentDisplayOrientation");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -6353,8 +6241,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetCurrentDisplayOrientation", displayID);
             }
             return (int)mh$.invokeExact(displayID);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6366,7 +6252,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetDisplayContentScale");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetDisplayContentScale");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -6413,8 +6299,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetDisplayContentScale", displayID);
             }
             return (float)mh$.invokeExact(displayID);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6427,7 +6311,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetFullscreenDisplayModes");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetFullscreenDisplayModes");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -6474,8 +6358,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetFullscreenDisplayModes", displayID, count);
             }
             return (MemorySegment)mh$.invokeExact(displayID, count);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6492,7 +6374,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetClosestFullscreenDisplayMode");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetClosestFullscreenDisplayMode");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -6539,8 +6421,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetClosestFullscreenDisplayMode", displayID, w, h, refresh_rate, include_high_density_modes, closest);
             }
             return (boolean)mh$.invokeExact(displayID, w, h, refresh_rate, include_high_density_modes, closest);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6552,7 +6432,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetDesktopDisplayMode");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetDesktopDisplayMode");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -6599,8 +6479,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetDesktopDisplayMode", displayID);
             }
             return (MemorySegment)mh$.invokeExact(displayID);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6612,7 +6490,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetCurrentDisplayMode");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetCurrentDisplayMode");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -6659,8 +6537,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetCurrentDisplayMode", displayID);
             }
             return (MemorySegment)mh$.invokeExact(displayID);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6672,7 +6548,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetDisplayForPoint");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetDisplayForPoint");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -6719,8 +6595,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetDisplayForPoint", point);
             }
             return (int)mh$.invokeExact(point);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6732,7 +6606,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetDisplayForRect");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetDisplayForRect");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -6779,8 +6653,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetDisplayForRect", rect);
             }
             return (int)mh$.invokeExact(rect);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6792,7 +6664,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetDisplayForWindow");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetDisplayForWindow");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -6839,8 +6711,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetDisplayForWindow", window);
             }
             return (int)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6852,7 +6722,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowPixelDensity");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowPixelDensity");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -6899,8 +6769,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowPixelDensity", window);
             }
             return (float)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6912,7 +6780,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowDisplayScale");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowDisplayScale");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -6959,8 +6827,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowDisplayScale", window);
             }
             return (float)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -6973,7 +6839,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetWindowFullscreenMode");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetWindowFullscreenMode");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -7020,8 +6886,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetWindowFullscreenMode", window, mode);
             }
             return (boolean)mh$.invokeExact(window, mode);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -7033,7 +6897,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowFullscreenMode");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowFullscreenMode");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -7080,8 +6944,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowFullscreenMode", window);
             }
             return (MemorySegment)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -7094,7 +6956,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowICCProfile");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowICCProfile");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -7141,8 +7003,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowICCProfile", window, size);
             }
             return (MemorySegment)mh$.invokeExact(window, size);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -7154,7 +7014,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowPixelFormat");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowPixelFormat");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -7201,8 +7061,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowPixelFormat", window);
             }
             return (int)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -7214,7 +7072,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindows");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindows");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -7261,8 +7119,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindows", count);
             }
             return (MemorySegment)mh$.invokeExact(count);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -7277,7 +7133,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_CreateWindow");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_CreateWindow");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -7324,8 +7180,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_CreateWindow", title, w, h, flags);
             }
             return (MemorySegment)mh$.invokeExact(title, w, h, flags);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -7342,7 +7196,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_CreatePopupWindow");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_CreatePopupWindow");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -7389,8 +7243,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_CreatePopupWindow", parent, offset_x, offset_y, w, h, flags);
             }
             return (MemorySegment)mh$.invokeExact(parent, offset_x, offset_y, w, h, flags);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -7402,7 +7254,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_CreateWindowWithProperties");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_CreateWindowWithProperties");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -7449,8 +7301,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_CreateWindowWithProperties", props);
             }
             return (MemorySegment)mh$.invokeExact(props);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -7462,7 +7312,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowID");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowID");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -7509,8 +7359,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowID", window);
             }
             return (int)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -7522,7 +7370,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowFromID");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowFromID");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -7569,8 +7417,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowFromID", id);
             }
             return (MemorySegment)mh$.invokeExact(id);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -7582,7 +7428,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowParent");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowParent");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -7629,8 +7475,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowParent", window);
             }
             return (MemorySegment)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -7642,7 +7486,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowProperties");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowProperties");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -7689,8 +7533,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowProperties", window);
             }
             return (int)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -7702,7 +7544,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowFlags");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowFlags");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -7749,8 +7591,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowFlags", window);
             }
             return (long)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -7763,7 +7603,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetWindowTitle");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetWindowTitle");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -7810,8 +7650,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetWindowTitle", window, title);
             }
             return (boolean)mh$.invokeExact(window, title);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -7823,7 +7661,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowTitle");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowTitle");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -7870,8 +7708,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowTitle", window);
             }
             return (MemorySegment)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -7884,7 +7720,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetWindowIcon");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetWindowIcon");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -7931,8 +7767,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetWindowIcon", window, icon);
             }
             return (boolean)mh$.invokeExact(window, icon);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -7946,7 +7780,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetWindowPosition");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetWindowPosition");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -7993,8 +7827,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetWindowPosition", window, x, y);
             }
             return (boolean)mh$.invokeExact(window, x, y);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -8008,7 +7840,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowPosition");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowPosition");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -8055,8 +7887,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowPosition", window, x, y);
             }
             return (boolean)mh$.invokeExact(window, x, y);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -8070,7 +7900,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetWindowSize");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetWindowSize");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -8117,8 +7947,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetWindowSize", window, w, h);
             }
             return (boolean)mh$.invokeExact(window, w, h);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -8132,7 +7960,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowSize");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowSize");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -8179,8 +8007,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowSize", window, w, h);
             }
             return (boolean)mh$.invokeExact(window, w, h);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -8193,7 +8019,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowSafeArea");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowSafeArea");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -8240,8 +8066,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowSafeArea", window, rect);
             }
             return (boolean)mh$.invokeExact(window, rect);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -8255,7 +8079,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_FLOAT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetWindowAspectRatio");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetWindowAspectRatio");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -8302,8 +8126,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetWindowAspectRatio", window, min_aspect, max_aspect);
             }
             return (boolean)mh$.invokeExact(window, min_aspect, max_aspect);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -8317,7 +8139,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowAspectRatio");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowAspectRatio");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -8364,8 +8186,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowAspectRatio", window, min_aspect, max_aspect);
             }
             return (boolean)mh$.invokeExact(window, min_aspect, max_aspect);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -8381,7 +8201,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowBordersSize");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowBordersSize");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -8428,8 +8248,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowBordersSize", window, top, left, bottom, right);
             }
             return (boolean)mh$.invokeExact(window, top, left, bottom, right);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -8443,7 +8261,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowSizeInPixels");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowSizeInPixels");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -8490,8 +8308,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowSizeInPixels", window, w, h);
             }
             return (boolean)mh$.invokeExact(window, w, h);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -8505,7 +8321,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetWindowMinimumSize");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetWindowMinimumSize");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -8552,8 +8368,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetWindowMinimumSize", window, min_w, min_h);
             }
             return (boolean)mh$.invokeExact(window, min_w, min_h);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -8567,7 +8381,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowMinimumSize");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowMinimumSize");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -8614,8 +8428,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowMinimumSize", window, w, h);
             }
             return (boolean)mh$.invokeExact(window, w, h);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -8629,7 +8441,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetWindowMaximumSize");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetWindowMaximumSize");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -8676,8 +8488,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetWindowMaximumSize", window, max_w, max_h);
             }
             return (boolean)mh$.invokeExact(window, max_w, max_h);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -8691,7 +8501,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowMaximumSize");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowMaximumSize");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -8738,8 +8548,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowMaximumSize", window, w, h);
             }
             return (boolean)mh$.invokeExact(window, w, h);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -8752,7 +8560,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_BOOL
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetWindowBordered");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetWindowBordered");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -8799,8 +8607,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetWindowBordered", window, bordered);
             }
             return (boolean)mh$.invokeExact(window, bordered);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -8813,7 +8619,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_BOOL
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetWindowResizable");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetWindowResizable");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -8860,8 +8666,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetWindowResizable", window, resizable);
             }
             return (boolean)mh$.invokeExact(window, resizable);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -8874,7 +8678,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_BOOL
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetWindowAlwaysOnTop");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetWindowAlwaysOnTop");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -8921,8 +8725,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetWindowAlwaysOnTop", window, on_top);
             }
             return (boolean)mh$.invokeExact(window, on_top);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -8935,7 +8737,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_BOOL
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetWindowFillDocument");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetWindowFillDocument");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -8982,8 +8784,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetWindowFillDocument", window, fill);
             }
             return (boolean)mh$.invokeExact(window, fill);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -8995,7 +8795,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_ShowWindow");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_ShowWindow");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -9042,8 +8842,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_ShowWindow", window);
             }
             return (boolean)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -9055,7 +8853,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_HideWindow");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_HideWindow");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -9102,8 +8900,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_HideWindow", window);
             }
             return (boolean)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -9115,7 +8911,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_RaiseWindow");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_RaiseWindow");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -9162,8 +8958,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_RaiseWindow", window);
             }
             return (boolean)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -9175,7 +8969,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_MaximizeWindow");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_MaximizeWindow");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -9222,8 +9016,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_MaximizeWindow", window);
             }
             return (boolean)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -9235,7 +9027,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_MinimizeWindow");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_MinimizeWindow");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -9282,8 +9074,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_MinimizeWindow", window);
             }
             return (boolean)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -9295,7 +9085,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_RestoreWindow");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_RestoreWindow");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -9342,8 +9132,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_RestoreWindow", window);
             }
             return (boolean)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -9356,7 +9144,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_BOOL
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetWindowFullscreen");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetWindowFullscreen");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -9403,8 +9191,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetWindowFullscreen", window, fullscreen);
             }
             return (boolean)mh$.invokeExact(window, fullscreen);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -9416,7 +9202,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SyncWindow");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SyncWindow");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -9463,8 +9249,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SyncWindow", window);
             }
             return (boolean)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -9476,7 +9260,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_WindowHasSurface");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_WindowHasSurface");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -9523,8 +9307,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_WindowHasSurface", window);
             }
             return (boolean)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -9536,7 +9318,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowSurface");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowSurface");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -9583,8 +9365,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowSurface", window);
             }
             return (MemorySegment)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -9597,7 +9377,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetWindowSurfaceVSync");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetWindowSurfaceVSync");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -9644,8 +9424,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetWindowSurfaceVSync", window, vsync);
             }
             return (boolean)mh$.invokeExact(window, vsync);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -9658,7 +9436,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowSurfaceVSync");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowSurfaceVSync");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -9705,8 +9483,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowSurfaceVSync", window, vsync);
             }
             return (boolean)mh$.invokeExact(window, vsync);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -9718,7 +9494,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_UpdateWindowSurface");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_UpdateWindowSurface");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -9765,8 +9541,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_UpdateWindowSurface", window);
             }
             return (boolean)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -9780,7 +9554,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_UpdateWindowSurfaceRects");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_UpdateWindowSurfaceRects");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -9827,8 +9601,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_UpdateWindowSurfaceRects", window, rects, numrects);
             }
             return (boolean)mh$.invokeExact(window, rects, numrects);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -9840,7 +9612,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_DestroyWindowSurface");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_DestroyWindowSurface");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -9887,8 +9659,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_DestroyWindowSurface", window);
             }
             return (boolean)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -9901,7 +9671,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_BOOL
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetWindowKeyboardGrab");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetWindowKeyboardGrab");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -9948,8 +9718,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetWindowKeyboardGrab", window, grabbed);
             }
             return (boolean)mh$.invokeExact(window, grabbed);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -9962,7 +9730,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_BOOL
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetWindowMouseGrab");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetWindowMouseGrab");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -10009,8 +9777,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetWindowMouseGrab", window, grabbed);
             }
             return (boolean)mh$.invokeExact(window, grabbed);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -10022,7 +9788,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowKeyboardGrab");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowKeyboardGrab");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -10069,8 +9835,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowKeyboardGrab", window);
             }
             return (boolean)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -10082,7 +9846,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowMouseGrab");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowMouseGrab");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -10129,8 +9893,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowMouseGrab", window);
             }
             return (boolean)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -10140,7 +9902,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_POINTER    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGrabbedWindow");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGrabbedWindow");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -10148,7 +9910,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern SDL_Window *SDL_GetGrabbedWindow(void)
+     * extern SDL_Window *SDL_GetGrabbedWindow()
      * }
      */
     public static FunctionDescriptor SDL_GetGrabbedWindow$descriptor() {
@@ -10158,7 +9920,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern SDL_Window *SDL_GetGrabbedWindow(void)
+     * extern SDL_Window *SDL_GetGrabbedWindow()
      * }
      */
     public static MethodHandle SDL_GetGrabbedWindow$handle() {
@@ -10168,7 +9930,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern SDL_Window *SDL_GetGrabbedWindow(void)
+     * extern SDL_Window *SDL_GetGrabbedWindow()
      * }
      */
     public static MemorySegment SDL_GetGrabbedWindow$address() {
@@ -10177,7 +9939,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern SDL_Window *SDL_GetGrabbedWindow(void)
+     * extern SDL_Window *SDL_GetGrabbedWindow()
      * }
      */
     public static MemorySegment SDL_GetGrabbedWindow() {
@@ -10187,8 +9949,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGrabbedWindow");
             }
             return (MemorySegment)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -10201,7 +9961,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetWindowMouseRect");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetWindowMouseRect");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -10248,8 +10008,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetWindowMouseRect", window, rect);
             }
             return (boolean)mh$.invokeExact(window, rect);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -10261,7 +10019,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowMouseRect");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowMouseRect");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -10308,8 +10066,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowMouseRect", window);
             }
             return (MemorySegment)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -10322,7 +10078,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_FLOAT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetWindowOpacity");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetWindowOpacity");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -10369,8 +10125,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetWindowOpacity", window, opacity);
             }
             return (boolean)mh$.invokeExact(window, opacity);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -10382,7 +10136,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowOpacity");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowOpacity");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -10429,8 +10183,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowOpacity", window);
             }
             return (float)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -10443,7 +10195,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetWindowParent");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetWindowParent");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -10490,8 +10242,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetWindowParent", window, parent);
             }
             return (boolean)mh$.invokeExact(window, parent);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -10504,7 +10254,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_BOOL
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetWindowModal");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetWindowModal");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -10551,8 +10301,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetWindowModal", window, modal);
             }
             return (boolean)mh$.invokeExact(window, modal);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -10565,7 +10313,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_BOOL
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetWindowFocusable");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetWindowFocusable");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -10612,8 +10360,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetWindowFocusable", window, focusable);
             }
             return (boolean)mh$.invokeExact(window, focusable);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -10627,7 +10373,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_ShowWindowSystemMenu");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_ShowWindowSystemMenu");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -10674,8 +10420,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_ShowWindowSystemMenu", window, x, y);
             }
             return (boolean)mh$.invokeExact(window, x, y);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -10778,7 +10522,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetWindowShape");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetWindowShape");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -10825,8 +10569,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetWindowShape", window, shape);
             }
             return (boolean)mh$.invokeExact(window, shape);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -10839,7 +10581,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_FlashWindow");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_FlashWindow");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -10886,8 +10628,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_FlashWindow", window, operation);
             }
             return (boolean)mh$.invokeExact(window, operation);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -10900,7 +10640,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetWindowProgressState");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetWindowProgressState");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -10947,8 +10687,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetWindowProgressState", window, state);
             }
             return (boolean)mh$.invokeExact(window, state);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -10960,7 +10698,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowProgressState");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowProgressState");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -11007,8 +10745,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowProgressState", window);
             }
             return (int)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -11021,7 +10757,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_FLOAT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetWindowProgressValue");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetWindowProgressValue");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -11061,15 +10797,13 @@ class SDL3_1 extends SDL3$shared {
      * extern bool SDL_SetWindowProgressValue(SDL_Window *window, float value)
      * }
      */
-    public static boolean SDL_SetWindowProgressValue(MemorySegment window, float value_) {
+    public static boolean SDL_SetWindowProgressValue(MemorySegment window, float value) {
         var mh$ = SDL_SetWindowProgressValue.HANDLE;
         try {
             if (TRACE_DOWNCALLS) {
-                traceDowncall("SDL_SetWindowProgressValue", window, value_);
+                traceDowncall("SDL_SetWindowProgressValue", window, value);
             }
-            return (boolean)mh$.invokeExact(window, value_);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
+            return (boolean)mh$.invokeExact(window, value);
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -11081,7 +10815,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowProgressValue");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowProgressValue");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -11128,8 +10862,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowProgressValue", window);
             }
             return (float)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -11140,7 +10872,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_DestroyWindow");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_DestroyWindow");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -11187,8 +10919,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_DestroyWindow", window);
             }
             mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -11198,7 +10928,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_BOOL    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_ScreenSaverEnabled");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_ScreenSaverEnabled");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -11206,7 +10936,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern bool SDL_ScreenSaverEnabled(void)
+     * extern bool SDL_ScreenSaverEnabled()
      * }
      */
     public static FunctionDescriptor SDL_ScreenSaverEnabled$descriptor() {
@@ -11216,7 +10946,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern bool SDL_ScreenSaverEnabled(void)
+     * extern bool SDL_ScreenSaverEnabled()
      * }
      */
     public static MethodHandle SDL_ScreenSaverEnabled$handle() {
@@ -11226,7 +10956,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern bool SDL_ScreenSaverEnabled(void)
+     * extern bool SDL_ScreenSaverEnabled()
      * }
      */
     public static MemorySegment SDL_ScreenSaverEnabled$address() {
@@ -11235,7 +10965,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern bool SDL_ScreenSaverEnabled(void)
+     * extern bool SDL_ScreenSaverEnabled()
      * }
      */
     public static boolean SDL_ScreenSaverEnabled() {
@@ -11245,8 +10975,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_ScreenSaverEnabled");
             }
             return (boolean)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -11256,7 +10984,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_BOOL    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_EnableScreenSaver");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_EnableScreenSaver");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -11264,7 +10992,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern bool SDL_EnableScreenSaver(void)
+     * extern bool SDL_EnableScreenSaver()
      * }
      */
     public static FunctionDescriptor SDL_EnableScreenSaver$descriptor() {
@@ -11274,7 +11002,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern bool SDL_EnableScreenSaver(void)
+     * extern bool SDL_EnableScreenSaver()
      * }
      */
     public static MethodHandle SDL_EnableScreenSaver$handle() {
@@ -11284,7 +11012,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern bool SDL_EnableScreenSaver(void)
+     * extern bool SDL_EnableScreenSaver()
      * }
      */
     public static MemorySegment SDL_EnableScreenSaver$address() {
@@ -11293,7 +11021,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern bool SDL_EnableScreenSaver(void)
+     * extern bool SDL_EnableScreenSaver()
      * }
      */
     public static boolean SDL_EnableScreenSaver() {
@@ -11303,8 +11031,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_EnableScreenSaver");
             }
             return (boolean)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -11314,7 +11040,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_BOOL    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_DisableScreenSaver");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_DisableScreenSaver");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -11322,7 +11048,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern bool SDL_DisableScreenSaver(void)
+     * extern bool SDL_DisableScreenSaver()
      * }
      */
     public static FunctionDescriptor SDL_DisableScreenSaver$descriptor() {
@@ -11332,7 +11058,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern bool SDL_DisableScreenSaver(void)
+     * extern bool SDL_DisableScreenSaver()
      * }
      */
     public static MethodHandle SDL_DisableScreenSaver$handle() {
@@ -11342,7 +11068,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern bool SDL_DisableScreenSaver(void)
+     * extern bool SDL_DisableScreenSaver()
      * }
      */
     public static MemorySegment SDL_DisableScreenSaver$address() {
@@ -11351,7 +11077,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern bool SDL_DisableScreenSaver(void)
+     * extern bool SDL_DisableScreenSaver()
      * }
      */
     public static boolean SDL_DisableScreenSaver() {
@@ -11361,8 +11087,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_DisableScreenSaver");
             }
             return (boolean)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -11374,7 +11098,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GL_LoadLibrary");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GL_LoadLibrary");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -11421,8 +11145,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GL_LoadLibrary", path);
             }
             return (boolean)mh$.invokeExact(path);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -11434,7 +11156,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GL_GetProcAddress");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GL_GetProcAddress");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -11481,8 +11203,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GL_GetProcAddress", proc);
             }
             return (MemorySegment)mh$.invokeExact(proc);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -11491,7 +11211,7 @@ class SDL3_1 extends SDL3$shared {
     private static class SDL_GL_UnloadLibrary {
         public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GL_UnloadLibrary");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GL_UnloadLibrary");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -11499,7 +11219,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern void SDL_GL_UnloadLibrary(void)
+     * extern void SDL_GL_UnloadLibrary()
      * }
      */
     public static FunctionDescriptor SDL_GL_UnloadLibrary$descriptor() {
@@ -11509,7 +11229,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern void SDL_GL_UnloadLibrary(void)
+     * extern void SDL_GL_UnloadLibrary()
      * }
      */
     public static MethodHandle SDL_GL_UnloadLibrary$handle() {
@@ -11519,7 +11239,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern void SDL_GL_UnloadLibrary(void)
+     * extern void SDL_GL_UnloadLibrary()
      * }
      */
     public static MemorySegment SDL_GL_UnloadLibrary$address() {
@@ -11528,7 +11248,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern void SDL_GL_UnloadLibrary(void)
+     * extern void SDL_GL_UnloadLibrary()
      * }
      */
     public static void SDL_GL_UnloadLibrary() {
@@ -11538,8 +11258,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GL_UnloadLibrary");
             }
             mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -11551,7 +11269,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GL_ExtensionSupported");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GL_ExtensionSupported");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -11598,8 +11316,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GL_ExtensionSupported", extension);
             }
             return (boolean)mh$.invokeExact(extension);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -11608,7 +11324,7 @@ class SDL3_1 extends SDL3$shared {
     private static class SDL_GL_ResetAttributes {
         public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GL_ResetAttributes");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GL_ResetAttributes");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -11616,7 +11332,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern void SDL_GL_ResetAttributes(void)
+     * extern void SDL_GL_ResetAttributes()
      * }
      */
     public static FunctionDescriptor SDL_GL_ResetAttributes$descriptor() {
@@ -11626,7 +11342,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern void SDL_GL_ResetAttributes(void)
+     * extern void SDL_GL_ResetAttributes()
      * }
      */
     public static MethodHandle SDL_GL_ResetAttributes$handle() {
@@ -11636,7 +11352,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern void SDL_GL_ResetAttributes(void)
+     * extern void SDL_GL_ResetAttributes()
      * }
      */
     public static MemorySegment SDL_GL_ResetAttributes$address() {
@@ -11645,7 +11361,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern void SDL_GL_ResetAttributes(void)
+     * extern void SDL_GL_ResetAttributes()
      * }
      */
     public static void SDL_GL_ResetAttributes() {
@@ -11655,8 +11371,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GL_ResetAttributes");
             }
             mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -11669,7 +11383,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GL_SetAttribute");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GL_SetAttribute");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -11709,15 +11423,13 @@ class SDL3_1 extends SDL3$shared {
      * extern bool SDL_GL_SetAttribute(SDL_GLAttr attr, int value)
      * }
      */
-    public static boolean SDL_GL_SetAttribute(int attr, int value_) {
+    public static boolean SDL_GL_SetAttribute(int attr, int value) {
         var mh$ = SDL_GL_SetAttribute.HANDLE;
         try {
             if (TRACE_DOWNCALLS) {
-                traceDowncall("SDL_GL_SetAttribute", attr, value_);
+                traceDowncall("SDL_GL_SetAttribute", attr, value);
             }
-            return (boolean)mh$.invokeExact(attr, value_);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
+            return (boolean)mh$.invokeExact(attr, value);
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -11730,7 +11442,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GL_GetAttribute");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GL_GetAttribute");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -11770,15 +11482,13 @@ class SDL3_1 extends SDL3$shared {
      * extern bool SDL_GL_GetAttribute(SDL_GLAttr attr, int *value)
      * }
      */
-    public static boolean SDL_GL_GetAttribute(int attr, MemorySegment value_) {
+    public static boolean SDL_GL_GetAttribute(int attr, MemorySegment value) {
         var mh$ = SDL_GL_GetAttribute.HANDLE;
         try {
             if (TRACE_DOWNCALLS) {
-                traceDowncall("SDL_GL_GetAttribute", attr, value_);
+                traceDowncall("SDL_GL_GetAttribute", attr, value);
             }
-            return (boolean)mh$.invokeExact(attr, value_);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
+            return (boolean)mh$.invokeExact(attr, value);
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -11790,7 +11500,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GL_CreateContext");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GL_CreateContext");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -11837,8 +11547,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GL_CreateContext", window);
             }
             return (MemorySegment)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -11851,7 +11559,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GL_MakeCurrent");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GL_MakeCurrent");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -11898,8 +11606,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GL_MakeCurrent", window, context);
             }
             return (boolean)mh$.invokeExact(window, context);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -11909,7 +11615,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_POINTER    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GL_GetCurrentWindow");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GL_GetCurrentWindow");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -11917,7 +11623,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern SDL_Window *SDL_GL_GetCurrentWindow(void)
+     * extern SDL_Window *SDL_GL_GetCurrentWindow()
      * }
      */
     public static FunctionDescriptor SDL_GL_GetCurrentWindow$descriptor() {
@@ -11927,7 +11633,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern SDL_Window *SDL_GL_GetCurrentWindow(void)
+     * extern SDL_Window *SDL_GL_GetCurrentWindow()
      * }
      */
     public static MethodHandle SDL_GL_GetCurrentWindow$handle() {
@@ -11937,7 +11643,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern SDL_Window *SDL_GL_GetCurrentWindow(void)
+     * extern SDL_Window *SDL_GL_GetCurrentWindow()
      * }
      */
     public static MemorySegment SDL_GL_GetCurrentWindow$address() {
@@ -11946,7 +11652,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern SDL_Window *SDL_GL_GetCurrentWindow(void)
+     * extern SDL_Window *SDL_GL_GetCurrentWindow()
      * }
      */
     public static MemorySegment SDL_GL_GetCurrentWindow() {
@@ -11956,8 +11662,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GL_GetCurrentWindow");
             }
             return (MemorySegment)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -11967,7 +11671,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_POINTER    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GL_GetCurrentContext");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GL_GetCurrentContext");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -11975,7 +11679,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern SDL_GLContext SDL_GL_GetCurrentContext(void)
+     * extern SDL_GLContext SDL_GL_GetCurrentContext()
      * }
      */
     public static FunctionDescriptor SDL_GL_GetCurrentContext$descriptor() {
@@ -11985,7 +11689,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern SDL_GLContext SDL_GL_GetCurrentContext(void)
+     * extern SDL_GLContext SDL_GL_GetCurrentContext()
      * }
      */
     public static MethodHandle SDL_GL_GetCurrentContext$handle() {
@@ -11995,7 +11699,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern SDL_GLContext SDL_GL_GetCurrentContext(void)
+     * extern SDL_GLContext SDL_GL_GetCurrentContext()
      * }
      */
     public static MemorySegment SDL_GL_GetCurrentContext$address() {
@@ -12004,7 +11708,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern SDL_GLContext SDL_GL_GetCurrentContext(void)
+     * extern SDL_GLContext SDL_GL_GetCurrentContext()
      * }
      */
     public static MemorySegment SDL_GL_GetCurrentContext() {
@@ -12014,8 +11718,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GL_GetCurrentContext");
             }
             return (MemorySegment)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -12027,7 +11729,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GL_SetSwapInterval");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GL_SetSwapInterval");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -12074,8 +11776,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GL_SetSwapInterval", interval);
             }
             return (boolean)mh$.invokeExact(interval);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -12087,7 +11787,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GL_GetSwapInterval");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GL_GetSwapInterval");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -12134,8 +11834,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GL_GetSwapInterval", interval);
             }
             return (boolean)mh$.invokeExact(interval);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -12147,7 +11845,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GL_SwapWindow");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GL_SwapWindow");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -12194,8 +11892,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GL_SwapWindow", window);
             }
             return (boolean)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -12207,7 +11903,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GL_DestroyContext");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GL_DestroyContext");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -12254,8 +11950,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GL_DestroyContext", context);
             }
             return (boolean)mh$.invokeExact(context);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -12268,7 +11962,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GUIDToString");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GUIDToString");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -12315,8 +12009,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GUIDToString", guid, pszGUID, cbGUID);
             }
             mh$.invokeExact(guid, pszGUID, cbGUID);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -12328,7 +12020,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_StringToGUID");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_StringToGUID");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -12375,8 +12067,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_StringToGUID", allocator, pchGUID);
             }
             return (MemorySegment)mh$.invokeExact(allocator, pchGUID);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -12443,7 +12133,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetPowerInfo");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetPowerInfo");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -12490,8 +12180,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetPowerInfo", seconds, percent);
             }
             return (int)mh$.invokeExact(seconds, percent);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -12731,7 +12419,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetJoysticks");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetJoysticks");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -12778,8 +12466,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetJoysticks", count);
             }
             return (MemorySegment)mh$.invokeExact(count);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -12791,7 +12477,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetJoystickNameForID");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetJoystickNameForID");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -12838,8 +12524,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetJoystickNameForID", instance_id);
             }
             return (MemorySegment)mh$.invokeExact(instance_id);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -12851,7 +12535,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetJoystickGUIDForID");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetJoystickGUIDForID");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -12898,8 +12582,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetJoystickGUIDForID", allocator, instance_id);
             }
             return (MemorySegment)mh$.invokeExact(allocator, instance_id);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -12911,7 +12593,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetJoystickTypeForID");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetJoystickTypeForID");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -12958,8 +12640,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetJoystickTypeForID", instance_id);
             }
             return (int)mh$.invokeExact(instance_id);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -12971,7 +12651,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetJoystickFromID");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetJoystickFromID");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -13018,8 +12698,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetJoystickFromID", instance_id);
             }
             return (MemorySegment)mh$.invokeExact(instance_id);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -13031,7 +12709,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetJoystickGUID");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetJoystickGUID");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -13078,8 +12756,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetJoystickGUID", allocator, joystick);
             }
             return (MemorySegment)mh$.invokeExact(allocator, joystick);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -13094,7 +12770,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetJoystickGUIDInfo");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetJoystickGUIDInfo");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -13141,8 +12817,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetJoystickGUIDInfo", guid, vendor, product, version, crc16);
             }
             mh$.invokeExact(guid, vendor, product, version, crc16);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -13721,7 +13395,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_AddGamepadMapping");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_AddGamepadMapping");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -13768,8 +13442,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_AddGamepadMapping", mapping);
             }
             return (int)mh$.invokeExact(mapping);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -13782,7 +13454,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_BOOL
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_AddGamepadMappingsFromIO");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_AddGamepadMappingsFromIO");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -13829,8 +13501,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_AddGamepadMappingsFromIO", src, closeio);
             }
             return (int)mh$.invokeExact(src, closeio);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -13842,7 +13512,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_AddGamepadMappingsFromFile");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_AddGamepadMappingsFromFile");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -13889,8 +13559,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_AddGamepadMappingsFromFile", file);
             }
             return (int)mh$.invokeExact(file);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -13900,7 +13568,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_BOOL    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_ReloadGamepadMappings");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_ReloadGamepadMappings");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -13908,7 +13576,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern bool SDL_ReloadGamepadMappings(void)
+     * extern bool SDL_ReloadGamepadMappings()
      * }
      */
     public static FunctionDescriptor SDL_ReloadGamepadMappings$descriptor() {
@@ -13918,7 +13586,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern bool SDL_ReloadGamepadMappings(void)
+     * extern bool SDL_ReloadGamepadMappings()
      * }
      */
     public static MethodHandle SDL_ReloadGamepadMappings$handle() {
@@ -13928,7 +13596,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern bool SDL_ReloadGamepadMappings(void)
+     * extern bool SDL_ReloadGamepadMappings()
      * }
      */
     public static MemorySegment SDL_ReloadGamepadMappings$address() {
@@ -13937,7 +13605,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern bool SDL_ReloadGamepadMappings(void)
+     * extern bool SDL_ReloadGamepadMappings()
      * }
      */
     public static boolean SDL_ReloadGamepadMappings() {
@@ -13947,8 +13615,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_ReloadGamepadMappings");
             }
             return (boolean)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -13960,7 +13626,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadMappings");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadMappings");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -14007,8 +13673,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadMappings", count);
             }
             return (MemorySegment)mh$.invokeExact(count);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -14020,7 +13684,7 @@ class SDL3_1 extends SDL3$shared {
             SDL_GUID.layout()
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadMappingForGUID");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadMappingForGUID");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -14067,8 +13731,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadMappingForGUID", guid);
             }
             return (MemorySegment)mh$.invokeExact(guid);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -14080,7 +13742,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadMapping");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadMapping");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -14127,8 +13789,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadMapping", gamepad);
             }
             return (MemorySegment)mh$.invokeExact(gamepad);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -14141,7 +13801,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetGamepadMapping");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetGamepadMapping");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -14188,8 +13848,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetGamepadMapping", instance_id, mapping);
             }
             return (boolean)mh$.invokeExact(instance_id, mapping);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -14199,7 +13857,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_BOOL    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_HasGamepad");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_HasGamepad");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -14207,7 +13865,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern bool SDL_HasGamepad(void)
+     * extern bool SDL_HasGamepad()
      * }
      */
     public static FunctionDescriptor SDL_HasGamepad$descriptor() {
@@ -14217,7 +13875,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern bool SDL_HasGamepad(void)
+     * extern bool SDL_HasGamepad()
      * }
      */
     public static MethodHandle SDL_HasGamepad$handle() {
@@ -14227,7 +13885,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern bool SDL_HasGamepad(void)
+     * extern bool SDL_HasGamepad()
      * }
      */
     public static MemorySegment SDL_HasGamepad$address() {
@@ -14236,7 +13894,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern bool SDL_HasGamepad(void)
+     * extern bool SDL_HasGamepad()
      * }
      */
     public static boolean SDL_HasGamepad() {
@@ -14246,8 +13904,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_HasGamepad");
             }
             return (boolean)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -14259,7 +13915,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepads");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepads");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -14306,8 +13962,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepads", count);
             }
             return (MemorySegment)mh$.invokeExact(count);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -14319,7 +13973,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_IsGamepad");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_IsGamepad");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -14366,8 +14020,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_IsGamepad", instance_id);
             }
             return (boolean)mh$.invokeExact(instance_id);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -14379,7 +14031,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadNameForID");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadNameForID");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -14426,8 +14078,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadNameForID", instance_id);
             }
             return (MemorySegment)mh$.invokeExact(instance_id);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -14439,7 +14089,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadPathForID");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadPathForID");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -14486,8 +14136,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadPathForID", instance_id);
             }
             return (MemorySegment)mh$.invokeExact(instance_id);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -14499,7 +14147,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadPlayerIndexForID");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadPlayerIndexForID");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -14546,8 +14194,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadPlayerIndexForID", instance_id);
             }
             return (int)mh$.invokeExact(instance_id);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -14559,7 +14205,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadGUIDForID");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadGUIDForID");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -14606,8 +14252,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadGUIDForID", allocator, instance_id);
             }
             return (MemorySegment)mh$.invokeExact(allocator, instance_id);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -14619,7 +14263,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadVendorForID");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadVendorForID");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -14666,8 +14310,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadVendorForID", instance_id);
             }
             return (short)mh$.invokeExact(instance_id);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -14679,7 +14321,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadProductForID");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadProductForID");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -14726,8 +14368,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadProductForID", instance_id);
             }
             return (short)mh$.invokeExact(instance_id);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -14739,7 +14379,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadProductVersionForID");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadProductVersionForID");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -14786,8 +14426,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadProductVersionForID", instance_id);
             }
             return (short)mh$.invokeExact(instance_id);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -14799,7 +14437,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadTypeForID");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadTypeForID");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -14846,8 +14484,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadTypeForID", instance_id);
             }
             return (int)mh$.invokeExact(instance_id);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -14859,7 +14495,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetRealGamepadTypeForID");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetRealGamepadTypeForID");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -14906,8 +14542,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetRealGamepadTypeForID", instance_id);
             }
             return (int)mh$.invokeExact(instance_id);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -14919,7 +14553,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadMappingForID");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadMappingForID");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -14966,8 +14600,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadMappingForID", instance_id);
             }
             return (MemorySegment)mh$.invokeExact(instance_id);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -14979,7 +14611,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_OpenGamepad");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_OpenGamepad");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -15026,8 +14658,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_OpenGamepad", instance_id);
             }
             return (MemorySegment)mh$.invokeExact(instance_id);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -15039,7 +14669,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadFromID");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadFromID");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -15086,8 +14716,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadFromID", instance_id);
             }
             return (MemorySegment)mh$.invokeExact(instance_id);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -15099,7 +14727,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadFromPlayerIndex");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadFromPlayerIndex");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -15146,8 +14774,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadFromPlayerIndex", player_index);
             }
             return (MemorySegment)mh$.invokeExact(player_index);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -15159,7 +14785,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadProperties");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadProperties");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -15206,8 +14832,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadProperties", gamepad);
             }
             return (int)mh$.invokeExact(gamepad);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -15219,7 +14843,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadID");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadID");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -15266,8 +14890,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadID", gamepad);
             }
             return (int)mh$.invokeExact(gamepad);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -15279,7 +14901,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadName");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadName");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -15326,8 +14948,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadName", gamepad);
             }
             return (MemorySegment)mh$.invokeExact(gamepad);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -15339,7 +14959,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadPath");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadPath");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -15386,8 +15006,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadPath", gamepad);
             }
             return (MemorySegment)mh$.invokeExact(gamepad);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -15399,7 +15017,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadType");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadType");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -15446,8 +15064,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadType", gamepad);
             }
             return (int)mh$.invokeExact(gamepad);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -15459,7 +15075,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetRealGamepadType");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetRealGamepadType");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -15506,8 +15122,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetRealGamepadType", gamepad);
             }
             return (int)mh$.invokeExact(gamepad);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -15519,7 +15133,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadPlayerIndex");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadPlayerIndex");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -15566,8 +15180,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadPlayerIndex", gamepad);
             }
             return (int)mh$.invokeExact(gamepad);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -15580,7 +15192,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetGamepadPlayerIndex");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetGamepadPlayerIndex");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -15627,8 +15239,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetGamepadPlayerIndex", gamepad, player_index);
             }
             return (boolean)mh$.invokeExact(gamepad, player_index);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -15640,7 +15250,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadVendor");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadVendor");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -15687,8 +15297,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadVendor", gamepad);
             }
             return (short)mh$.invokeExact(gamepad);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -15700,7 +15308,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadProduct");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadProduct");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -15747,8 +15355,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadProduct", gamepad);
             }
             return (short)mh$.invokeExact(gamepad);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -15760,7 +15366,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadProductVersion");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadProductVersion");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -15807,8 +15413,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadProductVersion", gamepad);
             }
             return (short)mh$.invokeExact(gamepad);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -15820,7 +15424,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadFirmwareVersion");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadFirmwareVersion");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -15867,8 +15471,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadFirmwareVersion", gamepad);
             }
             return (short)mh$.invokeExact(gamepad);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -15880,7 +15482,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadSerial");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadSerial");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -15927,8 +15529,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadSerial", gamepad);
             }
             return (MemorySegment)mh$.invokeExact(gamepad);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -15940,7 +15540,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadSteamHandle");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadSteamHandle");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -15987,8 +15587,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadSteamHandle", gamepad);
             }
             return (long)mh$.invokeExact(gamepad);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -16000,7 +15598,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadConnectionState");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadConnectionState");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -16047,8 +15645,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadConnectionState", gamepad);
             }
             return (int)mh$.invokeExact(gamepad);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -16061,7 +15657,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadPowerInfo");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadPowerInfo");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -16108,8 +15704,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadPowerInfo", gamepad, percent);
             }
             return (int)mh$.invokeExact(gamepad, percent);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -16121,7 +15715,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GamepadConnected");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GamepadConnected");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -16168,8 +15762,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GamepadConnected", gamepad);
             }
             return (boolean)mh$.invokeExact(gamepad);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -16181,7 +15773,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadJoystick");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadJoystick");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -16228,8 +15820,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadJoystick", gamepad);
             }
             return (MemorySegment)mh$.invokeExact(gamepad);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -16240,7 +15830,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_BOOL
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetGamepadEventsEnabled");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetGamepadEventsEnabled");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -16287,8 +15877,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetGamepadEventsEnabled", enabled);
             }
             mh$.invokeExact(enabled);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -16298,7 +15886,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_BOOL    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GamepadEventsEnabled");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GamepadEventsEnabled");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -16306,7 +15894,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern bool SDL_GamepadEventsEnabled(void)
+     * extern bool SDL_GamepadEventsEnabled()
      * }
      */
     public static FunctionDescriptor SDL_GamepadEventsEnabled$descriptor() {
@@ -16316,7 +15904,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern bool SDL_GamepadEventsEnabled(void)
+     * extern bool SDL_GamepadEventsEnabled()
      * }
      */
     public static MethodHandle SDL_GamepadEventsEnabled$handle() {
@@ -16326,7 +15914,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern bool SDL_GamepadEventsEnabled(void)
+     * extern bool SDL_GamepadEventsEnabled()
      * }
      */
     public static MemorySegment SDL_GamepadEventsEnabled$address() {
@@ -16335,7 +15923,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern bool SDL_GamepadEventsEnabled(void)
+     * extern bool SDL_GamepadEventsEnabled()
      * }
      */
     public static boolean SDL_GamepadEventsEnabled() {
@@ -16345,8 +15933,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GamepadEventsEnabled");
             }
             return (boolean)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -16355,7 +15941,7 @@ class SDL3_1 extends SDL3$shared {
     private static class SDL_UpdateGamepads {
         public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_UpdateGamepads");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_UpdateGamepads");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -16363,7 +15949,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern void SDL_UpdateGamepads(void)
+     * extern void SDL_UpdateGamepads()
      * }
      */
     public static FunctionDescriptor SDL_UpdateGamepads$descriptor() {
@@ -16373,7 +15959,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern void SDL_UpdateGamepads(void)
+     * extern void SDL_UpdateGamepads()
      * }
      */
     public static MethodHandle SDL_UpdateGamepads$handle() {
@@ -16383,7 +15969,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern void SDL_UpdateGamepads(void)
+     * extern void SDL_UpdateGamepads()
      * }
      */
     public static MemorySegment SDL_UpdateGamepads$address() {
@@ -16392,7 +15978,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern void SDL_UpdateGamepads(void)
+     * extern void SDL_UpdateGamepads()
      * }
      */
     public static void SDL_UpdateGamepads() {
@@ -16402,8 +15988,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_UpdateGamepads");
             }
             mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -16415,7 +15999,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadTypeFromString");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadTypeFromString");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -16462,8 +16046,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadTypeFromString", str);
             }
             return (int)mh$.invokeExact(str);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -16475,7 +16057,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadStringForType");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadStringForType");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -16522,8 +16104,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadStringForType", type);
             }
             return (MemorySegment)mh$.invokeExact(type);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -16535,7 +16115,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadAxisFromString");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadAxisFromString");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -16582,8 +16162,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadAxisFromString", str);
             }
             return (int)mh$.invokeExact(str);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -16595,7 +16173,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadStringForAxis");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadStringForAxis");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -16642,8 +16220,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadStringForAxis", axis);
             }
             return (MemorySegment)mh$.invokeExact(axis);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -16656,7 +16232,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GamepadHasAxis");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GamepadHasAxis");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -16703,8 +16279,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GamepadHasAxis", gamepad, axis);
             }
             return (boolean)mh$.invokeExact(gamepad, axis);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -16717,7 +16291,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadAxis");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadAxis");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -16764,8 +16338,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadAxis", gamepad, axis);
             }
             return (short)mh$.invokeExact(gamepad, axis);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -16777,7 +16349,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadButtonFromString");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadButtonFromString");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -16824,8 +16396,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadButtonFromString", str);
             }
             return (int)mh$.invokeExact(str);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -16837,7 +16407,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadStringForButton");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadStringForButton");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -16884,8 +16454,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadStringForButton", button);
             }
             return (MemorySegment)mh$.invokeExact(button);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -16898,7 +16466,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GamepadHasButton");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GamepadHasButton");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -16945,8 +16513,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GamepadHasButton", gamepad, button);
             }
             return (boolean)mh$.invokeExact(gamepad, button);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -16959,7 +16525,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadButton");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadButton");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -17006,8 +16572,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadButton", gamepad, button);
             }
             return (boolean)mh$.invokeExact(gamepad, button);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -17020,7 +16584,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadButtonLabelForType");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadButtonLabelForType");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -17067,8 +16631,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadButtonLabelForType", type, button);
             }
             return (int)mh$.invokeExact(type, button);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -17081,7 +16643,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadButtonLabel");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadButtonLabel");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -17128,8 +16690,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadButtonLabel", gamepad, button);
             }
             return (int)mh$.invokeExact(gamepad, button);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -17141,7 +16701,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetNumGamepadTouchpads");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetNumGamepadTouchpads");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -17188,8 +16748,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetNumGamepadTouchpads", gamepad);
             }
             return (int)mh$.invokeExact(gamepad);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -17202,7 +16760,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetNumGamepadTouchpadFingers");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetNumGamepadTouchpadFingers");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -17249,8 +16807,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetNumGamepadTouchpadFingers", gamepad, touchpad);
             }
             return (int)mh$.invokeExact(gamepad, touchpad);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -17268,7 +16824,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadTouchpadFinger");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadTouchpadFinger");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -17315,8 +16871,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadTouchpadFinger", gamepad, touchpad, finger, down, x, y, pressure);
             }
             return (boolean)mh$.invokeExact(gamepad, touchpad, finger, down, x, y, pressure);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -17329,7 +16883,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GamepadHasSensor");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GamepadHasSensor");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -17376,8 +16930,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GamepadHasSensor", gamepad, type);
             }
             return (boolean)mh$.invokeExact(gamepad, type);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -17391,7 +16943,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_BOOL
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetGamepadSensorEnabled");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetGamepadSensorEnabled");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -17438,8 +16990,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetGamepadSensorEnabled", gamepad, type, enabled);
             }
             return (boolean)mh$.invokeExact(gamepad, type, enabled);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -17452,7 +17002,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GamepadSensorEnabled");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GamepadSensorEnabled");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -17499,8 +17049,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GamepadSensorEnabled", gamepad, type);
             }
             return (boolean)mh$.invokeExact(gamepad, type);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -17513,7 +17061,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadSensorDataRate");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadSensorDataRate");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -17560,8 +17108,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadSensorDataRate", gamepad, type);
             }
             return (float)mh$.invokeExact(gamepad, type);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -17576,7 +17122,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadSensorData");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadSensorData");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -17623,8 +17169,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadSensorData", gamepad, type, data, num_values);
             }
             return (boolean)mh$.invokeExact(gamepad, type, data, num_values);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -17639,7 +17183,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_RumbleGamepad");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_RumbleGamepad");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -17686,8 +17230,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_RumbleGamepad", gamepad, low_frequency_rumble, high_frequency_rumble, duration_ms);
             }
             return (boolean)mh$.invokeExact(gamepad, low_frequency_rumble, high_frequency_rumble, duration_ms);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -17702,7 +17244,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_RumbleGamepadTriggers");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_RumbleGamepadTriggers");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -17749,8 +17291,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_RumbleGamepadTriggers", gamepad, left_rumble, right_rumble, duration_ms);
             }
             return (boolean)mh$.invokeExact(gamepad, left_rumble, right_rumble, duration_ms);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -17765,7 +17305,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_CHAR
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetGamepadLED");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetGamepadLED");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -17812,8 +17352,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetGamepadLED", gamepad, red, green, blue);
             }
             return (boolean)mh$.invokeExact(gamepad, red, green, blue);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -17827,7 +17365,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SendGamepadEffect");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SendGamepadEffect");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -17874,8 +17412,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SendGamepadEffect", gamepad, data, size);
             }
             return (boolean)mh$.invokeExact(gamepad, data, size);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -17886,7 +17422,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_CloseGamepad");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_CloseGamepad");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -17933,8 +17469,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_CloseGamepad", gamepad);
             }
             mh$.invokeExact(gamepad);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -17947,7 +17481,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadAppleSFSymbolsNameForButton");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadAppleSFSymbolsNameForButton");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -17994,8 +17528,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadAppleSFSymbolsNameForButton", gamepad, button);
             }
             return (MemorySegment)mh$.invokeExact(gamepad, button);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -18008,7 +17540,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGamepadAppleSFSymbolsNameForAxis");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGamepadAppleSFSymbolsNameForAxis");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -18055,8 +17587,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGamepadAppleSFSymbolsNameForAxis", gamepad, axis);
             }
             return (MemorySegment)mh$.invokeExact(gamepad, axis);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -20334,7 +19864,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_BOOL    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_HasKeyboard");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_HasKeyboard");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -20342,7 +19872,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern bool SDL_HasKeyboard(void)
+     * extern bool SDL_HasKeyboard()
      * }
      */
     public static FunctionDescriptor SDL_HasKeyboard$descriptor() {
@@ -20352,7 +19882,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern bool SDL_HasKeyboard(void)
+     * extern bool SDL_HasKeyboard()
      * }
      */
     public static MethodHandle SDL_HasKeyboard$handle() {
@@ -20362,7 +19892,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern bool SDL_HasKeyboard(void)
+     * extern bool SDL_HasKeyboard()
      * }
      */
     public static MemorySegment SDL_HasKeyboard$address() {
@@ -20371,7 +19901,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern bool SDL_HasKeyboard(void)
+     * extern bool SDL_HasKeyboard()
      * }
      */
     public static boolean SDL_HasKeyboard() {
@@ -20381,8 +19911,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_HasKeyboard");
             }
             return (boolean)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -20394,7 +19922,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetKeyboards");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetKeyboards");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -20441,8 +19969,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetKeyboards", count);
             }
             return (MemorySegment)mh$.invokeExact(count);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -20454,7 +19980,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetKeyboardNameForID");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetKeyboardNameForID");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -20501,8 +20027,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetKeyboardNameForID", instance_id);
             }
             return (MemorySegment)mh$.invokeExact(instance_id);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -20512,7 +20036,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_POINTER    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetKeyboardFocus");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetKeyboardFocus");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -20520,7 +20044,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern SDL_Window *SDL_GetKeyboardFocus(void)
+     * extern SDL_Window *SDL_GetKeyboardFocus()
      * }
      */
     public static FunctionDescriptor SDL_GetKeyboardFocus$descriptor() {
@@ -20530,7 +20054,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern SDL_Window *SDL_GetKeyboardFocus(void)
+     * extern SDL_Window *SDL_GetKeyboardFocus()
      * }
      */
     public static MethodHandle SDL_GetKeyboardFocus$handle() {
@@ -20540,7 +20064,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern SDL_Window *SDL_GetKeyboardFocus(void)
+     * extern SDL_Window *SDL_GetKeyboardFocus()
      * }
      */
     public static MemorySegment SDL_GetKeyboardFocus$address() {
@@ -20549,7 +20073,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern SDL_Window *SDL_GetKeyboardFocus(void)
+     * extern SDL_Window *SDL_GetKeyboardFocus()
      * }
      */
     public static MemorySegment SDL_GetKeyboardFocus() {
@@ -20559,8 +20083,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetKeyboardFocus");
             }
             return (MemorySegment)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -20572,7 +20094,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetKeyboardState");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetKeyboardState");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -20619,8 +20141,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetKeyboardState", numkeys);
             }
             return (MemorySegment)mh$.invokeExact(numkeys);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -20629,7 +20149,7 @@ class SDL3_1 extends SDL3$shared {
     private static class SDL_ResetKeyboard {
         public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_ResetKeyboard");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_ResetKeyboard");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -20637,7 +20157,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern void SDL_ResetKeyboard(void)
+     * extern void SDL_ResetKeyboard()
      * }
      */
     public static FunctionDescriptor SDL_ResetKeyboard$descriptor() {
@@ -20647,7 +20167,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern void SDL_ResetKeyboard(void)
+     * extern void SDL_ResetKeyboard()
      * }
      */
     public static MethodHandle SDL_ResetKeyboard$handle() {
@@ -20657,7 +20177,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern void SDL_ResetKeyboard(void)
+     * extern void SDL_ResetKeyboard()
      * }
      */
     public static MemorySegment SDL_ResetKeyboard$address() {
@@ -20666,7 +20186,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern void SDL_ResetKeyboard(void)
+     * extern void SDL_ResetKeyboard()
      * }
      */
     public static void SDL_ResetKeyboard() {
@@ -20676,8 +20196,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_ResetKeyboard");
             }
             mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -20687,7 +20205,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_SHORT    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetModState");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetModState");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -20695,7 +20213,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern SDL_Keymod SDL_GetModState(void)
+     * extern SDL_Keymod SDL_GetModState()
      * }
      */
     public static FunctionDescriptor SDL_GetModState$descriptor() {
@@ -20705,7 +20223,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern SDL_Keymod SDL_GetModState(void)
+     * extern SDL_Keymod SDL_GetModState()
      * }
      */
     public static MethodHandle SDL_GetModState$handle() {
@@ -20715,7 +20233,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern SDL_Keymod SDL_GetModState(void)
+     * extern SDL_Keymod SDL_GetModState()
      * }
      */
     public static MemorySegment SDL_GetModState$address() {
@@ -20724,7 +20242,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern SDL_Keymod SDL_GetModState(void)
+     * extern SDL_Keymod SDL_GetModState()
      * }
      */
     public static short SDL_GetModState() {
@@ -20734,8 +20252,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetModState");
             }
             return (short)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -20746,7 +20262,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_SHORT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetModState");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetModState");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -20793,8 +20309,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetModState", modstate);
             }
             mh$.invokeExact(modstate);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -20808,7 +20322,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_BOOL
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetKeyFromScancode");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetKeyFromScancode");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -20855,8 +20369,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetKeyFromScancode", scancode, modstate, key_event);
             }
             return (int)mh$.invokeExact(scancode, modstate, key_event);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -20869,7 +20381,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetScancodeFromKey");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetScancodeFromKey");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -20916,8 +20428,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetScancodeFromKey", key, modstate);
             }
             return (int)mh$.invokeExact(key, modstate);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -20930,7 +20440,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetScancodeName");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetScancodeName");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -20977,8 +20487,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetScancodeName", scancode, name);
             }
             return (boolean)mh$.invokeExact(scancode, name);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -20990,7 +20498,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetScancodeName");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetScancodeName");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -21037,8 +20545,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetScancodeName", scancode);
             }
             return (MemorySegment)mh$.invokeExact(scancode);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -21050,7 +20556,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetScancodeFromName");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetScancodeFromName");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -21097,8 +20603,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetScancodeFromName", name);
             }
             return (int)mh$.invokeExact(name);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -21110,7 +20614,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetKeyName");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetKeyName");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -21157,8 +20661,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetKeyName", key);
             }
             return (MemorySegment)mh$.invokeExact(key);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -21170,7 +20672,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetKeyFromName");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetKeyFromName");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -21217,8 +20719,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetKeyFromName", name);
             }
             return (int)mh$.invokeExact(name);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -21230,7 +20730,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_StartTextInput");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_StartTextInput");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -21277,8 +20777,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_StartTextInput", window);
             }
             return (boolean)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -21408,7 +20906,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_StartTextInputWithProperties");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_StartTextInputWithProperties");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -21455,8 +20953,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_StartTextInputWithProperties", window, props);
             }
             return (boolean)mh$.invokeExact(window, props);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -21468,7 +20964,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_TextInputActive");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_TextInputActive");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -21515,8 +21011,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_TextInputActive", window);
             }
             return (boolean)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -21528,7 +21022,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_StopTextInput");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_StopTextInput");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -21575,8 +21069,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_StopTextInput", window);
             }
             return (boolean)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -21588,7 +21080,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_ClearComposition");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_ClearComposition");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -21635,8 +21127,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_ClearComposition", window);
             }
             return (boolean)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -21650,7 +21140,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetTextInputArea");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetTextInputArea");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -21697,8 +21187,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetTextInputArea", window, rect, cursor);
             }
             return (boolean)mh$.invokeExact(window, rect, cursor);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -21712,7 +21200,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetTextInputArea");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetTextInputArea");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -21759,8 +21247,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetTextInputArea", window, rect, cursor);
             }
             return (boolean)mh$.invokeExact(window, rect, cursor);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -21770,7 +21256,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_BOOL    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_HasScreenKeyboardSupport");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_HasScreenKeyboardSupport");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -21778,7 +21264,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern bool SDL_HasScreenKeyboardSupport(void)
+     * extern bool SDL_HasScreenKeyboardSupport()
      * }
      */
     public static FunctionDescriptor SDL_HasScreenKeyboardSupport$descriptor() {
@@ -21788,7 +21274,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern bool SDL_HasScreenKeyboardSupport(void)
+     * extern bool SDL_HasScreenKeyboardSupport()
      * }
      */
     public static MethodHandle SDL_HasScreenKeyboardSupport$handle() {
@@ -21798,7 +21284,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern bool SDL_HasScreenKeyboardSupport(void)
+     * extern bool SDL_HasScreenKeyboardSupport()
      * }
      */
     public static MemorySegment SDL_HasScreenKeyboardSupport$address() {
@@ -21807,7 +21293,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern bool SDL_HasScreenKeyboardSupport(void)
+     * extern bool SDL_HasScreenKeyboardSupport()
      * }
      */
     public static boolean SDL_HasScreenKeyboardSupport() {
@@ -21817,8 +21303,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_HasScreenKeyboardSupport");
             }
             return (boolean)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -21830,7 +21314,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_ScreenKeyboardShown");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_ScreenKeyboardShown");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -21877,8 +21361,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_ScreenKeyboardShown", window);
             }
             return (boolean)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -22107,7 +21589,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_BOOL    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_HasMouse");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_HasMouse");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -22115,7 +21597,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern bool SDL_HasMouse(void)
+     * extern bool SDL_HasMouse()
      * }
      */
     public static FunctionDescriptor SDL_HasMouse$descriptor() {
@@ -22125,7 +21607,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern bool SDL_HasMouse(void)
+     * extern bool SDL_HasMouse()
      * }
      */
     public static MethodHandle SDL_HasMouse$handle() {
@@ -22135,7 +21617,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern bool SDL_HasMouse(void)
+     * extern bool SDL_HasMouse()
      * }
      */
     public static MemorySegment SDL_HasMouse$address() {
@@ -22144,7 +21626,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern bool SDL_HasMouse(void)
+     * extern bool SDL_HasMouse()
      * }
      */
     public static boolean SDL_HasMouse() {
@@ -22154,8 +21636,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_HasMouse");
             }
             return (boolean)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -22167,7 +21647,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetMice");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetMice");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -22214,8 +21694,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetMice", count);
             }
             return (MemorySegment)mh$.invokeExact(count);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -22227,7 +21705,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetMouseNameForID");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetMouseNameForID");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -22274,8 +21752,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetMouseNameForID", instance_id);
             }
             return (MemorySegment)mh$.invokeExact(instance_id);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -22285,7 +21761,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_POINTER    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetMouseFocus");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetMouseFocus");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -22293,7 +21769,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern SDL_Window *SDL_GetMouseFocus(void)
+     * extern SDL_Window *SDL_GetMouseFocus()
      * }
      */
     public static FunctionDescriptor SDL_GetMouseFocus$descriptor() {
@@ -22303,7 +21779,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern SDL_Window *SDL_GetMouseFocus(void)
+     * extern SDL_Window *SDL_GetMouseFocus()
      * }
      */
     public static MethodHandle SDL_GetMouseFocus$handle() {
@@ -22313,7 +21789,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern SDL_Window *SDL_GetMouseFocus(void)
+     * extern SDL_Window *SDL_GetMouseFocus()
      * }
      */
     public static MemorySegment SDL_GetMouseFocus$address() {
@@ -22322,7 +21798,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern SDL_Window *SDL_GetMouseFocus(void)
+     * extern SDL_Window *SDL_GetMouseFocus()
      * }
      */
     public static MemorySegment SDL_GetMouseFocus() {
@@ -22332,8 +21808,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetMouseFocus");
             }
             return (MemorySegment)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -22346,7 +21820,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetMouseState");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetMouseState");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -22393,8 +21867,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetMouseState", x, y);
             }
             return (int)mh$.invokeExact(x, y);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -22407,7 +21879,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetGlobalMouseState");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetGlobalMouseState");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -22454,8 +21926,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetGlobalMouseState", x, y);
             }
             return (int)mh$.invokeExact(x, y);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -22468,7 +21938,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetRelativeMouseState");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetRelativeMouseState");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -22515,8 +21985,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetRelativeMouseState", x, y);
             }
             return (int)mh$.invokeExact(x, y);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -22529,7 +21997,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_FLOAT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_WarpMouseInWindow");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_WarpMouseInWindow");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -22576,8 +22044,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_WarpMouseInWindow", window, x, y);
             }
             mh$.invokeExact(window, x, y);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -22590,7 +22056,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_FLOAT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_WarpMouseGlobal");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_WarpMouseGlobal");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -22637,8 +22103,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_WarpMouseGlobal", x, y);
             }
             return (boolean)mh$.invokeExact(x, y);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -22651,7 +22115,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_BOOL
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetWindowRelativeMouseMode");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetWindowRelativeMouseMode");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -22698,8 +22162,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetWindowRelativeMouseMode", window, enabled);
             }
             return (boolean)mh$.invokeExact(window, enabled);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -22711,7 +22173,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetWindowRelativeMouseMode");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetWindowRelativeMouseMode");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -22758,8 +22220,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetWindowRelativeMouseMode", window);
             }
             return (boolean)mh$.invokeExact(window);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -22771,7 +22231,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_BOOL
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_CaptureMouse");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_CaptureMouse");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -22818,8 +22278,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_CaptureMouse", enabled);
             }
             return (boolean)mh$.invokeExact(enabled);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -22836,7 +22294,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_CreateCursor");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_CreateCursor");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -22883,8 +22341,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_CreateCursor", data, mask, w, h, hot_x, hot_y);
             }
             return (MemorySegment)mh$.invokeExact(data, mask, w, h, hot_x, hot_y);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -22898,7 +22354,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_CreateColorCursor");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_CreateColorCursor");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -22945,8 +22401,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_CreateColorCursor", surface, hot_x, hot_y);
             }
             return (MemorySegment)mh$.invokeExact(surface, hot_x, hot_y);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -22961,7 +22415,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_CreateAnimatedCursor");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_CreateAnimatedCursor");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -23008,8 +22462,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_CreateAnimatedCursor", frames, frame_count, hot_x, hot_y);
             }
             return (MemorySegment)mh$.invokeExact(frames, frame_count, hot_x, hot_y);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -23021,7 +22473,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_CreateSystemCursor");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_CreateSystemCursor");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -23068,8 +22520,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_CreateSystemCursor", id);
             }
             return (MemorySegment)mh$.invokeExact(id);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -23081,7 +22531,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_SetCursor");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_SetCursor");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -23128,8 +22578,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_SetCursor", cursor);
             }
             return (boolean)mh$.invokeExact(cursor);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -23139,7 +22587,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_POINTER    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetCursor");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetCursor");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -23147,7 +22595,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern SDL_Cursor *SDL_GetCursor(void)
+     * extern SDL_Cursor *SDL_GetCursor()
      * }
      */
     public static FunctionDescriptor SDL_GetCursor$descriptor() {
@@ -23157,7 +22605,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern SDL_Cursor *SDL_GetCursor(void)
+     * extern SDL_Cursor *SDL_GetCursor()
      * }
      */
     public static MethodHandle SDL_GetCursor$handle() {
@@ -23167,7 +22615,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern SDL_Cursor *SDL_GetCursor(void)
+     * extern SDL_Cursor *SDL_GetCursor()
      * }
      */
     public static MemorySegment SDL_GetCursor$address() {
@@ -23176,7 +22624,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern SDL_Cursor *SDL_GetCursor(void)
+     * extern SDL_Cursor *SDL_GetCursor()
      * }
      */
     public static MemorySegment SDL_GetCursor() {
@@ -23186,8 +22634,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetCursor");
             }
             return (MemorySegment)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -23197,7 +22643,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_POINTER    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetDefaultCursor");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetDefaultCursor");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -23205,7 +22651,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern SDL_Cursor *SDL_GetDefaultCursor(void)
+     * extern SDL_Cursor *SDL_GetDefaultCursor()
      * }
      */
     public static FunctionDescriptor SDL_GetDefaultCursor$descriptor() {
@@ -23215,7 +22661,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern SDL_Cursor *SDL_GetDefaultCursor(void)
+     * extern SDL_Cursor *SDL_GetDefaultCursor()
      * }
      */
     public static MethodHandle SDL_GetDefaultCursor$handle() {
@@ -23225,7 +22671,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern SDL_Cursor *SDL_GetDefaultCursor(void)
+     * extern SDL_Cursor *SDL_GetDefaultCursor()
      * }
      */
     public static MemorySegment SDL_GetDefaultCursor$address() {
@@ -23234,7 +22680,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern SDL_Cursor *SDL_GetDefaultCursor(void)
+     * extern SDL_Cursor *SDL_GetDefaultCursor()
      * }
      */
     public static MemorySegment SDL_GetDefaultCursor() {
@@ -23244,8 +22690,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetDefaultCursor");
             }
             return (MemorySegment)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -23256,7 +22700,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_DestroyCursor");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_DestroyCursor");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -23303,8 +22747,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_DestroyCursor", cursor);
             }
             mh$.invokeExact(cursor);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -23314,7 +22756,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_BOOL    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_ShowCursor");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_ShowCursor");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -23322,7 +22764,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern bool SDL_ShowCursor(void)
+     * extern bool SDL_ShowCursor()
      * }
      */
     public static FunctionDescriptor SDL_ShowCursor$descriptor() {
@@ -23332,7 +22774,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern bool SDL_ShowCursor(void)
+     * extern bool SDL_ShowCursor()
      * }
      */
     public static MethodHandle SDL_ShowCursor$handle() {
@@ -23342,7 +22784,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern bool SDL_ShowCursor(void)
+     * extern bool SDL_ShowCursor()
      * }
      */
     public static MemorySegment SDL_ShowCursor$address() {
@@ -23351,7 +22793,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern bool SDL_ShowCursor(void)
+     * extern bool SDL_ShowCursor()
      * }
      */
     public static boolean SDL_ShowCursor() {
@@ -23361,8 +22803,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_ShowCursor");
             }
             return (boolean)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -23372,7 +22812,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_BOOL    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_HideCursor");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_HideCursor");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -23380,7 +22820,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern bool SDL_HideCursor(void)
+     * extern bool SDL_HideCursor()
      * }
      */
     public static FunctionDescriptor SDL_HideCursor$descriptor() {
@@ -23390,7 +22830,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern bool SDL_HideCursor(void)
+     * extern bool SDL_HideCursor()
      * }
      */
     public static MethodHandle SDL_HideCursor$handle() {
@@ -23400,7 +22840,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern bool SDL_HideCursor(void)
+     * extern bool SDL_HideCursor()
      * }
      */
     public static MemorySegment SDL_HideCursor$address() {
@@ -23409,7 +22849,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern bool SDL_HideCursor(void)
+     * extern bool SDL_HideCursor()
      * }
      */
     public static boolean SDL_HideCursor() {
@@ -23419,8 +22859,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_HideCursor");
             }
             return (boolean)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -23430,7 +22868,7 @@ class SDL3_1 extends SDL3$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3.C_BOOL    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_CursorVisible");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_CursorVisible");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -23438,7 +22876,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern bool SDL_CursorVisible(void)
+     * extern bool SDL_CursorVisible()
      * }
      */
     public static FunctionDescriptor SDL_CursorVisible$descriptor() {
@@ -23448,7 +22886,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern bool SDL_CursorVisible(void)
+     * extern bool SDL_CursorVisible()
      * }
      */
     public static MethodHandle SDL_CursorVisible$handle() {
@@ -23458,7 +22896,7 @@ class SDL3_1 extends SDL3$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern bool SDL_CursorVisible(void)
+     * extern bool SDL_CursorVisible()
      * }
      */
     public static MemorySegment SDL_CursorVisible$address() {
@@ -23467,7 +22905,7 @@ class SDL3_1 extends SDL3$shared {
 
     /**
      * {@snippet lang=c :
-     * extern bool SDL_CursorVisible(void)
+     * extern bool SDL_CursorVisible()
      * }
      */
     public static boolean SDL_CursorVisible() {
@@ -23477,8 +22915,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_CursorVisible");
             }
             return (boolean)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -23538,7 +22974,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetTouchDevices");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetTouchDevices");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -23585,8 +23021,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetTouchDevices", count);
             }
             return (MemorySegment)mh$.invokeExact(count);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -23598,7 +23032,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetTouchDeviceName");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetTouchDeviceName");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -23645,8 +23079,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetTouchDeviceName", touchID);
             }
             return (MemorySegment)mh$.invokeExact(touchID);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -23658,7 +23090,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetTouchDeviceType");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetTouchDeviceType");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -23705,8 +23137,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetTouchDeviceType", touchID);
             }
             return (int)mh$.invokeExact(touchID);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -23719,7 +23149,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetTouchFingers");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetTouchFingers");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -23766,8 +23196,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetTouchFingers", touchID, count);
             }
             return (MemorySegment)mh$.invokeExact(touchID, count);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -23899,7 +23327,7 @@ class SDL3_1 extends SDL3$shared {
             SDL3.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("SDL_GetPenDeviceType");
+        public static final MemorySegment ADDR = SDL3.findOrThrow("SDL_GetPenDeviceType");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -23946,8 +23374,6 @@ class SDL3_1 extends SDL3$shared {
                 traceDowncall("SDL_GetPenDeviceType", instance_id);
             }
             return (int)mh$.invokeExact(instance_id);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }

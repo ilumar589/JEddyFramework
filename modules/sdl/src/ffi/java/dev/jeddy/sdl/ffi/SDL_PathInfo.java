@@ -57,7 +57,7 @@ public class SDL_PathInfo {
         return type$LAYOUT;
     }
 
-    private static final long type$OFFSET = $LAYOUT.byteOffset(groupElement("type"));
+    private static final long type$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -101,7 +101,7 @@ public class SDL_PathInfo {
         return size$LAYOUT;
     }
 
-    private static final long size$OFFSET = $LAYOUT.byteOffset(groupElement("size"));
+    private static final long size$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -145,7 +145,7 @@ public class SDL_PathInfo {
         return create_time$LAYOUT;
     }
 
-    private static final long create_time$OFFSET = $LAYOUT.byteOffset(groupElement("create_time"));
+    private static final long create_time$OFFSET = 16;
 
     /**
      * Offset for field:
@@ -189,7 +189,7 @@ public class SDL_PathInfo {
         return modify_time$LAYOUT;
     }
 
-    private static final long modify_time$OFFSET = $LAYOUT.byteOffset(groupElement("modify_time"));
+    private static final long modify_time$OFFSET = 24;
 
     /**
      * Offset for field:
@@ -233,7 +233,7 @@ public class SDL_PathInfo {
         return access_time$LAYOUT;
     }
 
-    private static final long access_time$OFFSET = $LAYOUT.byteOffset(groupElement("access_time"));
+    private static final long access_time$OFFSET = 32;
 
     /**
      * Offset for field:

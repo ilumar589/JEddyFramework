@@ -68,7 +68,7 @@ public class SDL_TouchFingerEvent {
         return type$LAYOUT;
     }
 
-    private static final long type$OFFSET = $LAYOUT.byteOffset(groupElement("type"));
+    private static final long type$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -112,7 +112,7 @@ public class SDL_TouchFingerEvent {
         return reserved$LAYOUT;
     }
 
-    private static final long reserved$OFFSET = $LAYOUT.byteOffset(groupElement("reserved"));
+    private static final long reserved$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -156,7 +156,7 @@ public class SDL_TouchFingerEvent {
         return timestamp$LAYOUT;
     }
 
-    private static final long timestamp$OFFSET = $LAYOUT.byteOffset(groupElement("timestamp"));
+    private static final long timestamp$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -200,7 +200,7 @@ public class SDL_TouchFingerEvent {
         return touchID$LAYOUT;
     }
 
-    private static final long touchID$OFFSET = $LAYOUT.byteOffset(groupElement("touchID"));
+    private static final long touchID$OFFSET = 16;
 
     /**
      * Offset for field:
@@ -244,7 +244,7 @@ public class SDL_TouchFingerEvent {
         return fingerID$LAYOUT;
     }
 
-    private static final long fingerID$OFFSET = $LAYOUT.byteOffset(groupElement("fingerID"));
+    private static final long fingerID$OFFSET = 24;
 
     /**
      * Offset for field:
@@ -288,7 +288,7 @@ public class SDL_TouchFingerEvent {
         return x$LAYOUT;
     }
 
-    private static final long x$OFFSET = $LAYOUT.byteOffset(groupElement("x"));
+    private static final long x$OFFSET = 32;
 
     /**
      * Offset for field:
@@ -332,7 +332,7 @@ public class SDL_TouchFingerEvent {
         return y$LAYOUT;
     }
 
-    private static final long y$OFFSET = $LAYOUT.byteOffset(groupElement("y"));
+    private static final long y$OFFSET = 36;
 
     /**
      * Offset for field:
@@ -376,7 +376,7 @@ public class SDL_TouchFingerEvent {
         return dx$LAYOUT;
     }
 
-    private static final long dx$OFFSET = $LAYOUT.byteOffset(groupElement("dx"));
+    private static final long dx$OFFSET = 40;
 
     /**
      * Offset for field:
@@ -420,7 +420,7 @@ public class SDL_TouchFingerEvent {
         return dy$LAYOUT;
     }
 
-    private static final long dy$OFFSET = $LAYOUT.byteOffset(groupElement("dy"));
+    private static final long dy$OFFSET = 44;
 
     /**
      * Offset for field:
@@ -464,7 +464,7 @@ public class SDL_TouchFingerEvent {
         return pressure$LAYOUT;
     }
 
-    private static final long pressure$OFFSET = $LAYOUT.byteOffset(groupElement("pressure"));
+    private static final long pressure$OFFSET = 48;
 
     /**
      * Offset for field:
@@ -508,7 +508,7 @@ public class SDL_TouchFingerEvent {
         return windowID$LAYOUT;
     }
 
-    private static final long windowID$OFFSET = $LAYOUT.byteOffset(groupElement("windowID"));
+    private static final long windowID$OFFSET = 52;
 
     /**
      * Offset for field:

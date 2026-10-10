@@ -57,7 +57,7 @@ public class SDL_TextInputEvent {
         return type$LAYOUT;
     }
 
-    private static final long type$OFFSET = $LAYOUT.byteOffset(groupElement("type"));
+    private static final long type$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -101,7 +101,7 @@ public class SDL_TextInputEvent {
         return reserved$LAYOUT;
     }
 
-    private static final long reserved$OFFSET = $LAYOUT.byteOffset(groupElement("reserved"));
+    private static final long reserved$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -145,7 +145,7 @@ public class SDL_TextInputEvent {
         return timestamp$LAYOUT;
     }
 
-    private static final long timestamp$OFFSET = $LAYOUT.byteOffset(groupElement("timestamp"));
+    private static final long timestamp$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -189,7 +189,7 @@ public class SDL_TextInputEvent {
         return windowID$LAYOUT;
     }
 
-    private static final long windowID$OFFSET = $LAYOUT.byteOffset(groupElement("windowID"));
+    private static final long windowID$OFFSET = 16;
 
     /**
      * Offset for field:
@@ -233,7 +233,7 @@ public class SDL_TextInputEvent {
         return text$LAYOUT;
     }
 
-    private static final long text$OFFSET = $LAYOUT.byteOffset(groupElement("text"));
+    private static final long text$OFFSET = 24;
 
     /**
      * Offset for field:

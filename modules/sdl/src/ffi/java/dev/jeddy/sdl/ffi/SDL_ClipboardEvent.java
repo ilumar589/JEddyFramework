@@ -59,7 +59,7 @@ public class SDL_ClipboardEvent {
         return type$LAYOUT;
     }
 
-    private static final long type$OFFSET = $LAYOUT.byteOffset(groupElement("type"));
+    private static final long type$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -103,7 +103,7 @@ public class SDL_ClipboardEvent {
         return reserved$LAYOUT;
     }
 
-    private static final long reserved$OFFSET = $LAYOUT.byteOffset(groupElement("reserved"));
+    private static final long reserved$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -147,7 +147,7 @@ public class SDL_ClipboardEvent {
         return timestamp$LAYOUT;
     }
 
-    private static final long timestamp$OFFSET = $LAYOUT.byteOffset(groupElement("timestamp"));
+    private static final long timestamp$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -191,7 +191,7 @@ public class SDL_ClipboardEvent {
         return owner$LAYOUT;
     }
 
-    private static final long owner$OFFSET = $LAYOUT.byteOffset(groupElement("owner"));
+    private static final long owner$OFFSET = 16;
 
     /**
      * Offset for field:
@@ -235,7 +235,7 @@ public class SDL_ClipboardEvent {
         return num_mime_types$LAYOUT;
     }
 
-    private static final long num_mime_types$OFFSET = $LAYOUT.byteOffset(groupElement("num_mime_types"));
+    private static final long num_mime_types$OFFSET = 20;
 
     /**
      * Offset for field:
@@ -279,7 +279,7 @@ public class SDL_ClipboardEvent {
         return mime_types$LAYOUT;
     }
 
-    private static final long mime_types$OFFSET = $LAYOUT.byteOffset(groupElement("mime_types"));
+    private static final long mime_types$OFFSET = 24;
 
     /**
      * Offset for field:

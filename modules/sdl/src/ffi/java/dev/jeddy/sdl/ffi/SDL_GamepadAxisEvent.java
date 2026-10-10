@@ -67,7 +67,7 @@ public class SDL_GamepadAxisEvent {
         return type$LAYOUT;
     }
 
-    private static final long type$OFFSET = $LAYOUT.byteOffset(groupElement("type"));
+    private static final long type$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -111,7 +111,7 @@ public class SDL_GamepadAxisEvent {
         return reserved$LAYOUT;
     }
 
-    private static final long reserved$OFFSET = $LAYOUT.byteOffset(groupElement("reserved"));
+    private static final long reserved$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -155,7 +155,7 @@ public class SDL_GamepadAxisEvent {
         return timestamp$LAYOUT;
     }
 
-    private static final long timestamp$OFFSET = $LAYOUT.byteOffset(groupElement("timestamp"));
+    private static final long timestamp$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -199,7 +199,7 @@ public class SDL_GamepadAxisEvent {
         return which$LAYOUT;
     }
 
-    private static final long which$OFFSET = $LAYOUT.byteOffset(groupElement("which"));
+    private static final long which$OFFSET = 16;
 
     /**
      * Offset for field:
@@ -243,7 +243,7 @@ public class SDL_GamepadAxisEvent {
         return axis$LAYOUT;
     }
 
-    private static final long axis$OFFSET = $LAYOUT.byteOffset(groupElement("axis"));
+    private static final long axis$OFFSET = 20;
 
     /**
      * Offset for field:
@@ -287,7 +287,7 @@ public class SDL_GamepadAxisEvent {
         return padding1$LAYOUT;
     }
 
-    private static final long padding1$OFFSET = $LAYOUT.byteOffset(groupElement("padding1"));
+    private static final long padding1$OFFSET = 21;
 
     /**
      * Offset for field:
@@ -331,7 +331,7 @@ public class SDL_GamepadAxisEvent {
         return padding2$LAYOUT;
     }
 
-    private static final long padding2$OFFSET = $LAYOUT.byteOffset(groupElement("padding2"));
+    private static final long padding2$OFFSET = 22;
 
     /**
      * Offset for field:
@@ -375,7 +375,7 @@ public class SDL_GamepadAxisEvent {
         return padding3$LAYOUT;
     }
 
-    private static final long padding3$OFFSET = $LAYOUT.byteOffset(groupElement("padding3"));
+    private static final long padding3$OFFSET = 23;
 
     /**
      * Offset for field:
@@ -407,7 +407,7 @@ public class SDL_GamepadAxisEvent {
         struct.set(padding3$LAYOUT, padding3$OFFSET, fieldValue);
     }
 
-    private static final OfShort value_$LAYOUT = (OfShort)$LAYOUT.select(groupElement("value"));
+    private static final OfShort value$LAYOUT = (OfShort)$LAYOUT.select(groupElement("value"));
 
     /**
      * Layout for field:
@@ -415,11 +415,11 @@ public class SDL_GamepadAxisEvent {
      * Sint16 value
      * }
      */
-    public static final OfShort value_$layout() {
-        return value_$LAYOUT;
+    public static final OfShort value$layout() {
+        return value$LAYOUT;
     }
 
-    private static final long value_$OFFSET = $LAYOUT.byteOffset(groupElement("value"));
+    private static final long value$OFFSET = 24;
 
     /**
      * Offset for field:
@@ -427,8 +427,8 @@ public class SDL_GamepadAxisEvent {
      * Sint16 value
      * }
      */
-    public static final long value_$offset() {
-        return value_$OFFSET;
+    public static final long value$offset() {
+        return value$OFFSET;
     }
 
     /**
@@ -437,8 +437,8 @@ public class SDL_GamepadAxisEvent {
      * Sint16 value
      * }
      */
-    public static short value_(MemorySegment struct) {
-        return struct.get(value_$LAYOUT, value_$OFFSET);
+    public static short value(MemorySegment struct) {
+        return struct.get(value$LAYOUT, value$OFFSET);
     }
 
     /**
@@ -447,8 +447,8 @@ public class SDL_GamepadAxisEvent {
      * Sint16 value
      * }
      */
-    public static void value_(MemorySegment struct, short fieldValue) {
-        struct.set(value_$LAYOUT, value_$OFFSET, fieldValue);
+    public static void value(MemorySegment struct, short fieldValue) {
+        struct.set(value$LAYOUT, value$OFFSET, fieldValue);
     }
 
     private static final OfShort padding4$LAYOUT = (OfShort)$LAYOUT.select(groupElement("padding4"));
@@ -463,7 +463,7 @@ public class SDL_GamepadAxisEvent {
         return padding4$LAYOUT;
     }
 
-    private static final long padding4$OFFSET = $LAYOUT.byteOffset(groupElement("padding4"));
+    private static final long padding4$OFFSET = 26;
 
     /**
      * Offset for field:

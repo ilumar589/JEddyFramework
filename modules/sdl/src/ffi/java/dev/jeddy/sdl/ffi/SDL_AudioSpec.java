@@ -52,7 +52,7 @@ public class SDL_AudioSpec {
         return format$LAYOUT;
     }
 
-    private static final long format$OFFSET = $LAYOUT.byteOffset(groupElement("format"));
+    private static final long format$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -96,7 +96,7 @@ public class SDL_AudioSpec {
         return channels$LAYOUT;
     }
 
-    private static final long channels$OFFSET = $LAYOUT.byteOffset(groupElement("channels"));
+    private static final long channels$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -140,7 +140,7 @@ public class SDL_AudioSpec {
         return freq$LAYOUT;
     }
 
-    private static final long freq$OFFSET = $LAYOUT.byteOffset(groupElement("freq"));
+    private static final long freq$OFFSET = 8;
 
     /**
      * Offset for field:

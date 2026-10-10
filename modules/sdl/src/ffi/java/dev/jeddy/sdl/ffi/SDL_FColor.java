@@ -54,7 +54,7 @@ public class SDL_FColor {
         return r$LAYOUT;
     }
 
-    private static final long r$OFFSET = $LAYOUT.byteOffset(groupElement("r"));
+    private static final long r$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -98,7 +98,7 @@ public class SDL_FColor {
         return g$LAYOUT;
     }
 
-    private static final long g$OFFSET = $LAYOUT.byteOffset(groupElement("g"));
+    private static final long g$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -142,7 +142,7 @@ public class SDL_FColor {
         return b$LAYOUT;
     }
 
-    private static final long b$OFFSET = $LAYOUT.byteOffset(groupElement("b"));
+    private static final long b$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -186,7 +186,7 @@ public class SDL_FColor {
         return a$LAYOUT;
     }
 
-    private static final long a$OFFSET = $LAYOUT.byteOffset(groupElement("a"));
+    private static final long a$OFFSET = 12;
 
     /**
      * Offset for field:
