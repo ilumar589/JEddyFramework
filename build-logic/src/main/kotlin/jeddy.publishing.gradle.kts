@@ -22,6 +22,12 @@ extensions.configure<PublishingExtension> {
                 name = "Jeddy ${project.name}"
                 description = "Jeddy framework: ${project.name}"
                 url = repoUrl
+                licenses {
+                    license {
+                        name = "MIT License"
+                        url = "https://opensource.org/license/mit"
+                    }
+                }
                 scm {
                     url = repoUrl
                     connection = repoUrl.map { "scm:git:$it.git" }

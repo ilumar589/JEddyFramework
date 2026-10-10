@@ -77,6 +77,12 @@ publishing {
         }
         pom {
             url = repoUrl
+            licenses {
+                license {
+                    name = "MIT License"
+                    url = "https://opensource.org/license/mit"
+                }
+            }
             scm {
                 url = repoUrl
                 connection = "scm:git:$repoUrl.git"
