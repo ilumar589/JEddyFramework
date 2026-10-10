@@ -19,11 +19,15 @@ jeddyAssets {
 }
 
 // The demo mounts build/paks (relative to the project directory, the run task's working directory).
-// Extra JVM flags for perf runs: -Pjeddy.jvmArgs="-Xlog:gc*:file=build/perf/gc.log" (a configuration
-// cache input, so changing it reconfigures).
+// Extra JVM flags for perf runs: -Pjeddy.jvmArgs="-Xlog:gc*:file=build/perf/gc.log". They go through
+// an argument provider: adding to jvmArguments would drop the launcher flags, which are only its
+// convention (the perf capture's `flags` check catches that).
+val extraJvmArgs = providers.gradleProperty("jeddy.jvmArgs")
+    .map { args -> args.split(' ').filter(String::isNotBlank) }
+    .orElse(emptyList())
 tasks.named<JavaExec>("run") {
     dependsOn("packAssets")
-    providers.gradleProperty("jeddy.jvmArgs").orNull?.let { args -> jvmArgs(args.split(' ').filter(String::isNotBlank)) }
+    jvmArgumentProviders.add(CommandLineArgumentProvider { extraJvmArgs.get() })
 }
 
 // Packaging (TASKS M11): ./gradlew :iso-demo:distImage (runnable image with launchers and an AOT

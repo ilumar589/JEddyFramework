@@ -252,7 +252,7 @@ final class PerfCapture {
 
     /**
      * Writes {@code perf.json} and {@code perf.md} into {@code dir}. Budget keys: {@code game},
-     * {@code main}, {@code gpu}, {@code alloc}, {@code gc}, {@code load}.
+     * {@code main}, {@code gpu}, {@code alloc}, {@code flags}, {@code gc}, {@code load}.
      */
     Report write(Path dir, String gpuName, String jvm) throws IOException {
         Files.createDirectories(dir);
@@ -427,6 +427,14 @@ final class PerfCapture {
                                 frames,
                                 allocTotal),
                         unexplained == 0));
+        String missing = missingLauncherFlags();
+        rows.add(
+                row(
+                        "flags",
+                        "Launcher flags (ZGC, native access, no MH customization)",
+                        "all set",
+                        missing.isEmpty() ? "all set" : "missing: " + missing,
+                        missing.isEmpty()));
         rows.add(
                 row(
                         "gc",
@@ -528,6 +536,36 @@ final class PerfCapture {
                 c.uptimeMillis() / 1000.0,
                 c.method(),
                 c.firstC2OfClass() ? " (its class's first)" : "");
+    }
+
+    /**
+     * The launcher flags of DESIGN §4.6 that this JVM runs without: measurements without them
+     * describe another configuration (a build script that dropped them once made the CI capture run
+     * on G1 with method-handle customization on).
+     */
+    static String missingLauncherFlags() {
+        List<String> missing = new ArrayList<>();
+        boolean zgc = false;
+        for (GarbageCollectorMXBean bean : ManagementFactory.getGarbageCollectorMXBeans()) {
+            zgc |= bean.getName().startsWith("ZGC");
+        }
+        if (!zgc) {
+            missing.add("-XX:+UseZGC");
+        }
+        if (!"-1".equals(System.getProperty("java.lang.invoke.MethodHandle.CUSTOMIZE_THRESHOLD"))) {
+            missing.add("-Djava.lang.invoke.MethodHandle.CUSTOMIZE_THRESHOLD=-1");
+        }
+        // The launch option, not Module.isNativeAccessEnabled: without the option the JDK enables
+        // native access on first use, with a warning.
+        boolean nativeAccess = false;
+        for (String arg : ManagementFactory.getRuntimeMXBean().getInputArguments()) {
+            nativeAccess |=
+                    arg.startsWith("--enable-native-access=") && arg.contains("dev.jeddy.core");
+        }
+        if (!nativeAccess) {
+            missing.add("--enable-native-access=dev.jeddy.core,...");
+        }
+        return String.join(", ", missing);
     }
 
     /** Bytes over all {@code n} recorded frames and over the second half of them. */
