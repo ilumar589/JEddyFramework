@@ -23,7 +23,8 @@ import java.util.stream.Stream;
  *       long} on both x64 ABIs.
  *   <li>Platform-dependent C types ({@code long}, {@code wchar_t}, {@code va_list}, {@code long
  *       double}) in any bound declaration fail the build, because the rewrite above would be wrong
- *       for them.
+ *       for them. The unused {@code C_LONG_DOUBLE} layout that jextract emits only on Windows is
+ *       removed, so both platforms produce identical files.
  *   <li>{@code Arena.ofAuto()} becomes {@code Arena.global()}: the arena only holds string
  *       constants for the lifetime of the class, and engine code never uses automatic arenas.
  *   <li>Line endings become {@code \n}.
@@ -35,7 +36,8 @@ public final class BindingsPostProcessor {
     private static final Pattern NON_PORTABLE =
             Pattern.compile("(?<!long )\\blong\\b(?! long)|\\bwchar_t\\b|\\bva_list\\b");
     private static final Pattern C_LONG_DEFINITION =
-            Pattern.compile("(?m)^\\s*public static final ValueLayout\\.Of\\w+ C_LONG = .*\\R");
+            Pattern.compile(
+                    "(?m)^\\s*public static final ValueLayout\\.Of\\w+ C_LONG(_DOUBLE)? = .*\\R");
     private static final Pattern C_LONG_USE = Pattern.compile("\\bC_LONG\\b");
 
     private BindingsPostProcessor() {}
