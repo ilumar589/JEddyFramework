@@ -33,4 +33,7 @@ listOf(
 
 module("cooker", "tools/cooker")
 module("bench", "bench")
+module("testing", "testing")
+module("natives-linux-x64", "natives/linux-x64")
+module("natives-windows-x64", "natives/windows-x64")
 module("iso-demo", "samples/iso-demo")

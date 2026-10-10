@@ -178,13 +178,13 @@ Keep `ValueLayout` and `VarHandle` constants in `static final` fields.
 
 ### 4.6 GC, JIT and startup
 - Launcher defaults: `-XX:+UseZGC` (generational), `-Xms = -Xmx` (fixed heap), `-XX:+AlwaysPreTouch`. G1 (the JDK 27 default) is the supported alternative. Compact object headers are on by default in 27.
-- JIT-friendly code: `final` classes, small hot methods (stay under the inlining thresholds), no megamorphic interface calls in inner loops (switch on an `int` kind instead), `Math.fma`, `Float.floatToFloat16` intrinsics.
+- JIT-friendly code: `final` classes, small hot methods (stay under the inlining thresholds), no megamorphic interface calls in inner loops (switch on an `int` kind instead), `Float.floatToFloat16` intrinsics. Avoid `Math.fma` in kernels: without hardware FMA it falls back to a very slow software path.
 - Determinism: all Java floating point is strict (JDK 17+). Gameplay code that needs bit-exact results across machines uses `StrictMath` for transcendentals.
 - **Startup:** an AOT cache (JEP 483/514/515: `-XX:AOTCacheOutput` training run during packaging; JEP 516 in JDK 26 made the AOT object cache work with any GC, ZGC included), a `jlink` runtime image and lazy class init of binding holders.
 
 ### 4.7 Measuring (no optimization without numbers)
 - `bench/` holds JMH benchmarks for collections, math kernels, FFM call overhead, the job system, culling, sort, pathfinding, BVH queries and zstd.
-- An **allocation test harness** (a JUnit extension) runs N frames or iterations and asserts that `ThreadMXBean.getCurrentThreadAllocatedBytes()` grows by 0.
+- An **allocation assertion** (`dev.jeddy.testing.Allocations.assertNoAllocation`, in the `:testing` project that every module's tests get) runs the code in rounds of warm-up plus measurement and asserts that `ThreadMXBean.getCurrentThreadAllocatedBytes()` grows by 0 once the JIT has compiled it.
 - **Built-in profiler:** `Profiler.begin(int scopeId)` and `end()` write `long` records into per-thread ring buffers. GPU timer queries run with a 2–3 frame delay, so they never stall. There is an in-game overlay, and JFR custom events in dev builds.
 - Optional, later: a Tracy client through FFM.
 
@@ -287,7 +287,7 @@ The single-writer containers are not thread-safe. Thread ownership is part of ev
    Every per-entity hot path uses these.
 
 ### 8.2 Conventions
-Right-handed, **Y-up**, column-major matrices (GL), radians, `float` everywhere (CRPG maps are small). Affine transforms stored as **3×4 (12 floats)**.
+Right-handed, **Y-up**, column-major matrices (GL), radians, `float` everywhere (CRPG maps are small). Affine transforms are stored as **row-major 3×4 (12 floats)**: three rows `[r0c0 r0c1 r0c2 tx | ...]`, the same layout as GPU instance data (three `vec4`), so world transforms are copied, never converted.
 Projection builders: **reversed-Z** infinite perspective (used with `glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE)`) and orthographic. There is an `IsoCamera` math helper (yaw, pitch, distance, zoom, narrow FOV or ortho).
 
 ### 8.3 Contents
@@ -559,3 +559,7 @@ JeddyFramework/
 | 2026-10-10 | D15 | `javac` lint is `-Xlint:all,-module,-processing` with `-Werror`. The `module` category is off because qualified exports name downstream modules that aren't visible yet when the exporting module compiles |
 | 2026-10-10 | D16 | A module exports a package only once that package has a public type, because javac rejects exporting a package that holds only `package-info.java`. Skeleton `module-info.java` files carry the intended `exports` as a comment |
 | 2026-10-10 | D17 | javac's `restricted` lint (warnings on downcalls, `reinterpret`, `System.load`) is off only in modules that apply `jeddy.native-library` or `jeddy.ffm-bindings`. Pure-Java modules (`math`, `physics`, `scene`) keep it, so native code there fails the build |
+| 2026-10-10 | D18 | Shared test helpers live in a `:testing` project (classpath, no module) that `jeddy.java-base` adds to every module's test classpath, starting with `Allocations.assertNoAllocation` |
+| 2026-10-10 | D19 | Native releases are published by the Natives workflow from `main` (release `natives-v<natives_version>`), not by tag pushes. The natives jars download the pinned release and check its SHA-256 (`gradle.properties`) |
+| 2026-10-10 | D20 | Formatting is google-java-format 1.36.1, AOSP style (4-space indent, 100 columns), enforced by Spotless in `check`. Pinned below 1.37.0: that release made `JavaFormatterOptions.Style` a record and Spotless 8.10.0's glue still calls `Style.valueOf`, so every file failed with `InvocationTargetException` |
+| 2026-10-10 | D21 | `Mat4` stays column-major for GL uniforms, while affine transforms are row-major 3×4 for direct SSBO upload. `AffineOps.toMat4` converts when a uniform needs one |

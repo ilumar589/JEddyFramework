@@ -1,6 +1,9 @@
 package dev.jeddy.cooker;
 
-/** Entry point. Offline asset cooker (jeddy-cook): glTF, textures, materials, shaders, physics bakes and pak building. */
+/**
+ * Entry point. Offline asset cooker (jeddy-cook): glTF, textures, materials, shaders, physics bakes
+ * and pak building.
+ */
 public final class CookerMain {
     private CookerMain() {}
 

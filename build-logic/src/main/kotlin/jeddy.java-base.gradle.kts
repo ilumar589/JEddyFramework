@@ -5,6 +5,7 @@ import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 
 plugins {
     java
+    id("com.diffplug.spotless")
 }
 
 group = "dev.jeddy"
@@ -39,10 +40,27 @@ tasks.withType<JavaCompile>().configureEach {
 
 // Archives are reproducible by default since Gradle 9.0, so no archive configuration is needed.
 
+// Formatting (M0-05): google-java-format, AOSP style (4-space indent, 100 columns), enforced by
+// `check`. Fix locally with `./gradlew spotlessApply`. Generated bindings are excluded.
+extensions.configure<com.diffplug.gradle.spotless.SpotlessExtension> {
+    java {
+        target("src/*/java/**/*.java")
+        targetExclude("src/ffi/**")
+        googleJavaFormat(catalog.findVersion("google-java-format").get().requiredVersion)
+            .aosp()
+            .reflowLongStrings(true)
+            .reorderImports(true)
+    }
+}
+
 dependencies {
     "testImplementation"(platform(catalog.findLibrary("junit-bom").get()))
     "testImplementation"(catalog.findLibrary("junit-jupiter").get())
     "testRuntimeOnly"(catalog.findLibrary("junit-platform-launcher").get())
+    if (project.path != ":testing") {
+        // Shared test helpers, e.g. Allocations.assertNoAllocation (DESIGN §4.7).
+        "testImplementation"(project(":testing"))
+    }
 }
 
 tasks.withType<Test>().configureEach {

@@ -13,3 +13,8 @@ plugins {
 tasks.withType<JavaCompile>().configureEach {
     options.compilerArgs.replaceAll { arg -> if (arg.startsWith("-Xlint:")) "$arg,-restricted" else arg }
 }
+
+dependencies {
+    // Tests load the real native libraries of the platform running the build (M0-08).
+    "testRuntimeOnly"(project(":natives-" + dev.jeddy.gradle.JeddyPlatforms.current()))
+}
