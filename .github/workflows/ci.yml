@@ -174,7 +174,7 @@ jobs:
           set -o pipefail
           mkdir -p samples/iso-demo/build/perf
           ./gradlew :iso-demo:run --stacktrace -Pjeddy.jvmArgs="-Xlog:gc*:file=build/perf/gc.log" \
-            --args="--headless --perf 120 --warmup 30 --report build/perf --fail-on alloc" 2>&1 | tee perf.log
+            --args="--headless --perf 120 --warmup 30 --alloc-probe --report build/perf --fail-on alloc" 2>&1 | tee perf.log
 
       - name: Report
         if: always()

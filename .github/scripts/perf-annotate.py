@@ -16,4 +16,9 @@ for b in perf.get("budgets", []):
     lines.append(f"{b['budget']}: {b['measured']} (target {b['target']}) {verdict}")
     if b.get("pass") is False:
         print(f"::warning title=Perf budget::{b['budget']}: {b['measured']} (target {b['target']})")
+halves = perf.get("allocatedBytesSecondHalfByThread")
+if halves:
+    lines.append("Second-half allocation by thread: " + ", ".join(f"{k} {v:.0f} B" for k, v in halves.items()))
+if perf.get("allocationEvents"):
+    lines.append("Allocating frames: " + perf["allocationEvents"])
 print("::notice title=Perf capture::" + "%0A".join(lines))

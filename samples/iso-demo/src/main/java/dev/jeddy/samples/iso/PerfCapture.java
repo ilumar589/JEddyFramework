@@ -253,10 +253,25 @@ final class PerfCapture {
             alloc.put(threadNames[i], (double) byThread[i][0]);
         }
         int allocatingFrames = 0;
+        StringBuilder events = new StringBuilder();
         for (int f = Math.max(1, gameFrames / 2); f < gameFrames; f++) {
-            if (gameAllocated[f] != gameAllocated[f - 1]
-                    || workerAllocated[f] != workerAllocated[f - 1]) {
+            long g = gameAllocated[f] - gameAllocated[f - 1];
+            long w = workerAllocated[f] - workerAllocated[f - 1];
+            if (g != 0 || w != 0) {
                 allocatingFrames++;
+                if (allocatingFrames <= 8) {
+                    events.append(fmt("game frame %d: game %d B, workers %d B; ", f, g, w));
+                }
+            }
+        }
+        int mainAllocating = 0;
+        for (int f = Math.max(1, mainAllocFrames / 2); f < mainAllocFrames; f++) {
+            long m = mainAllocated[f] - mainAllocated[f - 1];
+            if (m != 0) {
+                mainAllocating++;
+                if (mainAllocating <= 8) {
+                    events.append(fmt("main frame %d of %d: %d B; ", f, mainAllocFrames, m));
+                }
             }
         }
         double bytesPerFrame = (double) allocTotal / frames;
@@ -285,6 +300,13 @@ final class PerfCapture {
         json.put("allocatedBytesPerFrame", bytesPerFrame);
         json.put("allocatedBytesSecondHalf", (double) allocSecondHalf);
         json.put("allocatingFramesSecondHalf", (double) allocatingFrames);
+        json.put("mainAllocatingFramesSecondHalf", (double) mainAllocating);
+        Map<String, Object> halves = new LinkedHashMap<>();
+        for (int i = 0; i < threadNames.length; i++) {
+            halves.put(threadNames[i], (double) byThread[i][1]);
+        }
+        json.put("allocatedBytesSecondHalfByThread", halves);
+        json.put("allocationEvents", events.toString());
         Map<String, Object> gc = new LinkedHashMap<>();
         gc.put("collections", (double) gcCount);
         gc.put("collectionMs", (double) gcMillis);
@@ -326,10 +348,11 @@ final class PerfCapture {
                         "Steady-state allocation (game, main, workers)",
                         "0 B/frame",
                         fmt(
-                                "%d B in the second half, %d game frames allocating (%.2f"
-                                        + " B/frame over all %d frames, %d B)",
+                                "%d B in the second half, %d game and %d main frames allocating"
+                                        + " (%.2f B/frame over all %d frames, %d B)",
                                 allocSecondHalf,
                                 allocatingFrames,
+                                mainAllocating,
                                 bytesPerFrame,
                                 frames,
                                 allocTotal),
@@ -398,6 +421,9 @@ final class PerfCapture {
                     .append(" | ")
                     .append(fmt("%.3f", passSum[i] / Math.max(1, mainFrames)))
                     .append(" |\n");
+        }
+        if (!events.isEmpty()) {
+            md.append("\nAllocating frames in the second half: ").append(events).append('\n');
         }
         md.append(notes);
         Files.writeString(dir.resolve("perf.md"), md.toString());
