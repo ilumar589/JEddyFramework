@@ -52,7 +52,7 @@ public class ZSTD_inBuffer_s {
         return src$LAYOUT;
     }
 
-    private static final long src$OFFSET = $LAYOUT.byteOffset(groupElement("src"));
+    private static final long src$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -96,7 +96,7 @@ public class ZSTD_inBuffer_s {
         return size$LAYOUT;
     }
 
-    private static final long size$OFFSET = $LAYOUT.byteOffset(groupElement("size"));
+    private static final long size$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -140,7 +140,7 @@ public class ZSTD_inBuffer_s {
         return pos$LAYOUT;
     }
 
-    private static final long pos$OFFSET = $LAYOUT.byteOffset(groupElement("pos"));
+    private static final long pos$OFFSET = 16;
 
     /**
      * Offset for field:

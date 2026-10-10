@@ -12,17 +12,61 @@ import java.util.stream.*;
 import static java.lang.foreign.ValueLayout.*;
 import static java.lang.foreign.MemoryLayout.PathElement.*;
 
-public class ZstdLib extends ZstdLib$shared {
+public class ZstdLib {
 
     ZstdLib() {
         // Should not be called directly
     }
 
     static final Arena LIBRARY_ARENA = Arena.global();
+    static final boolean TRACE_DOWNCALLS = Boolean.getBoolean("jextract.trace.downcalls");
+
+    static void traceDowncall(String name, Object... args) {
+         String traceArgs = Arrays.stream(args)
+                       .map(Object::toString)
+                       .collect(Collectors.joining(", "));
+         System.out.printf("%s(%s)\n", name, traceArgs);
+    }
+
+    static MemorySegment findOrThrow(String symbol) {
+        return SYMBOL_LOOKUP.find(symbol)
+            .orElseThrow(() -> new UnsatisfiedLinkError("unresolved symbol: " + symbol));
+    }
+
+    static MethodHandle upcallHandle(Class<?> fi, String name, FunctionDescriptor fdesc) {
+        try {
+            return MethodHandles.lookup().findVirtual(fi, name, fdesc.toMethodType());
+        } catch (ReflectiveOperationException ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
+    static MemoryLayout align(MemoryLayout layout, long align) {
+        return switch (layout) {
+            case PaddingLayout p -> p;
+            case ValueLayout v -> v.withByteAlignment(align);
+            case GroupLayout g -> {
+                MemoryLayout[] alignedMembers = g.memberLayouts().stream()
+                        .map(m -> align(m, align)).toArray(MemoryLayout[]::new);
+                yield g instanceof StructLayout ?
+                        MemoryLayout.structLayout(alignedMembers) : MemoryLayout.unionLayout(alignedMembers);
+            }
+            case SequenceLayout s -> MemoryLayout.sequenceLayout(s.elementCount(), align(s.elementLayout(), align));
+        };
+    }
 
     static final SymbolLookup SYMBOL_LOOKUP = SymbolLookup.loaderLookup()
             .or(Linker.nativeLinker().defaultLookup());
 
+    public static final ValueLayout.OfBoolean C_BOOL = ValueLayout.JAVA_BOOLEAN;
+    public static final ValueLayout.OfByte C_CHAR = ValueLayout.JAVA_BYTE;
+    public static final ValueLayout.OfShort C_SHORT = ValueLayout.JAVA_SHORT;
+    public static final ValueLayout.OfInt C_INT = ValueLayout.JAVA_INT;
+    public static final ValueLayout.OfLong C_LONG_LONG = ValueLayout.JAVA_LONG;
+    public static final ValueLayout.OfFloat C_FLOAT = ValueLayout.JAVA_FLOAT;
+    public static final ValueLayout.OfDouble C_DOUBLE = ValueLayout.JAVA_DOUBLE;
+    public static final AddressLayout C_POINTER = ValueLayout.ADDRESS
+            .withTargetLayout(MemoryLayout.sequenceLayout(java.lang.Long.MAX_VALUE, JAVA_BYTE));
     private static final int ZSTD_VERSION_MAJOR = (int)1L;
     /**
      * {@snippet lang=c :
@@ -80,7 +124,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_no_error = (int)0L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_no_error = 0
+     * enum <anonymous>.ZSTD_error_no_error = 0
      * }
      */
     public static int ZSTD_error_no_error() {
@@ -89,7 +133,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_GENERIC = (int)1L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_GENERIC = 1
+     * enum <anonymous>.ZSTD_error_GENERIC = 1
      * }
      */
     public static int ZSTD_error_GENERIC() {
@@ -98,7 +142,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_prefix_unknown = (int)10L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_prefix_unknown = 10
+     * enum <anonymous>.ZSTD_error_prefix_unknown = 10
      * }
      */
     public static int ZSTD_error_prefix_unknown() {
@@ -107,7 +151,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_version_unsupported = (int)12L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_version_unsupported = 12
+     * enum <anonymous>.ZSTD_error_version_unsupported = 12
      * }
      */
     public static int ZSTD_error_version_unsupported() {
@@ -116,7 +160,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_frameParameter_unsupported = (int)14L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_frameParameter_unsupported = 14
+     * enum <anonymous>.ZSTD_error_frameParameter_unsupported = 14
      * }
      */
     public static int ZSTD_error_frameParameter_unsupported() {
@@ -125,7 +169,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_frameParameter_windowTooLarge = (int)16L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_frameParameter_windowTooLarge = 16
+     * enum <anonymous>.ZSTD_error_frameParameter_windowTooLarge = 16
      * }
      */
     public static int ZSTD_error_frameParameter_windowTooLarge() {
@@ -134,7 +178,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_corruption_detected = (int)20L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_corruption_detected = 20
+     * enum <anonymous>.ZSTD_error_corruption_detected = 20
      * }
      */
     public static int ZSTD_error_corruption_detected() {
@@ -143,7 +187,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_checksum_wrong = (int)22L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_checksum_wrong = 22
+     * enum <anonymous>.ZSTD_error_checksum_wrong = 22
      * }
      */
     public static int ZSTD_error_checksum_wrong() {
@@ -152,7 +196,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_literals_headerWrong = (int)24L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_literals_headerWrong = 24
+     * enum <anonymous>.ZSTD_error_literals_headerWrong = 24
      * }
      */
     public static int ZSTD_error_literals_headerWrong() {
@@ -161,7 +205,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_dictionary_corrupted = (int)30L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_dictionary_corrupted = 30
+     * enum <anonymous>.ZSTD_error_dictionary_corrupted = 30
      * }
      */
     public static int ZSTD_error_dictionary_corrupted() {
@@ -170,7 +214,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_dictionary_wrong = (int)32L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_dictionary_wrong = 32
+     * enum <anonymous>.ZSTD_error_dictionary_wrong = 32
      * }
      */
     public static int ZSTD_error_dictionary_wrong() {
@@ -179,7 +223,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_dictionaryCreation_failed = (int)34L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_dictionaryCreation_failed = 34
+     * enum <anonymous>.ZSTD_error_dictionaryCreation_failed = 34
      * }
      */
     public static int ZSTD_error_dictionaryCreation_failed() {
@@ -188,7 +232,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_parameter_unsupported = (int)40L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_parameter_unsupported = 40
+     * enum <anonymous>.ZSTD_error_parameter_unsupported = 40
      * }
      */
     public static int ZSTD_error_parameter_unsupported() {
@@ -197,7 +241,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_parameter_combination_unsupported = (int)41L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_parameter_combination_unsupported = 41
+     * enum <anonymous>.ZSTD_error_parameter_combination_unsupported = 41
      * }
      */
     public static int ZSTD_error_parameter_combination_unsupported() {
@@ -206,7 +250,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_parameter_outOfBound = (int)42L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_parameter_outOfBound = 42
+     * enum <anonymous>.ZSTD_error_parameter_outOfBound = 42
      * }
      */
     public static int ZSTD_error_parameter_outOfBound() {
@@ -215,7 +259,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_tableLog_tooLarge = (int)44L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_tableLog_tooLarge = 44
+     * enum <anonymous>.ZSTD_error_tableLog_tooLarge = 44
      * }
      */
     public static int ZSTD_error_tableLog_tooLarge() {
@@ -224,7 +268,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_maxSymbolValue_tooLarge = (int)46L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_maxSymbolValue_tooLarge = 46
+     * enum <anonymous>.ZSTD_error_maxSymbolValue_tooLarge = 46
      * }
      */
     public static int ZSTD_error_maxSymbolValue_tooLarge() {
@@ -233,7 +277,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_maxSymbolValue_tooSmall = (int)48L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_maxSymbolValue_tooSmall = 48
+     * enum <anonymous>.ZSTD_error_maxSymbolValue_tooSmall = 48
      * }
      */
     public static int ZSTD_error_maxSymbolValue_tooSmall() {
@@ -242,7 +286,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_cannotProduce_uncompressedBlock = (int)49L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_cannotProduce_uncompressedBlock = 49
+     * enum <anonymous>.ZSTD_error_cannotProduce_uncompressedBlock = 49
      * }
      */
     public static int ZSTD_error_cannotProduce_uncompressedBlock() {
@@ -251,7 +295,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_stabilityCondition_notRespected = (int)50L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_stabilityCondition_notRespected = 50
+     * enum <anonymous>.ZSTD_error_stabilityCondition_notRespected = 50
      * }
      */
     public static int ZSTD_error_stabilityCondition_notRespected() {
@@ -260,7 +304,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_stage_wrong = (int)60L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_stage_wrong = 60
+     * enum <anonymous>.ZSTD_error_stage_wrong = 60
      * }
      */
     public static int ZSTD_error_stage_wrong() {
@@ -269,7 +313,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_init_missing = (int)62L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_init_missing = 62
+     * enum <anonymous>.ZSTD_error_init_missing = 62
      * }
      */
     public static int ZSTD_error_init_missing() {
@@ -278,7 +322,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_memory_allocation = (int)64L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_memory_allocation = 64
+     * enum <anonymous>.ZSTD_error_memory_allocation = 64
      * }
      */
     public static int ZSTD_error_memory_allocation() {
@@ -287,7 +331,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_workSpace_tooSmall = (int)66L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_workSpace_tooSmall = 66
+     * enum <anonymous>.ZSTD_error_workSpace_tooSmall = 66
      * }
      */
     public static int ZSTD_error_workSpace_tooSmall() {
@@ -296,7 +340,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_dstSize_tooSmall = (int)70L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_dstSize_tooSmall = 70
+     * enum <anonymous>.ZSTD_error_dstSize_tooSmall = 70
      * }
      */
     public static int ZSTD_error_dstSize_tooSmall() {
@@ -305,7 +349,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_srcSize_wrong = (int)72L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_srcSize_wrong = 72
+     * enum <anonymous>.ZSTD_error_srcSize_wrong = 72
      * }
      */
     public static int ZSTD_error_srcSize_wrong() {
@@ -314,7 +358,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_dstBuffer_null = (int)74L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_dstBuffer_null = 74
+     * enum <anonymous>.ZSTD_error_dstBuffer_null = 74
      * }
      */
     public static int ZSTD_error_dstBuffer_null() {
@@ -323,7 +367,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_noForwardProgress_destFull = (int)80L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_noForwardProgress_destFull = 80
+     * enum <anonymous>.ZSTD_error_noForwardProgress_destFull = 80
      * }
      */
     public static int ZSTD_error_noForwardProgress_destFull() {
@@ -332,7 +376,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_noForwardProgress_inputEmpty = (int)82L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_noForwardProgress_inputEmpty = 82
+     * enum <anonymous>.ZSTD_error_noForwardProgress_inputEmpty = 82
      * }
      */
     public static int ZSTD_error_noForwardProgress_inputEmpty() {
@@ -341,7 +385,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_frameIndex_tooLarge = (int)100L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_frameIndex_tooLarge = 100
+     * enum <anonymous>.ZSTD_error_frameIndex_tooLarge = 100
      * }
      */
     public static int ZSTD_error_frameIndex_tooLarge() {
@@ -350,7 +394,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_seekableIO = (int)102L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_seekableIO = 102
+     * enum <anonymous>.ZSTD_error_seekableIO = 102
      * }
      */
     public static int ZSTD_error_seekableIO() {
@@ -359,7 +403,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_dstBuffer_wrong = (int)104L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_dstBuffer_wrong = 104
+     * enum <anonymous>.ZSTD_error_dstBuffer_wrong = 104
      * }
      */
     public static int ZSTD_error_dstBuffer_wrong() {
@@ -368,7 +412,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_srcBuffer_wrong = (int)105L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_srcBuffer_wrong = 105
+     * enum <anonymous>.ZSTD_error_srcBuffer_wrong = 105
      * }
      */
     public static int ZSTD_error_srcBuffer_wrong() {
@@ -377,7 +421,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_sequenceProducer_failed = (int)106L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_sequenceProducer_failed = 106
+     * enum <anonymous>.ZSTD_error_sequenceProducer_failed = 106
      * }
      */
     public static int ZSTD_error_sequenceProducer_failed() {
@@ -386,7 +430,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_externalSequences_invalid = (int)107L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_externalSequences_invalid = 107
+     * enum <anonymous>.ZSTD_error_externalSequences_invalid = 107
      * }
      */
     public static int ZSTD_error_externalSequences_invalid() {
@@ -395,7 +439,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_error_maxCode = (int)120L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ErrorCode.ZSTD_error_maxCode = 120
+     * enum <anonymous>.ZSTD_error_maxCode = 120
      * }
      */
     public static int ZSTD_error_maxCode() {
@@ -408,7 +452,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_getErrorString");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_getErrorString");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -455,8 +499,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_getErrorString", code);
             }
             return (MemorySegment)mh$.invokeExact(code);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -466,7 +508,7 @@ public class ZstdLib extends ZstdLib$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             ZstdLib.C_INT    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_versionNumber");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_versionNumber");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -474,7 +516,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * unsigned int ZSTD_versionNumber(void)
+     * unsigned int ZSTD_versionNumber()
      * }
      */
     public static FunctionDescriptor ZSTD_versionNumber$descriptor() {
@@ -484,7 +526,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * unsigned int ZSTD_versionNumber(void)
+     * unsigned int ZSTD_versionNumber()
      * }
      */
     public static MethodHandle ZSTD_versionNumber$handle() {
@@ -494,7 +536,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * unsigned int ZSTD_versionNumber(void)
+     * unsigned int ZSTD_versionNumber()
      * }
      */
     public static MemorySegment ZSTD_versionNumber$address() {
@@ -503,7 +545,7 @@ public class ZstdLib extends ZstdLib$shared {
 
     /**
      * {@snippet lang=c :
-     * unsigned int ZSTD_versionNumber(void)
+     * unsigned int ZSTD_versionNumber()
      * }
      */
     public static int ZSTD_versionNumber() {
@@ -513,8 +555,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_versionNumber");
             }
             return (int)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -524,7 +564,7 @@ public class ZstdLib extends ZstdLib$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             ZstdLib.C_POINTER    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_versionString");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_versionString");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -532,7 +572,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * const char *ZSTD_versionString(void)
+     * const char *ZSTD_versionString()
      * }
      */
     public static FunctionDescriptor ZSTD_versionString$descriptor() {
@@ -542,7 +582,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * const char *ZSTD_versionString(void)
+     * const char *ZSTD_versionString()
      * }
      */
     public static MethodHandle ZSTD_versionString$handle() {
@@ -552,7 +592,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * const char *ZSTD_versionString(void)
+     * const char *ZSTD_versionString()
      * }
      */
     public static MemorySegment ZSTD_versionString$address() {
@@ -561,7 +601,7 @@ public class ZstdLib extends ZstdLib$shared {
 
     /**
      * {@snippet lang=c :
-     * const char *ZSTD_versionString(void)
+     * const char *ZSTD_versionString()
      * }
      */
     public static MemorySegment ZSTD_versionString() {
@@ -571,8 +611,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_versionString");
             }
             return (MemorySegment)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -588,7 +626,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_compress");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_compress");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -635,8 +673,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_compress", dst, dstCapacity, src, srcSize, compressionLevel);
             }
             return (long)mh$.invokeExact(dst, dstCapacity, src, srcSize, compressionLevel);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -651,7 +687,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_decompress");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_decompress");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -698,8 +734,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_decompress", dst, dstCapacity, src, compressedSize);
             }
             return (long)mh$.invokeExact(dst, dstCapacity, src, compressedSize);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -712,7 +746,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_getFrameContentSize");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_getFrameContentSize");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -759,8 +793,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_getFrameContentSize", src, srcSize);
             }
             return (long)mh$.invokeExact(src, srcSize);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -773,7 +805,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_findFrameCompressedSize");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_findFrameCompressedSize");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -820,8 +852,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_findFrameCompressedSize", src, srcSize);
             }
             return (long)mh$.invokeExact(src, srcSize);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -833,7 +863,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_compressBound");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_compressBound");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -880,8 +910,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_compressBound", srcSize);
             }
             return (long)mh$.invokeExact(srcSize);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -893,7 +921,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_isError");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_isError");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -940,8 +968,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_isError", result);
             }
             return (int)mh$.invokeExact(result);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -953,7 +979,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_getErrorCode");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_getErrorCode");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1000,8 +1026,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_getErrorCode", functionResult);
             }
             return (int)mh$.invokeExact(functionResult);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1013,7 +1037,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_getErrorName");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_getErrorName");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1060,8 +1084,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_getErrorName", result);
             }
             return (MemorySegment)mh$.invokeExact(result);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1071,7 +1093,7 @@ public class ZstdLib extends ZstdLib$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             ZstdLib.C_INT    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_minCLevel");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_minCLevel");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1079,7 +1101,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * int ZSTD_minCLevel(void)
+     * int ZSTD_minCLevel()
      * }
      */
     public static FunctionDescriptor ZSTD_minCLevel$descriptor() {
@@ -1089,7 +1111,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * int ZSTD_minCLevel(void)
+     * int ZSTD_minCLevel()
      * }
      */
     public static MethodHandle ZSTD_minCLevel$handle() {
@@ -1099,7 +1121,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * int ZSTD_minCLevel(void)
+     * int ZSTD_minCLevel()
      * }
      */
     public static MemorySegment ZSTD_minCLevel$address() {
@@ -1108,7 +1130,7 @@ public class ZstdLib extends ZstdLib$shared {
 
     /**
      * {@snippet lang=c :
-     * int ZSTD_minCLevel(void)
+     * int ZSTD_minCLevel()
      * }
      */
     public static int ZSTD_minCLevel() {
@@ -1118,8 +1140,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_minCLevel");
             }
             return (int)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1129,7 +1149,7 @@ public class ZstdLib extends ZstdLib$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             ZstdLib.C_INT    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_maxCLevel");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_maxCLevel");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1137,7 +1157,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * int ZSTD_maxCLevel(void)
+     * int ZSTD_maxCLevel()
      * }
      */
     public static FunctionDescriptor ZSTD_maxCLevel$descriptor() {
@@ -1147,7 +1167,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * int ZSTD_maxCLevel(void)
+     * int ZSTD_maxCLevel()
      * }
      */
     public static MethodHandle ZSTD_maxCLevel$handle() {
@@ -1157,7 +1177,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * int ZSTD_maxCLevel(void)
+     * int ZSTD_maxCLevel()
      * }
      */
     public static MemorySegment ZSTD_maxCLevel$address() {
@@ -1166,7 +1186,7 @@ public class ZstdLib extends ZstdLib$shared {
 
     /**
      * {@snippet lang=c :
-     * int ZSTD_maxCLevel(void)
+     * int ZSTD_maxCLevel()
      * }
      */
     public static int ZSTD_maxCLevel() {
@@ -1176,8 +1196,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_maxCLevel");
             }
             return (int)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1187,7 +1205,7 @@ public class ZstdLib extends ZstdLib$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             ZstdLib.C_INT    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_defaultCLevel");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_defaultCLevel");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1195,7 +1213,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * int ZSTD_defaultCLevel(void)
+     * int ZSTD_defaultCLevel()
      * }
      */
     public static FunctionDescriptor ZSTD_defaultCLevel$descriptor() {
@@ -1205,7 +1223,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * int ZSTD_defaultCLevel(void)
+     * int ZSTD_defaultCLevel()
      * }
      */
     public static MethodHandle ZSTD_defaultCLevel$handle() {
@@ -1215,7 +1233,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * int ZSTD_defaultCLevel(void)
+     * int ZSTD_defaultCLevel()
      * }
      */
     public static MemorySegment ZSTD_defaultCLevel$address() {
@@ -1224,7 +1242,7 @@ public class ZstdLib extends ZstdLib$shared {
 
     /**
      * {@snippet lang=c :
-     * int ZSTD_defaultCLevel(void)
+     * int ZSTD_defaultCLevel()
      * }
      */
     public static int ZSTD_defaultCLevel() {
@@ -1234,8 +1252,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_defaultCLevel");
             }
             return (int)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1245,7 +1261,7 @@ public class ZstdLib extends ZstdLib$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             ZstdLib.C_POINTER    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_createCCtx");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_createCCtx");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1253,7 +1269,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * ZSTD_CCtx *ZSTD_createCCtx(void)
+     * ZSTD_CCtx *ZSTD_createCCtx()
      * }
      */
     public static FunctionDescriptor ZSTD_createCCtx$descriptor() {
@@ -1263,7 +1279,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * ZSTD_CCtx *ZSTD_createCCtx(void)
+     * ZSTD_CCtx *ZSTD_createCCtx()
      * }
      */
     public static MethodHandle ZSTD_createCCtx$handle() {
@@ -1273,7 +1289,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * ZSTD_CCtx *ZSTD_createCCtx(void)
+     * ZSTD_CCtx *ZSTD_createCCtx()
      * }
      */
     public static MemorySegment ZSTD_createCCtx$address() {
@@ -1282,7 +1298,7 @@ public class ZstdLib extends ZstdLib$shared {
 
     /**
      * {@snippet lang=c :
-     * ZSTD_CCtx *ZSTD_createCCtx(void)
+     * ZSTD_CCtx *ZSTD_createCCtx()
      * }
      */
     public static MemorySegment ZSTD_createCCtx() {
@@ -1292,8 +1308,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_createCCtx");
             }
             return (MemorySegment)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1305,7 +1319,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_freeCCtx");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_freeCCtx");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1352,8 +1366,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_freeCCtx", cctx);
             }
             return (long)mh$.invokeExact(cctx);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1370,7 +1382,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_compressCCtx");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_compressCCtx");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1417,8 +1429,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_compressCCtx", cctx, dst, dstCapacity, src, srcSize, compressionLevel);
             }
             return (long)mh$.invokeExact(cctx, dst, dstCapacity, src, srcSize, compressionLevel);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1428,7 +1438,7 @@ public class ZstdLib extends ZstdLib$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             ZstdLib.C_POINTER    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_createDCtx");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_createDCtx");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1436,7 +1446,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * ZSTD_DCtx *ZSTD_createDCtx(void)
+     * ZSTD_DCtx *ZSTD_createDCtx()
      * }
      */
     public static FunctionDescriptor ZSTD_createDCtx$descriptor() {
@@ -1446,7 +1456,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * ZSTD_DCtx *ZSTD_createDCtx(void)
+     * ZSTD_DCtx *ZSTD_createDCtx()
      * }
      */
     public static MethodHandle ZSTD_createDCtx$handle() {
@@ -1456,7 +1466,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * ZSTD_DCtx *ZSTD_createDCtx(void)
+     * ZSTD_DCtx *ZSTD_createDCtx()
      * }
      */
     public static MemorySegment ZSTD_createDCtx$address() {
@@ -1465,7 +1475,7 @@ public class ZstdLib extends ZstdLib$shared {
 
     /**
      * {@snippet lang=c :
-     * ZSTD_DCtx *ZSTD_createDCtx(void)
+     * ZSTD_DCtx *ZSTD_createDCtx()
      * }
      */
     public static MemorySegment ZSTD_createDCtx() {
@@ -1475,8 +1485,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_createDCtx");
             }
             return (MemorySegment)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1488,7 +1496,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_freeDCtx");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_freeDCtx");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1535,8 +1543,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_freeDCtx", dctx);
             }
             return (long)mh$.invokeExact(dctx);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1552,7 +1558,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_decompressDCtx");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_decompressDCtx");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1599,8 +1605,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_decompressDCtx", dctx, dst, dstCapacity, src, srcSize);
             }
             return (long)mh$.invokeExact(dctx, dst, dstCapacity, src, srcSize);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1608,7 +1612,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_fast = (int)1L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_strategy.ZSTD_fast = 1
+     * enum <anonymous>.ZSTD_fast = 1
      * }
      */
     public static int ZSTD_fast() {
@@ -1617,7 +1621,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_dfast = (int)2L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_strategy.ZSTD_dfast = 2
+     * enum <anonymous>.ZSTD_dfast = 2
      * }
      */
     public static int ZSTD_dfast() {
@@ -1626,7 +1630,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_greedy = (int)3L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_strategy.ZSTD_greedy = 3
+     * enum <anonymous>.ZSTD_greedy = 3
      * }
      */
     public static int ZSTD_greedy() {
@@ -1635,7 +1639,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_lazy = (int)4L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_strategy.ZSTD_lazy = 4
+     * enum <anonymous>.ZSTD_lazy = 4
      * }
      */
     public static int ZSTD_lazy() {
@@ -1644,7 +1648,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_lazy2 = (int)5L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_strategy.ZSTD_lazy2 = 5
+     * enum <anonymous>.ZSTD_lazy2 = 5
      * }
      */
     public static int ZSTD_lazy2() {
@@ -1653,7 +1657,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_btlazy2 = (int)6L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_strategy.ZSTD_btlazy2 = 6
+     * enum <anonymous>.ZSTD_btlazy2 = 6
      * }
      */
     public static int ZSTD_btlazy2() {
@@ -1662,7 +1666,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_btopt = (int)7L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_strategy.ZSTD_btopt = 7
+     * enum <anonymous>.ZSTD_btopt = 7
      * }
      */
     public static int ZSTD_btopt() {
@@ -1671,7 +1675,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_btultra = (int)8L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_strategy.ZSTD_btultra = 8
+     * enum <anonymous>.ZSTD_btultra = 8
      * }
      */
     public static int ZSTD_btultra() {
@@ -1680,7 +1684,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_btultra2 = (int)9L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_strategy.ZSTD_btultra2 = 9
+     * enum <anonymous>.ZSTD_btultra2 = 9
      * }
      */
     public static int ZSTD_btultra2() {
@@ -1689,7 +1693,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_c_compressionLevel = (int)100L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_cParameter.ZSTD_c_compressionLevel = 100
+     * enum <anonymous>.ZSTD_c_compressionLevel = 100
      * }
      */
     public static int ZSTD_c_compressionLevel() {
@@ -1698,7 +1702,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_c_windowLog = (int)101L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_cParameter.ZSTD_c_windowLog = 101
+     * enum <anonymous>.ZSTD_c_windowLog = 101
      * }
      */
     public static int ZSTD_c_windowLog() {
@@ -1707,7 +1711,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_c_hashLog = (int)102L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_cParameter.ZSTD_c_hashLog = 102
+     * enum <anonymous>.ZSTD_c_hashLog = 102
      * }
      */
     public static int ZSTD_c_hashLog() {
@@ -1716,7 +1720,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_c_chainLog = (int)103L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_cParameter.ZSTD_c_chainLog = 103
+     * enum <anonymous>.ZSTD_c_chainLog = 103
      * }
      */
     public static int ZSTD_c_chainLog() {
@@ -1725,7 +1729,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_c_searchLog = (int)104L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_cParameter.ZSTD_c_searchLog = 104
+     * enum <anonymous>.ZSTD_c_searchLog = 104
      * }
      */
     public static int ZSTD_c_searchLog() {
@@ -1734,7 +1738,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_c_minMatch = (int)105L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_cParameter.ZSTD_c_minMatch = 105
+     * enum <anonymous>.ZSTD_c_minMatch = 105
      * }
      */
     public static int ZSTD_c_minMatch() {
@@ -1743,7 +1747,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_c_targetLength = (int)106L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_cParameter.ZSTD_c_targetLength = 106
+     * enum <anonymous>.ZSTD_c_targetLength = 106
      * }
      */
     public static int ZSTD_c_targetLength() {
@@ -1752,7 +1756,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_c_strategy = (int)107L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_cParameter.ZSTD_c_strategy = 107
+     * enum <anonymous>.ZSTD_c_strategy = 107
      * }
      */
     public static int ZSTD_c_strategy() {
@@ -1761,7 +1765,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_c_targetCBlockSize = (int)130L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_cParameter.ZSTD_c_targetCBlockSize = 130
+     * enum <anonymous>.ZSTD_c_targetCBlockSize = 130
      * }
      */
     public static int ZSTD_c_targetCBlockSize() {
@@ -1770,7 +1774,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_c_enableLongDistanceMatching = (int)160L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_cParameter.ZSTD_c_enableLongDistanceMatching = 160
+     * enum <anonymous>.ZSTD_c_enableLongDistanceMatching = 160
      * }
      */
     public static int ZSTD_c_enableLongDistanceMatching() {
@@ -1779,7 +1783,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_c_ldmHashLog = (int)161L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_cParameter.ZSTD_c_ldmHashLog = 161
+     * enum <anonymous>.ZSTD_c_ldmHashLog = 161
      * }
      */
     public static int ZSTD_c_ldmHashLog() {
@@ -1788,7 +1792,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_c_ldmMinMatch = (int)162L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_cParameter.ZSTD_c_ldmMinMatch = 162
+     * enum <anonymous>.ZSTD_c_ldmMinMatch = 162
      * }
      */
     public static int ZSTD_c_ldmMinMatch() {
@@ -1797,7 +1801,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_c_ldmBucketSizeLog = (int)163L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_cParameter.ZSTD_c_ldmBucketSizeLog = 163
+     * enum <anonymous>.ZSTD_c_ldmBucketSizeLog = 163
      * }
      */
     public static int ZSTD_c_ldmBucketSizeLog() {
@@ -1806,7 +1810,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_c_ldmHashRateLog = (int)164L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_cParameter.ZSTD_c_ldmHashRateLog = 164
+     * enum <anonymous>.ZSTD_c_ldmHashRateLog = 164
      * }
      */
     public static int ZSTD_c_ldmHashRateLog() {
@@ -1815,7 +1819,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_c_contentSizeFlag = (int)200L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_cParameter.ZSTD_c_contentSizeFlag = 200
+     * enum <anonymous>.ZSTD_c_contentSizeFlag = 200
      * }
      */
     public static int ZSTD_c_contentSizeFlag() {
@@ -1824,7 +1828,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_c_checksumFlag = (int)201L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_cParameter.ZSTD_c_checksumFlag = 201
+     * enum <anonymous>.ZSTD_c_checksumFlag = 201
      * }
      */
     public static int ZSTD_c_checksumFlag() {
@@ -1833,7 +1837,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_c_dictIDFlag = (int)202L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_cParameter.ZSTD_c_dictIDFlag = 202
+     * enum <anonymous>.ZSTD_c_dictIDFlag = 202
      * }
      */
     public static int ZSTD_c_dictIDFlag() {
@@ -1842,7 +1846,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_c_nbWorkers = (int)400L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_cParameter.ZSTD_c_nbWorkers = 400
+     * enum <anonymous>.ZSTD_c_nbWorkers = 400
      * }
      */
     public static int ZSTD_c_nbWorkers() {
@@ -1851,7 +1855,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_c_jobSize = (int)401L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_cParameter.ZSTD_c_jobSize = 401
+     * enum <anonymous>.ZSTD_c_jobSize = 401
      * }
      */
     public static int ZSTD_c_jobSize() {
@@ -1860,7 +1864,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_c_overlapLog = (int)402L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_cParameter.ZSTD_c_overlapLog = 402
+     * enum <anonymous>.ZSTD_c_overlapLog = 402
      * }
      */
     public static int ZSTD_c_overlapLog() {
@@ -1873,7 +1877,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_cParam_getBounds");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_cParam_getBounds");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1920,8 +1924,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_cParam_getBounds", allocator, cParam);
             }
             return (MemorySegment)mh$.invokeExact(allocator, cParam);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1935,7 +1937,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_CCtx_setParameter");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_CCtx_setParameter");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1975,15 +1977,13 @@ public class ZstdLib extends ZstdLib$shared {
      * size_t ZSTD_CCtx_setParameter(ZSTD_CCtx *cctx, ZSTD_cParameter param, int value)
      * }
      */
-    public static long ZSTD_CCtx_setParameter(MemorySegment cctx, int param, int value_) {
+    public static long ZSTD_CCtx_setParameter(MemorySegment cctx, int param, int value) {
         var mh$ = ZSTD_CCtx_setParameter.HANDLE;
         try {
             if (TRACE_DOWNCALLS) {
-                traceDowncall("ZSTD_CCtx_setParameter", cctx, param, value_);
+                traceDowncall("ZSTD_CCtx_setParameter", cctx, param, value);
             }
-            return (long)mh$.invokeExact(cctx, param, value_);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
+            return (long)mh$.invokeExact(cctx, param, value);
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1996,7 +1996,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_CCtx_setPledgedSrcSize");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_CCtx_setPledgedSrcSize");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2043,8 +2043,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_CCtx_setPledgedSrcSize", cctx, pledgedSrcSize);
             }
             return (long)mh$.invokeExact(cctx, pledgedSrcSize);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2052,7 +2050,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_reset_session_only = (int)1L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ResetDirective.ZSTD_reset_session_only = 1
+     * enum <anonymous>.ZSTD_reset_session_only = 1
      * }
      */
     public static int ZSTD_reset_session_only() {
@@ -2061,7 +2059,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_reset_parameters = (int)2L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ResetDirective.ZSTD_reset_parameters = 2
+     * enum <anonymous>.ZSTD_reset_parameters = 2
      * }
      */
     public static int ZSTD_reset_parameters() {
@@ -2070,7 +2068,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_reset_session_and_parameters = (int)3L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_ResetDirective.ZSTD_reset_session_and_parameters = 3
+     * enum <anonymous>.ZSTD_reset_session_and_parameters = 3
      * }
      */
     public static int ZSTD_reset_session_and_parameters() {
@@ -2084,7 +2082,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_CCtx_reset");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_CCtx_reset");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2131,8 +2129,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_CCtx_reset", cctx, reset);
             }
             return (long)mh$.invokeExact(cctx, reset);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2148,7 +2144,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_compress2");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_compress2");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2195,8 +2191,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_compress2", cctx, dst, dstCapacity, src, srcSize);
             }
             return (long)mh$.invokeExact(cctx, dst, dstCapacity, src, srcSize);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2204,7 +2198,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_d_windowLogMax = (int)100L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_dParameter.ZSTD_d_windowLogMax = 100
+     * enum <anonymous>.ZSTD_d_windowLogMax = 100
      * }
      */
     public static int ZSTD_d_windowLogMax() {
@@ -2217,7 +2211,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_dParam_getBounds");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_dParam_getBounds");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2264,8 +2258,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_dParam_getBounds", allocator, dParam);
             }
             return (MemorySegment)mh$.invokeExact(allocator, dParam);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2279,7 +2271,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_DCtx_setParameter");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_DCtx_setParameter");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2319,15 +2311,13 @@ public class ZstdLib extends ZstdLib$shared {
      * size_t ZSTD_DCtx_setParameter(ZSTD_DCtx *dctx, ZSTD_dParameter param, int value)
      * }
      */
-    public static long ZSTD_DCtx_setParameter(MemorySegment dctx, int param, int value_) {
+    public static long ZSTD_DCtx_setParameter(MemorySegment dctx, int param, int value) {
         var mh$ = ZSTD_DCtx_setParameter.HANDLE;
         try {
             if (TRACE_DOWNCALLS) {
-                traceDowncall("ZSTD_DCtx_setParameter", dctx, param, value_);
+                traceDowncall("ZSTD_DCtx_setParameter", dctx, param, value);
             }
-            return (long)mh$.invokeExact(dctx, param, value_);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
+            return (long)mh$.invokeExact(dctx, param, value);
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2340,7 +2330,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_DCtx_reset");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_DCtx_reset");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2387,8 +2377,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_DCtx_reset", dctx, reset);
             }
             return (long)mh$.invokeExact(dctx, reset);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2396,7 +2384,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_e_continue = (int)0L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_EndDirective.ZSTD_e_continue = 0
+     * enum <anonymous>.ZSTD_e_continue = 0
      * }
      */
     public static int ZSTD_e_continue() {
@@ -2405,7 +2393,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_e_flush = (int)1L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_EndDirective.ZSTD_e_flush = 1
+     * enum <anonymous>.ZSTD_e_flush = 1
      * }
      */
     public static int ZSTD_e_flush() {
@@ -2414,7 +2402,7 @@ public class ZstdLib extends ZstdLib$shared {
     private static final int ZSTD_e_end = (int)2L;
     /**
      * {@snippet lang=c :
-     * enum ZSTD_EndDirective.ZSTD_e_end = 2
+     * enum <anonymous>.ZSTD_e_end = 2
      * }
      */
     public static int ZSTD_e_end() {
@@ -2430,7 +2418,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_compressStream2");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_compressStream2");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2477,8 +2465,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_compressStream2", cctx, output, input, endOp);
             }
             return (long)mh$.invokeExact(cctx, output, input, endOp);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2488,7 +2474,7 @@ public class ZstdLib extends ZstdLib$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             ZstdLib.C_LONG_LONG    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_CStreamInSize");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_CStreamInSize");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2496,7 +2482,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * size_t ZSTD_CStreamInSize(void)
+     * size_t ZSTD_CStreamInSize()
      * }
      */
     public static FunctionDescriptor ZSTD_CStreamInSize$descriptor() {
@@ -2506,7 +2492,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * size_t ZSTD_CStreamInSize(void)
+     * size_t ZSTD_CStreamInSize()
      * }
      */
     public static MethodHandle ZSTD_CStreamInSize$handle() {
@@ -2516,7 +2502,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * size_t ZSTD_CStreamInSize(void)
+     * size_t ZSTD_CStreamInSize()
      * }
      */
     public static MemorySegment ZSTD_CStreamInSize$address() {
@@ -2525,7 +2511,7 @@ public class ZstdLib extends ZstdLib$shared {
 
     /**
      * {@snippet lang=c :
-     * size_t ZSTD_CStreamInSize(void)
+     * size_t ZSTD_CStreamInSize()
      * }
      */
     public static long ZSTD_CStreamInSize() {
@@ -2535,8 +2521,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_CStreamInSize");
             }
             return (long)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2546,7 +2530,7 @@ public class ZstdLib extends ZstdLib$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             ZstdLib.C_LONG_LONG    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_CStreamOutSize");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_CStreamOutSize");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2554,7 +2538,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * size_t ZSTD_CStreamOutSize(void)
+     * size_t ZSTD_CStreamOutSize()
      * }
      */
     public static FunctionDescriptor ZSTD_CStreamOutSize$descriptor() {
@@ -2564,7 +2548,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * size_t ZSTD_CStreamOutSize(void)
+     * size_t ZSTD_CStreamOutSize()
      * }
      */
     public static MethodHandle ZSTD_CStreamOutSize$handle() {
@@ -2574,7 +2558,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * size_t ZSTD_CStreamOutSize(void)
+     * size_t ZSTD_CStreamOutSize()
      * }
      */
     public static MemorySegment ZSTD_CStreamOutSize$address() {
@@ -2583,7 +2567,7 @@ public class ZstdLib extends ZstdLib$shared {
 
     /**
      * {@snippet lang=c :
-     * size_t ZSTD_CStreamOutSize(void)
+     * size_t ZSTD_CStreamOutSize()
      * }
      */
     public static long ZSTD_CStreamOutSize() {
@@ -2593,8 +2577,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_CStreamOutSize");
             }
             return (long)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2608,7 +2590,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_decompressStream");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_decompressStream");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2655,8 +2637,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_decompressStream", zds, output, input);
             }
             return (long)mh$.invokeExact(zds, output, input);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2666,7 +2646,7 @@ public class ZstdLib extends ZstdLib$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             ZstdLib.C_LONG_LONG    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_DStreamInSize");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_DStreamInSize");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2674,7 +2654,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * size_t ZSTD_DStreamInSize(void)
+     * size_t ZSTD_DStreamInSize()
      * }
      */
     public static FunctionDescriptor ZSTD_DStreamInSize$descriptor() {
@@ -2684,7 +2664,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * size_t ZSTD_DStreamInSize(void)
+     * size_t ZSTD_DStreamInSize()
      * }
      */
     public static MethodHandle ZSTD_DStreamInSize$handle() {
@@ -2694,7 +2674,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * size_t ZSTD_DStreamInSize(void)
+     * size_t ZSTD_DStreamInSize()
      * }
      */
     public static MemorySegment ZSTD_DStreamInSize$address() {
@@ -2703,7 +2683,7 @@ public class ZstdLib extends ZstdLib$shared {
 
     /**
      * {@snippet lang=c :
-     * size_t ZSTD_DStreamInSize(void)
+     * size_t ZSTD_DStreamInSize()
      * }
      */
     public static long ZSTD_DStreamInSize() {
@@ -2713,8 +2693,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_DStreamInSize");
             }
             return (long)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2724,7 +2702,7 @@ public class ZstdLib extends ZstdLib$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             ZstdLib.C_LONG_LONG    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_DStreamOutSize");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_DStreamOutSize");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2732,7 +2710,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * size_t ZSTD_DStreamOutSize(void)
+     * size_t ZSTD_DStreamOutSize()
      * }
      */
     public static FunctionDescriptor ZSTD_DStreamOutSize$descriptor() {
@@ -2742,7 +2720,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * size_t ZSTD_DStreamOutSize(void)
+     * size_t ZSTD_DStreamOutSize()
      * }
      */
     public static MethodHandle ZSTD_DStreamOutSize$handle() {
@@ -2752,7 +2730,7 @@ public class ZstdLib extends ZstdLib$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * size_t ZSTD_DStreamOutSize(void)
+     * size_t ZSTD_DStreamOutSize()
      * }
      */
     public static MemorySegment ZSTD_DStreamOutSize$address() {
@@ -2761,7 +2739,7 @@ public class ZstdLib extends ZstdLib$shared {
 
     /**
      * {@snippet lang=c :
-     * size_t ZSTD_DStreamOutSize(void)
+     * size_t ZSTD_DStreamOutSize()
      * }
      */
     public static long ZSTD_DStreamOutSize() {
@@ -2771,8 +2749,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_DStreamOutSize");
             }
             return (long)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2791,7 +2767,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_compress_usingDict");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_compress_usingDict");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2838,8 +2814,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_compress_usingDict", ctx, dst, dstCapacity, src, srcSize, dict, dictSize, compressionLevel);
             }
             return (long)mh$.invokeExact(ctx, dst, dstCapacity, src, srcSize, dict, dictSize, compressionLevel);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2857,7 +2831,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_decompress_usingDict");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_decompress_usingDict");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2904,8 +2878,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_decompress_usingDict", dctx, dst, dstCapacity, src, srcSize, dict, dictSize);
             }
             return (long)mh$.invokeExact(dctx, dst, dstCapacity, src, srcSize, dict, dictSize);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2919,7 +2891,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_createCDict");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_createCDict");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2966,8 +2938,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_createCDict", dictBuffer, dictSize, compressionLevel);
             }
             return (MemorySegment)mh$.invokeExact(dictBuffer, dictSize, compressionLevel);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2979,7 +2949,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_freeCDict");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_freeCDict");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3026,8 +2996,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_freeCDict", CDict);
             }
             return (long)mh$.invokeExact(CDict);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3044,7 +3012,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_compress_usingCDict");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_compress_usingCDict");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3091,8 +3059,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_compress_usingCDict", cctx, dst, dstCapacity, src, srcSize, cdict);
             }
             return (long)mh$.invokeExact(cctx, dst, dstCapacity, src, srcSize, cdict);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3105,7 +3071,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_createDDict");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_createDDict");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3152,8 +3118,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_createDDict", dictBuffer, dictSize);
             }
             return (MemorySegment)mh$.invokeExact(dictBuffer, dictSize);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3165,7 +3129,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_freeDDict");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_freeDDict");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3212,8 +3176,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_freeDDict", ddict);
             }
             return (long)mh$.invokeExact(ddict);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3230,7 +3192,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_decompress_usingDDict");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_decompress_usingDDict");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3277,8 +3239,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_decompress_usingDDict", dctx, dst, dstCapacity, src, srcSize, ddict);
             }
             return (long)mh$.invokeExact(dctx, dst, dstCapacity, src, srcSize, ddict);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3291,7 +3251,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_getDictID_fromDict");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_getDictID_fromDict");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3338,8 +3298,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_getDictID_fromDict", dict, dictSize);
             }
             return (int)mh$.invokeExact(dict, dictSize);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3351,7 +3309,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_getDictID_fromCDict");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_getDictID_fromCDict");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3398,8 +3356,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_getDictID_fromCDict", cdict);
             }
             return (int)mh$.invokeExact(cdict);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3411,7 +3367,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_getDictID_fromDDict");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_getDictID_fromDDict");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3458,8 +3414,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_getDictID_fromDDict", ddict);
             }
             return (int)mh$.invokeExact(ddict);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3472,7 +3426,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_getDictID_fromFrame");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_getDictID_fromFrame");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3519,8 +3473,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_getDictID_fromFrame", src, srcSize);
             }
             return (int)mh$.invokeExact(src, srcSize);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3534,7 +3486,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_CCtx_loadDictionary");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_CCtx_loadDictionary");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3581,8 +3533,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_CCtx_loadDictionary", cctx, dict, dictSize);
             }
             return (long)mh$.invokeExact(cctx, dict, dictSize);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3595,7 +3545,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_CCtx_refCDict");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_CCtx_refCDict");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3642,8 +3592,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_CCtx_refCDict", cctx, cdict);
             }
             return (long)mh$.invokeExact(cctx, cdict);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3657,7 +3605,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_CCtx_refPrefix");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_CCtx_refPrefix");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3704,8 +3652,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_CCtx_refPrefix", cctx, prefix, prefixSize);
             }
             return (long)mh$.invokeExact(cctx, prefix, prefixSize);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3719,7 +3665,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_DCtx_loadDictionary");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_DCtx_loadDictionary");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3766,8 +3712,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_DCtx_loadDictionary", dctx, dict, dictSize);
             }
             return (long)mh$.invokeExact(dctx, dict, dictSize);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3780,7 +3724,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_DCtx_refDDict");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_DCtx_refDDict");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3827,8 +3771,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_DCtx_refDDict", dctx, ddict);
             }
             return (long)mh$.invokeExact(dctx, ddict);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3842,7 +3784,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_DCtx_refPrefix");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_DCtx_refPrefix");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3889,8 +3831,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_DCtx_refPrefix", dctx, prefix, prefixSize);
             }
             return (long)mh$.invokeExact(dctx, prefix, prefixSize);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3902,7 +3842,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_sizeof_CCtx");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_sizeof_CCtx");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3949,8 +3889,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_sizeof_CCtx", cctx);
             }
             return (long)mh$.invokeExact(cctx);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3962,7 +3900,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_sizeof_DCtx");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_sizeof_DCtx");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4009,8 +3947,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_sizeof_DCtx", dctx);
             }
             return (long)mh$.invokeExact(dctx);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4022,7 +3958,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_sizeof_CDict");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_sizeof_CDict");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4069,8 +4005,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_sizeof_CDict", cdict);
             }
             return (long)mh$.invokeExact(cdict);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4082,7 +4016,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZSTD_sizeof_DDict");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZSTD_sizeof_DDict");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4129,8 +4063,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZSTD_sizeof_DDict", ddict);
             }
             return (long)mh$.invokeExact(ddict);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4146,7 +4078,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZDICT_trainFromBuffer");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZDICT_trainFromBuffer");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4193,8 +4125,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZDICT_trainFromBuffer", dictBuffer, dictBufferCapacity, samplesBuffer, samplesSizes, nbSamples);
             }
             return (long)mh$.invokeExact(dictBuffer, dictBufferCapacity, samplesBuffer, samplesSizes, nbSamples);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4213,7 +4143,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZDICT_params_t.layout()
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZDICT_finalizeDictionary");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZDICT_finalizeDictionary");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4260,8 +4190,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZDICT_finalizeDictionary", dstDictBuffer, maxDictSize, dictContent, dictContentSize, samplesBuffer, samplesSizes, nbSamples, parameters);
             }
             return (long)mh$.invokeExact(dstDictBuffer, maxDictSize, dictContent, dictContentSize, samplesBuffer, samplesSizes, nbSamples, parameters);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4274,7 +4202,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZDICT_getDictID");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZDICT_getDictID");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4321,8 +4249,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZDICT_getDictID", dictBuffer, dictSize);
             }
             return (int)mh$.invokeExact(dictBuffer, dictSize);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4335,7 +4261,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZDICT_getDictHeaderSize");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZDICT_getDictHeaderSize");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4382,8 +4308,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZDICT_getDictHeaderSize", dictBuffer, dictSize);
             }
             return (long)mh$.invokeExact(dictBuffer, dictSize);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4395,7 +4319,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZDICT_isError");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZDICT_isError");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4442,8 +4366,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZDICT_isError", errorCode);
             }
             return (int)mh$.invokeExact(errorCode);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4455,7 +4377,7 @@ public class ZstdLib extends ZstdLib$shared {
             ZstdLib.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("ZDICT_getErrorName");
+        public static final MemorySegment ADDR = ZstdLib.findOrThrow("ZDICT_getErrorName");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4502,8 +4424,6 @@ public class ZstdLib extends ZstdLib$shared {
                 traceDowncall("ZDICT_getErrorName", errorCode);
             }
             return (MemorySegment)mh$.invokeExact(errorCode);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
