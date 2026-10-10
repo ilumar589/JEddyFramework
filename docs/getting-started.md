@@ -242,7 +242,7 @@ Source assets live in `assets/`. The `dev.jeddy.assets` plugin adds two tasks:
 
 | Source | Cooked |
 |---|---|
-| glTF 2.0 (`.gltf`, `.glb`) | `.jscene` with meshes (meshoptimizer), materials and lights |
+| glTF 2.0 (`.gltf`, `.glb`) | `.jscene` with meshes (meshoptimizer), materials, lights, skins and animations |
 | PNG, JPEG, TGA, BMP, GIF | KTX2 textures, BCn-compressed, with mipmaps |
 | Radiance HDR (`.hdr`) | Prefiltered environment cube with irradiance (`.ktx2`) |
 | GLSL | Validated when `glslangValidator` is available |
@@ -275,7 +275,60 @@ reloader = new AssetReloader(vfs, mounts[0], renderer.assets(), 100);   // in in
 reloader.poll();                                            // in update
 ```
 
-## 4. Run
+## 4. Animated characters
+
+Skinned glTF characters cook like any other scene. The `.jscene` keeps the skin (joints and
+inverse bind matrices) and the raw animation channels, and each skinned mesh keeps its joint and
+weight stream. Clips can stay in the character's file or go into an *animation library*: a glTF
+with only the rig's nodes and its clips. Every character whose joints have the same names can play
+the library's clips.
+
+Give the world an `Animations` pool, then spawn characters with `instantiateAnimated`:
+
+```java
+// In init: up to 64 characters with 64 joints each, evaluated on the job workers.
+world = new World(4096, renderer.meshes(),
+        new Animations(64, 64 * 64, ctx.jobs().threadSlots()));
+
+// Once the character and its library are loaded. Baking allocates, so do it at load time.
+SceneData hero = scenes.get(heroModel);
+SceneData library = scenes.get(heroAnimations);
+Skeleton rig = Skeleton.of(hero, 0);
+Clip idle = Clip.bake(library, "Idle", rig);
+Clip walk = Clip.bake(library, "Walking_A", rig);
+Clip run = Clip.bake(library, "Running_A", rig);
+Clip attack = Clip.bake(library, "1H_Melee_Attack_Chop", rig);
+
+int root = world.instantiateAnimated(hero, x, 0, z, yaw, RenderPacket.FLAG_CASTS_SHADOW, null);
+int anim = world.animation(root);
+world.animations().playBlend(anim, walk, run, 0, 0.2f);   // or play(anim, idle, 0.2f)
+```
+
+Skinned meshes become renderables that the GPU skins with the character's palette. Meshes under a
+joint, such as weapons, shields and helmets, follow that joint. Every other mesh keeps its place
+under the root. Move and turn the root like any entity. Clips play in place, and the game (or a
+crowd agent) moves the character.
+
+Each frame, in `update`, set the states and advance the poses before `extract`:
+
+```java
+Animations a = world.animations();
+// Blend walk and run by ground speed (m/s). Scale the playback rate so the feet do not slide.
+float w = Math.clamp((speed - 1.1f) / (3.6f - 1.1f), 0f, 1f);
+a.setBlendWeight(anim, w);
+a.setSpeed(anim, speed / (1.1f + (3.6f - 1.1f) * w));
+if (attackPressed) {
+    a.playOnce(anim, attack, 0.1f);   // holds its last frame; isFinished(anim) turns true
+}
+world.updateAnimations(dt, ctx.jobs());
+```
+
+`extract` adds each visible character's palette to the packet once and bounds its skinned meshes
+by its joints. `setGroupHidden(root, true)` also freezes the character's animation, and
+`destroy(root)` removes it with its meshes. The iso demo's `Animator` puts it all together: idle,
+walk and run, attacks, casts, hit reactions, death and the skeletons' awakening for 300 characters.
+
+## 5. Run
 
 ```
 ./gradlew run
@@ -288,7 +341,7 @@ finds the `paks/` folder of its image.
 For smoke tests and CI, `-Djeddy.app.quitAfterFrames=N` quits after N frames. A packaged game
 accepts it through the `JDK_JAVA_OPTIONS` environment variable.
 
-## 5. Package
+## 6. Package
 
 | Task | Output |
 |---|---|
@@ -317,7 +370,7 @@ skips training. The launchers use the cache when `aot/<name>.aot` exists and fal
 when it does not. The cache only loads with the exact JVM flags it was trained with, so leave the
 flags to the plugin.
 
-## 6. Performance rules
+## 7. Performance rules
 
 The framework's hot paths allocate nothing per frame (DESIGN §4). Games should follow the same
 rules in per-frame and per-tick code:
@@ -346,7 +399,8 @@ of a few hundred bytes to a few KB, which comes minutes into play for rarely cal
   [window](../modules/window/README.md), [input](../modules/input/README.md),
   [render](../modules/render/README.md), [asset](../modules/asset/README.md),
   [audio](../modules/audio/README.md), [physics](../modules/physics/README.md),
-  [scene](../modules/scene/README.md), [app](../modules/app/README.md).
+  [animation](../modules/animation/README.md), [scene](../modules/scene/README.md),
+  [app](../modules/app/README.md).
 - API reference: `./gradlew :site:javadocSite` writes the Javadoc of every module to
   `tools/site/build/site`. The docs workflow publishes it to GitHub Pages when Pages is enabled.
 - Architecture and decisions: [DESIGN.md](DESIGN.md).

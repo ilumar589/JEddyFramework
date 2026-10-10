@@ -1,10 +1,12 @@
 # Iso demo
 
-The integration demo and performance scene of Jeddy (TASKS M10): a six-member party in a crypt
-full of skeletons. It exercises every module together: the renderer (shadows, clustered lights,
-outlines, decals, particles, fog of war, post), physics (collision, picking, navmesh, crowd with
-formations, visibility, turn-based movement range), audio (ambience, positional effects), assets
-(paks, background loading) and the app loop (30 Hz simulation, interpolated rendering, RTwP pause).
+The integration demo and performance scene of Jeddy (TASKS M10, M12-07): a six-member party in a
+crypt full of skeletons. It exercises every module together: the renderer (shadows, clustered
+lights, outlines, decals, particles, fog of war, post, GPU skinning), animation (idle, walk and run
+blended by speed, strikes, casts, hit reactions, deaths and the skeletons' awakening, baked from
+two KayKit animation libraries), physics (collision, picking, navmesh, crowd with formations,
+visibility, turn-based movement range), audio (ambience, positional effects), assets (paks,
+background loading) and the app loop (30 Hz simulation, interpolated rendering, RTwP pause).
 
 ![The iso demo on Mesa llvmpipe](../../docs/images/iso-demo.png)
 
@@ -41,18 +43,20 @@ formations, visibility, turn-based movement range), audio (ambience, positional 
 ./gradlew :iso-demo:run -Pjeddy.jvmArgs="-Xlog:gc*:file=build/perf/gc.log" --args="--perf 600"
 ```
 
-The perf scene has 300 agents, 16k extra static props and 256 point lights (4 shadowed), and a
-script that tours the crypt in formation and throws a fireball every 1.5 s while the camera orbits.
-After a warm-up (10 s, 600 frames and the first fireballs) it measures game-thread and main-thread
-CPU per frame, GPU time per render pass, allocation of the game, main and job threads, and GC,
-and writes `build/perf/perf.md` and `perf.json` against the budgets of DESIGN §14.
-`--fail-on alloc,game` makes failed budgets an exit code (CI runs the headless capture), and
+The perf scene has 300 animated agents, 16k extra static props and 256 point lights (4 shadowed),
+and a script that tours the crypt in formation and throws a fireball every 1.5 s while the camera
+orbits. After a warm-up (10 s, 600 frames and the first fireballs) it measures game-thread and
+main-thread CPU per frame, the animation update, GPU time per render pass, allocation of the game,
+main and job threads, and GC, and writes `build/perf/perf.md` and `perf.json` against the budgets
+of DESIGN §14. `--fail-on alloc,game,animation` makes failed budgets an exit code (CI runs the headless capture), and
 `--alloc-probe` adds the game thread's allocation by system. Results and the fix list of M10 are
 in [docs/perf/m10.md](../../docs/perf/m10.md).
 
 ## Assets
 
-- `assets/levels/crypt.glb` and `assets/characters/*.glb` are built by `tools/kaykit.py` from the
+- `assets/levels/crypt.glb`, `assets/characters/*.glb` and the animation libraries
+  `assets/characters/anims/{heroes,skeletons}.glb` (each rig's nodes and the clips the demo plays)
+  are built by `tools/kaykit.py` from the
   [KayKit](https://github.com/KayKit-Game-Assets) Dungeon Remastered, Adventurers and Skeletons packs by Kay
   Lousberg (CC0), fetched at pinned commits (`KAYKIT-LICENSE.txt`). The level layout is the ASCII
   map at the top of the script; node-name prefixes (`floor_`, `wall_`, `prop_`, `decor_`) drive
