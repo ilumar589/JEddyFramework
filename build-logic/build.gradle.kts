@@ -15,6 +15,10 @@ java {
     targetCompatibility = JavaVersion.VERSION_17
 }
 
+tasks.withType<JavaCompile>().configureEach {
+    options.release = 17
+}
+
 kotlin {
     compilerOptions {
         jvmTarget = JvmTarget.JVM_17

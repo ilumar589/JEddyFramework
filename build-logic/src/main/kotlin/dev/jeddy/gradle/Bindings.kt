@@ -50,8 +50,9 @@ interface BindingLibrary : Named {
 }
 
 /**
- * Runs jextract for one library and replaces its package under `src/ffi/java`. The output is
- * committed, so normal builds never need jextract or libclang. Always runs when invoked.
+ * Runs jextract for one library, replaces its package under `src/ffi/java` and makes the output
+ * portable across x64 targets with [BindingsPostProcessor]. The output is committed, so normal
+ * builds never need jextract or libclang. Always runs when invoked.
  */
 @UntrackedTask(because = "Regenerates committed sources on demand; needs jextract and libclang")
 abstract class RegenerateBindingsTask : DefaultTask() {
@@ -95,7 +96,8 @@ abstract class RegenerateBindingsTask : DefaultTask() {
         require(pkg.endsWith(".ffi")) { "Generated bindings must live in a *.ffi package, got '$pkg'" }
 
         val outRoot = outputDir.get().asFile
-        fileSystemOperations.delete { delete(outRoot.resolve(pkg.replace('.', '/'))) }
+        val packageDir = outRoot.resolve(pkg.replace('.', '/'))
+        fileSystemOperations.delete { delete(packageDir) }
 
         val command = mutableListOf(
             "--output", outRoot.absolutePath,
@@ -113,5 +115,6 @@ abstract class RegenerateBindingsTask : DefaultTask() {
             executable = jextractExecutable.get()
             args(command)
         }
+        BindingsPostProcessor.process(packageDir.toPath())
     }
 }
