@@ -707,7 +707,7 @@ public final class AssetManager implements AutoCloseable {
                             vfs.describe(id) + " changed size while loading");
                 }
             }
-            ctx.reset();
+            ctx.reset(vfs, id);
             Object value = type.loader.decode(id, bytes, ctx);
             if (value == null) {
                 throw new IllegalStateException(type.name() + " loader returned null");

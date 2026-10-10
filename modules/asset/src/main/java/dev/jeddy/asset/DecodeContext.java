@@ -16,6 +16,8 @@ import java.util.Arrays;
 public final class DecodeContext {
     private final int threadIndex;
     private final ZstdDecompressor decompressor;
+    private Vfs vfs;
+    private long assetId;
     private long[] ids = new long[8];
     private byte[] types = new byte[8];
     private int count;
@@ -54,8 +56,19 @@ public final class DecodeContext {
         dependsOn(type, AssetPaths.id(path));
     }
 
-    void reset() {
+    /**
+     * Pins the asset being decoded in place if it is stored uncompressed in a pak (see {@link
+     * Vfs#pin}), so the value can keep using the mapped bytes instead of a copy; {@code null}
+     * otherwise. The value owns the pin and closes it in {@link AssetLoader#unload}.
+     */
+    public Vfs.Pin pinStored() {
+        return vfs == null ? null : vfs.pin(assetId);
+    }
+
+    void reset(Vfs files, long id) {
         count = 0;
+        vfs = files;
+        assetId = id;
     }
 
     long[] takeIds() {

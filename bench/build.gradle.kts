@@ -13,4 +13,5 @@ dependencies {
     implementation(project(":render"))
     implementation(project(":cooker"))
     implementation(project(":physics"))
+    implementation(project(":audio"))
 }
