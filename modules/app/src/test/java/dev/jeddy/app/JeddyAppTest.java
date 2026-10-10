@@ -87,7 +87,7 @@ class JeddyAppTest {
         CountingGame game = new CountingGame(1_000_000_000L);
         AtomicLong mainFrames = new AtomicLong();
         int code = JeddyApp.run(headless().observer(ctx -> mainFrames.set(ctx.frame())), game);
-        assertEquals(0, code);
+        assertEquals(0, code, "exit code (the crash is logged to stdout)");
         assertTrue(game.ticks >= 25 && game.ticks <= 35, "30 Hz for ~1 s: " + game.ticks);
         assertTrue(game.frames > 100, "frames: " + game.frames);
         assertTrue(mainFrames.get() >= game.frames, "main " + mainFrames + " game " + game.frames);
@@ -201,7 +201,7 @@ class JeddyAppTest {
                                 .observer(ctx -> mainFrames.lazySet(ctx.frame())),
                         game);
         monitor.join();
-        assertEquals(0, code);
+        assertEquals(0, code, "exit code (the crash is logged to stdout)");
         long gameMeasured = frames[2] - frames[0];
         long mainMeasured = frames[3] - frames[1];
         assertTrue(gameMeasured > 100 && mainMeasured > 100, gameMeasured + " / " + mainMeasured);
