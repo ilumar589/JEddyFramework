@@ -111,7 +111,7 @@ jobs:
             jvm="$jvm -XX:StartFlightRecording=filename=build/perf/alloc.jfr,settings=$GITHUB_WORKSPACE/.github/jfr/alloc.jfc"
           fi
           ./gradlew :iso-demo:run -Pjeddy.jvmArgs="$jvm" \
-            --args="--headless --perf 600 --warmup 60 --alloc-probe --report build/perf --fail-on alloc,game,flags" 2>&1 | tee perf.log
+            --args="--headless --perf 600 --warmup 60 --alloc-probe --report build/perf --fail-on alloc,game,animation,flags" 2>&1 | tee perf.log
 
       - name: Report
         if: always()

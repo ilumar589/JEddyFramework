@@ -66,6 +66,12 @@ class AnimationsTest {
         assertEquals(0.25f, spineX(a, i), 1e-4f, "wrapped after a cycle");
         assertFalse(a.isFinished(i));
         assertEquals(slide, a.current(i));
+        // Crowds start their loops at different points.
+        a.setPhase(i, 1.75f);
+        assertEquals(0.75f, a.phase(i), 1e-6f);
+        a.update(0, null);
+        assertEquals(0.75f, spineX(a, i), 1e-4f);
+        assertTrue(a.isActive(i));
     }
 
     @Test

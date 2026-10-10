@@ -266,6 +266,15 @@ public final class Animations {
         play(instance, a, b, weight, 1, true, fadeSeconds);
     }
 
+    /**
+     * Moves the current state to normalized time {@code phase} (wrapped into [0, 1) when it loops,
+     * clamped otherwise): desynchronizes crowds playing the same loop.
+     */
+    public void setPhase(int instance, float phase) {
+        check(instance);
+        curPhase[instance] = curLoop[instance] ? phase - (float) Math.floor(phase) : clamp01(phase);
+    }
+
     /** Changes the blend weight of the current state's second clip, in [0, 1]. */
     public void setBlendWeight(int instance, float weight) {
         check(instance);

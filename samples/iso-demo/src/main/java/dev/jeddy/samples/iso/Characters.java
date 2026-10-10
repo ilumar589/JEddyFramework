@@ -5,9 +5,9 @@ import dev.jeddy.asset.format.SceneData;
 import dev.jeddy.render.RenderPacket;
 
 /**
- * The KayKit character models of the demo and how they are placed: flattened (no animation system
- * yet, so the bone hierarchy is baked into the mesh transforms), scaled to the crypt, with one
- * weapon set shown out of the alternatives each model carries.
+ * The KayKit character models of the demo and how they are placed: animated scenes (skinned bodies,
+ * weapons following their hands, TASKS M12-07), scaled to the crypt, with one weapon set shown out
+ * of the alternatives each model carries.
  *
  * <p>Thread ownership: the game thread.
  */
@@ -33,9 +33,27 @@ final class Characters {
         return "characters/" + model + ".jscene";
     }
 
-    /** Places a character facing {@code yaw}; returns its root entity (the group to hide). */
+    /** The rig's attack per party model (see {@link #PARTY}). */
+    static final int[] PARTY_ATTACK = {
+        Animator.ATTACK_1H,
+        Animator.ATTACK_1H,
+        Animator.CAST,
+        Animator.ATTACK_DUAL,
+        Animator.ATTACK_DUAL,
+        Animator.CAST
+    };
+
+    /** The rig's attack per enemy model (see {@link #ENEMIES}). */
+    static final int[] ENEMY_ATTACK = {
+        Animator.ATTACK_1H, Animator.ATTACK_1H, Animator.CAST, Animator.ATTACK_1H
+    };
+
+    /**
+     * Places an animated character facing {@code yaw}; returns its root entity (the group to hide,
+     * and the key of its animation instance).
+     */
     static int spawn(World world, SceneData scene, float x, float y, float z, float yaw) {
-        int root = world.instantiate(scene, x, y, z, yaw, FLAGS, EQUIPMENT, true);
+        int root = world.instantiateAnimated(scene, x, y, z, yaw, FLAGS, EQUIPMENT);
         world.transforms().setScale(root, SCALE, SCALE, SCALE);
         return root;
     }

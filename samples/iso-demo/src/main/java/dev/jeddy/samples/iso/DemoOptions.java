@@ -30,7 +30,7 @@ import java.nio.file.Path;
  *   --alloc-probe         perf: attribute game-thread allocation to systems in the report
  *   --quit-after-first-frame  prints the time from JVM start to the first frame, then quits
  *   --fail-on KEYS        perf: exit with code 4 if these budgets fail (comma separated: game,
- *                         main, gpu, alloc, gc, load)
+ *                         animation, main, gpu, alloc, flags, gc, load)
  * </pre>
  *
  * <p>Thread ownership: parsed on the launching thread, then read-only.
@@ -182,7 +182,8 @@ final class DemoOptions {
           --headless            no GPU, nothing drawn: game-thread perf on servers
           --warmup-frames N     perf: also wait N frames before measuring (default 600)
           --alloc-probe         perf: game-thread allocation by system in the report
-          --fail-on KEYS        perf: exit 4 if these budgets fail (game,main,gpu,alloc,gc,load)
+          --fail-on KEYS        perf: exit 4 if these budgets fail
+                                (game,animation,main,gpu,alloc,flags,gc,load)
         controls:
           left click        select a party member / move the selection
           left drag         box select          right click   move the selection

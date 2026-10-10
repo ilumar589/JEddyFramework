@@ -36,12 +36,14 @@ final class PerfCapture {
     static final double GPU_BUDGET_MS = 12;
     static final double GC_PAUSE_BUDGET_MS = 1;
     static final double LOAD_BUDGET_MS = 3000;
+    static final double ANIMATION_BUDGET_MS = 1;
 
     private final int capacity;
     private final boolean headless;
 
     // Game thread.
     private final long[] gameNanos;
+    private final long[] animationNanos;
     private int gameFrames;
     private final long[] gameAllocated;
     private final long[] workerAllocated;
@@ -96,6 +98,7 @@ final class PerfCapture {
         this.capacity = capacity;
         this.headless = headless;
         gameNanos = new long[capacity];
+        animationNanos = new long[capacity];
         gameAllocated = new long[capacity];
         workerAllocated = new long[capacity];
         gameStamp = new long[capacity];
@@ -145,12 +148,13 @@ final class PerfCapture {
     }
 
     /**
-     * Game thread: records one game frame's CPU time, instance and light counts, and the game and
-     * worker allocation counters. Allocates nothing.
+     * Game thread: records one game frame's CPU time (and the part its animation update took),
+     * instance and light counts, and the game and worker allocation counters. Allocates nothing.
      */
-    void recordGame(long nanos, int frameInstances, int frameLights) {
+    void recordGame(long nanos, int frameInstances, int frameLights, long animation) {
         if (gameFrames < capacity) {
             gameNanos[gameFrames] = nanos;
+            animationNanos[gameFrames] = animation;
             gameAllocated[gameFrames] = currentThreadAllocated();
             workerAllocated[gameFrames] = workerSum();
             gameStamp[gameFrames] = System.nanoTime();
@@ -252,12 +256,14 @@ final class PerfCapture {
 
     /**
      * Writes {@code perf.json} and {@code perf.md} into {@code dir}. Budget keys: {@code game},
-     * {@code main}, {@code gpu}, {@code alloc}, {@code flags}, {@code gc}, {@code load}.
+     * {@code animation}, {@code main}, {@code gpu}, {@code alloc}, {@code flags}, {@code gc},
+     * {@code load}.
      */
     Report write(Path dir, String gpuName, String jvm) throws IOException {
         Files.createDirectories(dir);
         double seconds = (endNanos - startNanos) * 1e-9;
         Stats game = Stats.of(gameNanos, gameFrames);
+        Stats animation = Stats.of(animationNanos, gameFrames);
         Stats main = Stats.of(mainNanos, mainFrames);
         Stats gpu = Stats.ofMillis(gpuMillis, mainFrames);
         long gcCount = gcCountEnd - gcCountStart;
@@ -387,6 +393,17 @@ final class PerfCapture {
                         "<= 8 ms",
                         fmt("avg %.2f / p99 %.2f / max %.2f ms", game.avg, game.p99, game.max),
                         game.p99 <= GAME_BUDGET_MS));
+        rows.add(
+                row(
+                        "animation",
+                        "Animation update ("
+                                + agents
+                                + " characters, those in sight evaluated on jobs)",
+                        "<= 1 ms",
+                        fmt(
+                                "avg %.2f / p99 %.2f / max %.2f ms",
+                                animation.avg, animation.p99, animation.max),
+                        animation.p99 <= ANIMATION_BUDGET_MS));
         rows.add(
                 row(
                         "main",
