@@ -42,19 +42,19 @@ class ProgramCacheTest {
                     Map.of(
                                     "tri.vert",
                                     "#version 460 core\n"
-                                        + "#include \"common.glsl\"\n"
-                                        + "void main() { gl_Position = vec4(SCALE *"
-                                        + " float(gl_VertexID), 0, 0, 1); }\n",
+                                            + "#include \"common.glsl\"\n"
+                                            + "void main() { gl_Position = vec4(SCALE *"
+                                            + " float(gl_VertexID), 0, 0, 1); }\n",
                                     "tri.frag",
                                     "#version 460 core\n"
-                                        + "layout(location = 0) out vec4 color;\n"
-                                        + "void main() {\n"
-                                        + "#ifdef RED\n"
-                                        + " color = vec4(1, 0, 0, 1);\n"
-                                        + "#else\n"
-                                        + " color = vec4(0, 1, 0, 1);\n"
-                                        + "#endif\n"
-                                        + "}\n",
+                                            + "layout(location = 0) out vec4 color;\n"
+                                            + "void main() {\n"
+                                            + "#ifdef RED\n"
+                                            + " color = vec4(1, 0, 0, 1);\n"
+                                            + "#else\n"
+                                            + " color = vec4(0, 1, 0, 1);\n"
+                                            + "#endif\n"
+                                            + "}\n",
                                     "common.glsl",
                                     "#pragma once\nconst float SCALE = 0.5;\n",
                                     "broken.frag",

@@ -29,13 +29,13 @@ class ShaderPreprocessorTest {
                         Map.of(
                                 "pbr/lit.frag",
                                 "#version 460 core\n"
-                                    + "#include \"../common/math.glsl\"\n"
-                                    + "#include \"brdf.glsl\"\n"
-                                    + "void main() {}\n",
+                                        + "#include \"../common/math.glsl\"\n"
+                                        + "#include \"brdf.glsl\"\n"
+                                        + "void main() {}\n",
                                 "pbr/brdf.glsl",
                                 "#pragma once\n"
-                                    + "#include \"/common/math.glsl\"\n"
-                                    + "float D() { return PI; }\n",
+                                        + "#include \"/common/math.glsl\"\n"
+                                        + "float D() { return PI; }\n",
                                 "common/math.glsl",
                                 "#pragma once\nconst float PI = 3.14159;\n"));
         ShaderPreprocessor.Result r =

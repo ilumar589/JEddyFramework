@@ -9,6 +9,8 @@ module dev.jeddy.render {
     requires transitive dev.jeddy.window;
     requires transitive dev.jeddy.asset;
 
+    exports dev.jeddy.render;
     exports dev.jeddy.render.gpu;
+    exports dev.jeddy.render.mesh;
     exports dev.jeddy.render.shader;
 }
