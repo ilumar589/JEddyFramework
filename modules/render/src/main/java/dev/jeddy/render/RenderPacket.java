@@ -34,6 +34,21 @@ public final class RenderPacket {
     /** Instance flag: decals do not project onto it (characters, props standing in AoE areas). */
     public static final int FLAG_NO_DECALS = 16;
 
+    /** First bit of the instance's highlight style in {@link #flags} (4 bits, 0 = none). */
+    public static final int HIGHLIGHT_SHIFT = 8;
+
+    /** Highlight style: hovered (white outline by default). */
+    public static final int HIGHLIGHT_HOVER = 1;
+
+    /** Highlight style: selected (green outline). */
+    public static final int HIGHLIGHT_SELECTED = 2;
+
+    /** Highlight style: hostile under the cursor (red outline). */
+    public static final int HIGHLIGHT_HOSTILE = 3;
+
+    /** Highlight style: interactable while the highlight key is held (gold outline). */
+    public static final int HIGHLIGHT_INTERACTABLE = 4;
+
     private int capacity;
     private int count;
 
@@ -508,6 +523,19 @@ public final class RenderPacket {
         flags[i] = instanceFlags;
         entity[i] = entityHandle;
         return i;
+    }
+
+    /**
+     * Gives instance {@code i} a highlight style (1..15, the {@code HIGHLIGHT_*} defaults or game
+     * styles set on the renderer's outlines), or removes it with 0. Sets or clears {@link
+     * #FLAG_HIGHLIGHT}.
+     */
+    public void setHighlight(int i, int style) {
+        int f = flags[i] & ~(0xF << HIGHLIGHT_SHIFT) & ~FLAG_HIGHLIGHT;
+        if (style != 0) {
+            f |= (style & 0xF) << HIGHLIGHT_SHIFT | FLAG_HIGHLIGHT;
+        }
+        flags[i] = f;
     }
 
     /** Sets the world bounding sphere of instance {@code i}. */

@@ -1,15 +1,16 @@
 #version 460 core
 // HDR composite (TASKS M7-06, DESIGN §9.3 pass 9): bloom mixed in, exposure (automatic times
-// compensation), AgX or ACES tone mapping, sRGB encoding, a color-grading LUT in display space
-// and a dither. Writes the display image, with its luma in alpha when FXAA follows.
+// compensation), AgX or ACES tone mapping, sRGB encoding, a color-grading LUT in display space,
+// an overlay (outlines) and a dither. Writes the display image, with its luma in alpha for FXAA.
 #include "/engine/color.glsl"
 #include "exposure.glsl"
 
 layout(binding = 0) uniform sampler2D uHdr;
 layout(binding = 1) uniform sampler2D uBloom;
 layout(binding = 2) uniform sampler3D uLut;
+layout(binding = 3) uniform sampler2D uOverlay; // premultiplied, sRGB-encoded
 layout(location = 0) uniform vec4 uParams; // x compensation, y bloom mix, z 1 / bloom levels, w LUT size
-layout(location = 1) uniform uint uFlags;  // bit 0 AgX (else ACES), 1 LUT, 2 dither, 3 bloom
+layout(location = 1) uniform uint uFlags;  // bit 0 AgX (else ACES), 1 LUT, 2 dither, 3 bloom, 4 overlay
 layout(location = 0) in vec2 vUv;
 layout(location = 0) out vec4 outColor;
 
@@ -25,6 +26,10 @@ void main() {
     if ((uFlags & 2u) != 0u) {
         float n = uParams.w;
         encoded = textureLod(uLut, encoded * ((n - 1.0) / n) + 0.5 / n, 0.0).rgb;
+    }
+    if ((uFlags & 16u) != 0u) {
+        vec4 o = textureLod(uOverlay, vUv, 0.0);
+        encoded = encoded * (1.0 - o.a) + o.rgb;
     }
     if ((uFlags & 4u) != 0u) {
         encoded += (jeddyGradientNoise(gl_FragCoord.xy) - 0.5) / 255.0;

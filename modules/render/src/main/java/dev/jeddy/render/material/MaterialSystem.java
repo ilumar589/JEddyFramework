@@ -438,6 +438,36 @@ public final class MaterialSystem implements AutoCloseable {
      */
     public final DrawBuilder.BatchBinder depthOnly;
 
+    /**
+     * Creates a binder like {@link #depthOnly} for another program defined with {@link #features()}
+     * (only the alpha-mask and base-color bits select variants): masks, IDs, custom depth-like
+     * passes. Create it once; binding allocates nothing.
+     *
+     * @param definition the program definition
+     * @param uniforms sets per-program uniforms as the binder switches programs
+     * @param pipeline the pipeline state (double-sided materials disable culling)
+     */
+    public DrawBuilder.BatchBinder depthBinder(
+            int definition, DepthUniforms uniforms, long pipeline) {
+        return (state, slot, translucent) -> {
+            if (translucent) {
+                return false;
+            }
+            long mask = table.slotMask(slot);
+            int program = programs.get(definition, mask & DEPTH_FEATURES);
+            if (program == 0) {
+                return false;
+            }
+            state.apply(cullFor(pipeline, mask));
+            state.useProgram(program);
+            uniforms.prepare(program);
+            if ((mask & MaterialData.FEATURE_ALPHA_MASK) != 0) {
+                bindSet(state, table.slotTextureSet(slot));
+            }
+            return true;
+        };
+    }
+
     /** Sets uniforms on depth programs as the depth binder switches to them. */
     @FunctionalInterface
     public interface DepthUniforms {

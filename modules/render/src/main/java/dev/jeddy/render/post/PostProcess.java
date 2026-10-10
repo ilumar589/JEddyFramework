@@ -47,6 +47,7 @@ public final class PostProcess implements AutoCloseable {
     private static final int FLAG_LUT = 2;
     private static final int FLAG_DITHER = 4;
     private static final int FLAG_BLOOM = 8;
+    private static final int FLAG_OVERLAY = 16;
 
     /** Tone curves. */
     public enum Tonemapper {
@@ -156,6 +157,7 @@ public final class PostProcess implements AutoCloseable {
     private final int[] up = new int[MAX_BLOOM_LEVELS];
     private int hdr = -1;
     private int ldr = -1;
+    private int overlay = -1;
     private Tonemapper tonemapper;
     private float bloomIntensity;
     private AutoExposure autoExposure;
@@ -194,13 +196,16 @@ public final class PostProcess implements AutoCloseable {
 
     /**
      * Declares the passes after everything that draws into {@code hdrResource}: they read it and
-     * write the window's framebuffer.
+     * write the window's framebuffer. {@code overlayResource} (or -1) is a premultiplied,
+     * sRGB-encoded RGBA image composited over the tone-mapped scene before anti-aliasing
+     * (outlines).
      */
-    public void declare(FrameGraph graph, int hdrResource) {
+    public void declare(FrameGraph graph, int hdrResource, int overlayResource) {
         if (hdr >= 0) {
             throw new IllegalStateException("already declared");
         }
         hdr = hdrResource;
+        overlay = overlayResource;
         int exposure = graph.importedBuffer("exposure");
         graph.setBuffer(exposure, device.buffers().glName(exposureBuffer));
         float scale = 1f;
@@ -238,6 +243,9 @@ public final class PostProcess implements AutoCloseable {
                 graph.addPass("tonemap", this::tonemap).readsTexture(hdr).readsStorage(exposure);
         if (bloomLevels > 0) {
             composite.readsTexture(up[0]);
+        }
+        if (overlay >= 0) {
+            composite.readsTexture(overlay);
         }
         if (fxaaPass) {
             ldr = graph.texture("display", GL_RGBA8, 1f);
@@ -441,6 +449,11 @@ public final class PostProcess implements AutoCloseable {
         }
         if (!fxaaPass) {
             flags |= FLAG_DITHER;
+        }
+        if (overlay >= 0) {
+            flags |= FLAG_OVERLAY;
+            state.bindTexture(3, ctx.texture(overlay));
+            state.bindSampler(3, linearClamp);
         }
         if (bloomLevels > 0 && bloomIntensity > 0) {
             flags |= FLAG_BLOOM;
