@@ -15,4 +15,5 @@ module dev.jeddy.app {
     requires dev.jeddy.sdl;
 
     exports dev.jeddy.app;
+    exports dev.jeddy.app.physics;
 }

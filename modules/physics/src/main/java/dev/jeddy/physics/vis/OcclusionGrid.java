@@ -21,6 +21,9 @@ public final class OcclusionGrid {
     /** Format magic of serialized grids ({@code .jocc}). */
     public static final int MAGIC = 0x43434F4A; // "JOCC"
 
+    /** Format version. */
+    public static final int VERSION = 1;
+
     private final float minX;
     private final float minZ;
     private final float cellSize;
@@ -245,10 +248,11 @@ public final class OcclusionGrid {
         return n;
     }
 
-    /** Serializes ({@code .jocc}, little-endian: magic, width, height, cell size, origin, bits). */
+    /** Serializes ({@code .jocc}, docs/formats/jocc.md). */
     public byte[] toBytes() {
-        ByteBuffer b = ByteBuffer.allocate(24 + bits.length * 8).order(ByteOrder.LITTLE_ENDIAN);
+        ByteBuffer b = ByteBuffer.allocate(28 + bits.length * 8).order(ByteOrder.LITTLE_ENDIAN);
         b.putInt(MAGIC)
+                .putInt(VERSION)
                 .putInt(width)
                 .putInt(height)
                 .putFloat(cellSize)
@@ -263,8 +267,12 @@ public final class OcclusionGrid {
     /** Reads a serialized grid. */
     public static OcclusionGrid read(ByteBuffer data) {
         ByteBuffer b = data.duplicate().order(ByteOrder.LITTLE_ENDIAN);
-        if (b.remaining() < 24 || b.getInt() != MAGIC) {
+        if (b.remaining() < 28 || b.getInt() != MAGIC) {
             throw new IllegalArgumentException("not a .jocc occlusion grid");
+        }
+        int version = b.getInt();
+        if (version != VERSION) {
+            throw new IllegalArgumentException(".jocc version " + version + " is not supported");
         }
         int w = b.getInt();
         int h = b.getInt();
