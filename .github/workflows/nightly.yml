@@ -15,6 +15,10 @@ on:
         description: 'Only the 10-minute perf capture (skip JMH)'
         type: boolean
         default: false
+      alloc-stacks:
+        description: 'Record allocation stacks in the perf capture (JFR, small TLABs)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -101,7 +105,12 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p samples/iso-demo/build/perf
-          ./gradlew :iso-demo:run -Pjeddy.jvmArgs="-Xlog:gc*:file=build/perf/gc.log" \
+          jvm="-Xlog:gc*:file=build/perf/gc.log -Xlog:class+load=info:file=build/perf/classload.log:uptime"
+          if [ "${{ inputs.alloc-stacks }}" = "true" ]; then
+            jvm="$jvm -XX:MinTLABSize=256 -XX:TLABSize=256 -XX:-ResizeTLAB"
+            jvm="$jvm -XX:StartFlightRecording=filename=build/perf/alloc.jfr,settings=$GITHUB_WORKSPACE/.github/jfr/alloc.jfc"
+          fi
+          ./gradlew :iso-demo:run -Pjeddy.jvmArgs="$jvm" \
             --args="--headless --perf 600 --warmup 60 --alloc-probe --report build/perf --fail-on alloc,game" 2>&1 | tee perf.log
 
       - name: Report
@@ -110,6 +119,10 @@ jobs:
         run: |
           if [ -f samples/iso-demo/build/perf/perf.md ]; then cat samples/iso-demo/build/perf/perf.md >> "$GITHUB_STEP_SUMMARY"; fi
           python3 .github/scripts/perf-annotate.py samples/iso-demo/build/perf/perf.json || true
+          python3 .github/scripts/late-classes.py samples/iso-demo/build/perf/perf.json samples/iso-demo/build/perf/classload.log || true
+          if [ -f samples/iso-demo/build/perf/alloc.jfr ]; then
+            python3 .github/scripts/alloc-stacks.py samples/iso-demo/build/perf/perf.json samples/iso-demo/build/perf/alloc.jfr || true
+          fi
 
       - name: Upload the perf report
         if: always()

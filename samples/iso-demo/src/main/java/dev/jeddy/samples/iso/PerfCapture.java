@@ -58,6 +58,8 @@ final class PerfCapture {
     private long startNanos;
     private long endNanos;
     private long uptimeOriginNanos;
+    private long beginEpochMillis;
+    private long endEpochMillis;
 
     /** The run's {@link JitLog}, or {@code null} to judge allocation strictly. */
     Path jitLog;
@@ -128,6 +130,7 @@ final class PerfCapture {
         workerSum(); // links the counter calls before the first recorded frame
         currentThreadAllocated();
         long uptime = ManagementFactory.getRuntimeMXBean().getUptime();
+        beginEpochMillis = System.currentTimeMillis();
         startNanos = System.nanoTime();
         uptimeOriginNanos = startNanos - uptime * 1_000_000L;
     }
@@ -161,6 +164,7 @@ final class PerfCapture {
     /** Game thread: closes the measured window (cold; allocates). */
     void end() {
         endNanos = System.nanoTime();
+        endEpochMillis = System.currentTimeMillis();
         long[] gc = gc();
         gcCountEnd = gc[0];
         gcMillisEnd = gc[1];
@@ -328,6 +332,11 @@ final class PerfCapture {
 
         Map<String, Object> json = new LinkedHashMap<>();
         json.put("seconds", seconds);
+        // The window on the JVM's clocks, for logs and recordings (class loading, JFR).
+        json.put("uptimeStartMs", (double) uptimeMillis(startNanos));
+        json.put("uptimeEndMs", (double) uptimeMillis(endNanos));
+        json.put("epochStartMs", (double) beginEpochMillis);
+        json.put("epochEndMs", (double) endEpochMillis);
         json.put("gpu", gpuName);
         json.put("jvm", jvm);
         json.put("agents", (double) agents);
