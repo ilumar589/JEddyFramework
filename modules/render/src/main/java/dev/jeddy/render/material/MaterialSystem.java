@@ -52,7 +52,8 @@ public final class MaterialSystem implements AutoCloseable {
             MaterialData.FEATURE_ALPHA_MASK
                     | MaterialData.FEATURE_BASE_COLOR_MAP
                     | MaterialData.FEATURE_UV_TRANSFORM
-                    | MaterialData.FEATURE_UV1;
+                    | MaterialData.FEATURE_UV1
+                    | MaterialTable.SKINNED;
 
     private static final int[] FEATURE_OF_SLOT = {
         MaterialData.FEATURE_BASE_COLOR_MAP,
@@ -167,6 +168,7 @@ public final class MaterialSystem implements AutoCloseable {
                             ? MaterialData.FEATURE_NAMES.get(i)
                             : "J_RESERVED_" + i;
         }
+        names[15] = "SKINNED"; // MaterialTable.SKINNED
         for (int i = 16; i < 32; i++) {
             names[i] = "MATERIAL_CUSTOM_" + i;
         }
@@ -507,6 +509,16 @@ public final class MaterialSystem implements AutoCloseable {
      */
     public void compileBlocking(int material) {
         int slot = table.programSlot(material);
+        programs.getBlocking(pbrProgram, table.slotMask(slot));
+        programs.getBlocking(depthProgram, table.slotMask(slot) & DEPTH_FEATURES);
+    }
+
+    /**
+     * Compiles the {@link MaterialTable#SKINNED} lit and depth variants of a material now (loading
+     * screens, tests), preparing its skinned program slot.
+     */
+    public void compileBlockingSkinned(int material) {
+        int slot = table.prepareSkinned(table.programSlot(material));
         programs.getBlocking(pbrProgram, table.slotMask(slot));
         programs.getBlocking(depthProgram, table.slotMask(slot) & DEPTH_FEATURES);
     }

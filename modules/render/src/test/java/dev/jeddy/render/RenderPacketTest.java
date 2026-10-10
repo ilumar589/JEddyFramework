@@ -35,6 +35,45 @@ class RenderPacketTest {
     }
 
     @Test
+    void palettesAppendAndTagInstancesInTheHighFlagBits() {
+        RenderPacket p = new RenderPacket(4);
+        float[] world = new float[12];
+        AffineOps.identity(world, 0);
+        int a = p.add(world, 0, world, 0, 1, 0, RenderPacket.FLAG_STATIC | 2, 0);
+        p.setHighlight(a, RenderPacket.HIGHLIGHT_SELECTED);
+        float[] joints = new float[12 * 300];
+        for (int k = 0; k < joints.length; k++) {
+            joints[k] = k;
+        }
+        assertEquals(0, p.addPalette(joints, 0, 41));
+        int second = p.addPalette(joints, 12, 299); // grows the array
+        assertEquals(41, second);
+        assertEquals(340, p.paletteCount);
+        assertEquals(12, p.palettes[41 * 12]);
+        assertEquals(-1, p.palette(a));
+        p.setPalette(a, second);
+        assertEquals(second, p.palette(a));
+        assertEquals(0, p.flags[a] & RenderPacket.FLAG_STATIC, "skinned is never static");
+        assertEquals(2, p.flags[a] & 2);
+        assertEquals(
+                RenderPacket.HIGHLIGHT_SELECTED,
+                p.flags[a] >>> RenderPacket.HIGHLIGHT_SHIFT & 0xF,
+                "the highlight survives");
+        p.setPalette(a, -1);
+        assertEquals(-1, p.palette(a));
+        assertEquals(RenderPacket.FLAG_HIGHLIGHT, p.flags[a] & RenderPacket.FLAG_HIGHLIGHT);
+        p.reset();
+        assertEquals(0, p.paletteCount);
+        p.reserve(4, 0, 0, 0, 0, 2000);
+        Allocations.assertNoAllocation(
+                "palettes",
+                () -> {
+                    p.paletteCount = 0;
+                    p.addPalette(joints, 0, 300);
+                });
+    }
+
+    @Test
     void gameAndMainThreadsExchangePacketsWithoutLocks() throws Exception {
         RenderPackets packets = new RenderPackets(1024);
         TripleBuffer frames = new TripleBuffer();

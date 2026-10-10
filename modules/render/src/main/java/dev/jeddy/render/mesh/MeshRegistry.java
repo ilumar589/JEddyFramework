@@ -22,6 +22,12 @@ import java.util.Arrays;
  * with free lists and grown by doubling. One vertex array describes them all, so drawing any mesh
  * is a base vertex and an index range; multi-draw-indirect batches whole passes.
  *
+ * <p>Skinned meshes (TASKS M12-04, D80) add a fourth buffer parallel to the vertex space: the skin
+ * stream (16 B per vertex: four {@code u16} joints, four {@code unorm16} weights) as attributes 4
+ * and 5. It is created with the first skinned mesh, so scenes without skinning never pay for it;
+ * the vertices of unskinned meshes hold whatever the buffer held, which only {@code SKINNED}
+ * programs read.
+ *
  * <p>Per-mesh data is SoA: vertex and index ranges, bounding sphere, and flat tables of submeshes
  * (base vertex, material slot) and LOD ranges (first index and count per LOD and submesh).
  *
@@ -35,6 +41,9 @@ public final class MeshRegistry implements AutoCloseable {
     /** Vertex buffer binding of the attribute stream. */
     public static final int BINDING_ATTRIBUTES = 1;
 
+    /** Vertex buffer binding of the skin stream (attributes 4 and 5). */
+    public static final int BINDING_SKIN = 2;
+
     private final GpuDevice device;
     private final UploadRing ring;
     private final Arena arena = Arena.ofConfined();
@@ -43,6 +52,7 @@ public final class MeshRegistry implements AutoCloseable {
     private int positions;
     private int attributes;
     private int indices;
+    private int skins; // 0 until the first skinned mesh
     private final RangeAllocator vertexSpace;
     private final RangeAllocator indexSpace;
     private final RangeAllocator submeshSpace = new RangeAllocator(1024);
@@ -61,6 +71,7 @@ public final class MeshRegistry implements AutoCloseable {
     private int[] drawBase = new int[256];
     private int[] lodBase = new int[256];
     private float[] spheres = new float[256 * 4];
+    private boolean[] skinned = new boolean[256];
 
     // Flat tables.
     private int[] submeshBaseVertex = new int[1024]; // absolute
@@ -112,6 +123,11 @@ public final class MeshRegistry implements AutoCloseable {
         glEnableVertexArrayAttrib(vao, 3);
         glVertexArrayAttribFormat(vao, 3, 2, GL_HALF_FLOAT, false, 12);
         glVertexArrayAttribBinding(vao, 3, BINDING_ATTRIBUTES);
+        // Skin stream: integer joints and normalized weights. Enabled only once the buffer exists.
+        glVertexArrayAttribIFormat(vao, 4, 4, GL_UNSIGNED_SHORT, 0);
+        glVertexArrayAttribBinding(vao, 4, BINDING_SKIN);
+        glVertexArrayAttribFormat(vao, 5, 4, GL_UNSIGNED_SHORT, true, 8);
+        glVertexArrayAttribBinding(vao, 5, BINDING_SKIN);
         bindBuffers();
     }
 
@@ -122,6 +138,21 @@ public final class MeshRegistry implements AutoCloseable {
         glVertexArrayVertexBuffer(
                 vao, BINDING_ATTRIBUTES, b.glName(attributes), 0, MeshData.ATTRIBUTE_STRIDE);
         glVertexArrayElementBuffer(vao, b.glName(indices));
+        if (skins != 0) {
+            glVertexArrayVertexBuffer(vao, BINDING_SKIN, b.glName(skins), 0, MeshData.SKIN_STRIDE);
+        }
+    }
+
+    private void createSkins() {
+        skins =
+                device.buffers()
+                        .create(
+                                vertexSpace.capacity() * MeshData.SKIN_STRIDE,
+                                GpuBuffers.DYNAMIC,
+                                "mesh skins");
+        glEnableVertexArrayAttrib(vao, 4);
+        glEnableVertexArrayAttrib(vao, 5);
+        bindBuffers();
     }
 
     /** Returns the vertex array to bind for every mesh draw. */
@@ -148,6 +179,12 @@ public final class MeshRegistry implements AutoCloseable {
         upload(b.glName(positions), vOff * MeshData.POSITION_STRIDE, data.positions());
         upload(b.glName(attributes), vOff * MeshData.ATTRIBUTE_STRIDE, data.attributes());
         upload(b.glName(indices), iOff * 4, data.indices());
+        if (data.hasSkin()) {
+            if (skins == 0) {
+                createSkins();
+            }
+            upload(b.glName(skins), vOff * MeshData.SKIN_STRIDE, data.skin());
+        }
 
         int h = handles.allocate();
         int m = Handles.index(h);
@@ -164,6 +201,7 @@ public final class MeshRegistry implements AutoCloseable {
         for (int i = 0; i < 4; i++) {
             spheres[m * 4 + i] = data.sphere(i);
         }
+        skinned[m] = data.hasSkin();
         for (int s = 0; s < sc; s++) {
             submeshBaseVertex[sBase + s] = (int) vOff + data.submeshBaseVertex(s);
             submeshMaterial[sBase + s] = data.submeshMaterial(s);
@@ -200,6 +238,19 @@ public final class MeshRegistry implements AutoCloseable {
     /** Returns {@code true} if {@code mesh} is a live handle. */
     public boolean isValid(int mesh) {
         return handles.isValid(mesh);
+    }
+
+    /**
+     * Returns {@code true} if a mesh has the skin stream (it draws with {@code SKINNED} programs
+     * when its instance carries a palette).
+     */
+    public boolean isSkinned(int mesh) {
+        return skinned[Handles.index(mesh)];
+    }
+
+    /** Returns {@code true} once a skinned mesh was added (the skin buffer exists). */
+    public boolean hasSkins() {
+        return skins != 0;
     }
 
     /** Returns the number of submeshes. */
@@ -318,6 +369,14 @@ public final class MeshRegistry implements AutoCloseable {
                                 old * MeshData.ATTRIBUTE_STRIDE,
                                 cap * MeshData.ATTRIBUTE_STRIDE,
                                 "mesh attributes");
+                if (skins != 0) {
+                    skins =
+                            regrow(
+                                    skins,
+                                    old * MeshData.SKIN_STRIDE,
+                                    cap * MeshData.SKIN_STRIDE,
+                                    "mesh skins");
+                }
             } else {
                 indices = regrow(indices, old * 4, cap * 4, "mesh indices");
             }
@@ -374,6 +433,7 @@ public final class MeshRegistry implements AutoCloseable {
         drawBase = Arrays.copyOf(drawBase, c);
         lodBase = Arrays.copyOf(lodBase, c);
         spheres = Arrays.copyOf(spheres, c * 4);
+        skinned = Arrays.copyOf(skinned, c);
     }
 
     private int check(int mesh) {
@@ -392,6 +452,9 @@ public final class MeshRegistry implements AutoCloseable {
         b.destroy(positions);
         b.destroy(attributes);
         b.destroy(indices);
+        if (skins != 0) {
+            b.destroy(skins);
+        }
         arena.close();
     }
 }
