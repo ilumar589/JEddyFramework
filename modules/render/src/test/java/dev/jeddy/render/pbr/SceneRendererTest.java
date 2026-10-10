@@ -48,6 +48,7 @@ class SceneRendererTest {
     private static ProgramCache programs;
     private static SceneRenderer renderer;
     private static int sphere;
+    private static int ground;
     private static MemorySegment pixels;
 
     private final RenderPacket packet = new RenderPacket(64);
@@ -71,6 +72,7 @@ class SceneRendererTest {
         renderer.resize(SIZE, SIZE);
         upload.beginFrame();
         sphere = meshes.add(TestMeshes.sphere(ARENA, 0.4f, 32, 16));
+        ground = meshes.add(TestMeshes.plane(ARENA, 6));
         upload.endFrame();
         pixels = ARENA.allocate((long) SIZE * SIZE * 16, 16);
     }
@@ -113,9 +115,23 @@ class SceneRendererTest {
         world[3] = x;
         world[7] = y;
         world[11] = z;
-        int i = packet.add(world, 0, world, 0, sphere, material, 0, 0);
+        int i = packet.add(world, 0, world, 0, sphere, material, RenderPacket.FLAG_CASTS_SHADOW, 0);
         packet.setBounds(i, x, y, z, 0.4f);
         return i;
+    }
+
+    private void lookFrom(float ex, float ey, float ez, float tx, float ty, float tz) {
+        float[] view = new float[16];
+        float[] proj = new float[16];
+        float[] vp = new float[16];
+        float[] inv = new float[16];
+        Mat4Ops.lookAt(ex, ey, ez, tx, ty, tz, 0, 1, 0, view, 0);
+        Mat4Ops.perspectiveReversedZ((float) Math.toRadians(40), 1, 0.1f, proj, 0);
+        Mat4Ops.mul(proj, 0, view, 0, vp, 0);
+        Mat4Ops.invert(vp, 0, inv, 0);
+        float[] planes = new float[CullOps.PLANES_FLOATS];
+        CullOps.extractPlanes(vp, 0, planes);
+        packet.setCamera(view, proj, vp, inv, planes, ex, ey, ez);
     }
 
     private static int material(float metallic, float roughness, float r, float g, float b) {
@@ -382,5 +398,110 @@ class SceneRendererTest {
                 manager.update();
             }
         }
+    }
+
+    @Test
+    void sunCastsShadowsOnTheGround() {
+        renderer.environment().setUniform(0, 0, 0);
+        lookFrom(0, 3, 3, 0, -0.4f, 0);
+        packet.sunDirection[0] = 1; // 45 degrees: the shadow falls on +x, in view of the camera
+        packet.sunDirection[1] = -1;
+        packet.sunDirection[2] = 0;
+        packet.sunColor[0] = packet.sunColor[1] = packet.sunColor[2] = 2;
+        int white = material(0, 0.8f, 1, 1, 1);
+        addSphere(0, 0, 0, white);
+        float[] world = new float[12];
+        AffineOps.identity(world, 0);
+        world[7] = -0.4f;
+        int g = packet.add(world, 0, world, 0, ground, white, RenderPacket.FLAG_CASTS_SHADOW, 0);
+        packet.setBounds(g, 0, -0.4f, 0, 4.3f);
+        render();
+        assertEquals(3, renderer.sunShadows().cascadeCount());
+        int[] under = screen(0.8f, -0.4f, 0.0f);
+        int[] open = screen(-1.0f, -0.4f, 0.5f);
+        float shadowed = hdr(under[0], under[1], 0);
+        float lit = hdr(open[0], open[1], 0);
+        assertTrue(lit > 0.3f, "open ground is lit: " + lit);
+        assertTrue(
+                shadowed < lit * 0.25f,
+                "ground under the sphere is in shadow: " + shadowed + " vs " + lit);
+        // The top of the sphere faces the sun and is not self-shadowed (no acne).
+        int[] top = screen(0, 0.38f, 0.05f);
+        assertTrue(hdr(top[0], top[1], 0) > 0.3f, "sphere top lit: " + hdr(top[0], top[1], 0));
+
+        // Without the shadow flag the sphere casts nothing.
+        packet.flags[0] = 0;
+        render();
+        assertTrue(
+                hdr(under[0], under[1], 0) > lit * 0.8f,
+                "no caster, no shadow: " + hdr(under[0], under[1], 0));
+    }
+
+    @Test
+    void spotAndPointLightsCastCachedShadows() {
+        renderer.environment().setUniform(0, 0, 0);
+        lookFrom(0, 3, 3, 0, -0.4f, 0);
+        int white = material(0, 0.8f, 1, 1, 1);
+        addSphere(0, 0, 0, white); // dynamic caster
+        float[] world = new float[12];
+        AffineOps.identity(world, 0);
+        world[7] = -0.4f;
+        int g =
+                packet.add(
+                        world,
+                        0,
+                        world,
+                        0,
+                        ground,
+                        white,
+                        RenderPacket.FLAG_CASTS_SHADOW | RenderPacket.FLAG_STATIC,
+                        0);
+        packet.setBounds(g, 0, -0.4f, 0, 4.3f);
+        float dx = 2;
+        float dy = -2.4f;
+        float len = (float) Math.sqrt(dx * dx + dy * dy);
+        int spot =
+                packet.addSpotLight(-1.5f, 2, 0, dx / len, dy / len, 0, 8, 1, 1, 1, 12, 0.6f, 1.0f);
+        packet.setLightShadow(spot, 7);
+        int[] shadowed = screen(0.6f, -0.4f, 0);
+        int[] lit = screen(-0.8f, -0.4f, 0.8f);
+        render();
+        float s = hdr(shadowed[0], shadowed[1], 0);
+        float l = hdr(lit[0], lit[1], 0);
+        assertTrue(l > 0.2f, "spot-lit ground: " + l);
+        assertTrue(s < l * 0.15f, "spot shadow of the sphere: " + s + " vs " + l);
+        int renders = renderer.localShadows().staticRenders();
+        assertEquals(1, renders, "one spot view rendered its static casters once");
+
+        // Moving a dynamic caster keeps the static cache.
+        packet.currWorld[3] = 3;
+        packet.prevWorld[3] = 3;
+        packet.bounds[0] = 3;
+        render();
+        assertEquals(renders, renderer.localShadows().staticRenders());
+        // Farther from the light and more grazing, the point gets about 0.55 of the reference.
+        float unshadowed = hdr(shadowed[0], shadowed[1], 0);
+        assertTrue(
+                unshadowed > s * 4 && unshadowed > l * 0.4f,
+                "the shadow moved away with the sphere: " + unshadowed + " vs " + s);
+        packet.currWorld[3] = 0;
+        packet.prevWorld[3] = 0;
+        packet.bounds[0] = 0;
+
+        // Moving the light refreshes it; a point light renders all six faces.
+        packet.lightCount = 0;
+        int point = packet.addPointLight(-1.5f, 2, 0, 8, 1, 1, 1, 12);
+        packet.setLightShadow(point, 7);
+        render();
+        assertEquals(renders + 6, renderer.localShadows().staticRenders());
+        float ps = hdr(shadowed[0], shadowed[1], 0);
+        float pl = hdr(lit[0], lit[1], 0);
+        assertTrue(ps < pl * 0.15f, "point light shadow: " + ps + " vs " + pl);
+        render();
+        assertEquals(renders + 6, renderer.localShadows().staticRenders(), "cached again");
+        packet.staticVersion++;
+        render();
+        assertEquals(
+                renders + 12, renderer.localShadows().staticRenders(), "static geometry changed");
     }
 }

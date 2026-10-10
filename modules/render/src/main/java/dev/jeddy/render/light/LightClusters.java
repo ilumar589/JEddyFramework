@@ -146,6 +146,11 @@ public final class LightClusters implements AutoCloseable {
         return true;
     }
 
+    /** Returns the ring offset of this frame's light array (to patch shadow indices). */
+    public long lightsOffset() {
+        return lightsOffset;
+    }
+
     /** Returns the light count to put in the frame constants (0 if the upload failed). */
     public int frameLightCount() {
         return lightCount;

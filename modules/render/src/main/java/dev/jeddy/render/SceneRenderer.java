@@ -19,6 +19,8 @@ import dev.jeddy.render.material.MaterialSystem;
 import dev.jeddy.render.mesh.MeshRegistry;
 import dev.jeddy.render.shader.ProgramCache;
 import dev.jeddy.render.shader.ShaderFeatures;
+import dev.jeddy.render.shadow.LocalShadows;
+import dev.jeddy.render.shadow.SunShadows;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -45,10 +47,27 @@ public final class SceneRenderer implements AutoCloseable {
      *
      * @param ringBytesPerFrame per-frame ring size (instance records, commands, lights, constants)
      * @param maxMaterials initial material capacity
+     * @param sunShadows cascade settings, or {@code null} for no sun shadows
+     * @param localShadows spot and point shadow atlas settings, or {@code null} for none
      */
-    public record Config(long ringBytesPerFrame, int maxMaterials) {
-        /** 32 MiB per frame, 256 materials. */
-        public static final Config DEFAULT = new Config(32L << 20, 256);
+    public record Config(
+            long ringBytesPerFrame,
+            int maxMaterials,
+            SunShadows.Config sunShadows,
+            LocalShadows.Config localShadows) {
+        /** 32 MiB per frame, 256 materials, default sun cascades and shadow atlas. */
+        public static final Config DEFAULT =
+                new Config(32L << 20, 256, SunShadows.Config.DEFAULT, LocalShadows.Config.DEFAULT);
+
+        /** Returns a copy with other sun shadow settings ({@code null} turns them off). */
+        public Config withSunShadows(SunShadows.Config value) {
+            return new Config(ringBytesPerFrame, maxMaterials, value, localShadows);
+        }
+
+        /** Returns a copy with other local shadow settings ({@code null} turns them off). */
+        public Config withLocalShadows(LocalShadows.Config value) {
+            return new Config(ringBytesPerFrame, maxMaterials, sunShadows, value);
+        }
     }
 
     private final GpuDevice device;
@@ -57,6 +76,8 @@ public final class SceneRenderer implements AutoCloseable {
     private final MaterialSystem materials;
     private final Environment environment;
     private final LightClusters clusters;
+    private final SunShadows sunShadows;
+    private final LocalShadows localShadows;
     private final FrameRing ring;
     private final Culling culling;
     private final DrawBuilder draws;
@@ -71,6 +92,8 @@ public final class SceneRenderer implements AutoCloseable {
     private final int hdr;
     private final int depth;
     private final int clusterItems;
+    private final int sunCascades;
+    private final int shadowAtlas;
     private int[] visible = new int[1024];
     private RenderPacket packet;
     private long frameOffset;
@@ -94,6 +117,20 @@ public final class SceneRenderer implements AutoCloseable {
         this.ring = new FrameRing(device, config.ringBytesPerFrame(), 3, "scene ring");
         this.culling = new Culling(jobs);
         this.draws = new DrawBuilder(meshes, materials.table(), jobs);
+        this.sunShadows =
+                config.sunShadows() == null
+                        ? null
+                        : new SunShadows(device, meshes, materials, jobs, config.sunShadows());
+        if (sunShadows != null) {
+            materials.setGlobalFeatures(materials.globalFeatures() | MaterialSystem.SUN_SHADOWS);
+        }
+        this.localShadows =
+                config.localShadows() == null
+                        ? null
+                        : new LocalShadows(device, meshes, materials, jobs, config.localShadows());
+        if (localShadows != null) {
+            materials.setGlobalFeatures(materials.globalFeatures() | MaterialSystem.LOCAL_SHADOWS);
+        }
         MemorySegment id = arena.allocate(4);
         glCreateVertexArrays(1, id);
         emptyVao = id.get(ValueLayout.JAVA_INT, 0);
@@ -112,12 +149,24 @@ public final class SceneRenderer implements AutoCloseable {
         hdr = graph.texture("hdr", GL_RGBA16F, 1f);
         depth = graph.texture("depth", GL_DEPTH_COMPONENT32F, 1f);
         clusterItems = graph.importedBuffer("cluster lights");
+        sunCascades = graph.importedTexture("sun cascades");
+        shadowAtlas = graph.importedTexture("shadow atlas");
+        if (sunShadows != null) {
+            graph.setTexture(sunCascades, device.textures().glName(sunShadows.texture()));
+        }
+        if (localShadows != null) {
+            graph.setTexture(shadowAtlas, device.textures().glName(localShadows.texture()));
+        }
         graph.addComputePass("light cull", this::lightCull).writes(clusterItems);
+        graph.addPass("sun shadows", this::sunShadowPass).writes(sunCascades);
+        graph.addPass("local shadows", this::localShadowPass).writes(shadowAtlas);
         graph.addPass("depth prepass", this::depthPrepass).depth(depth, 0f);
         graph.addPass("opaque", this::opaque)
                 .color(hdr, 0, 0, 0, 1)
                 .depthReadOnly(depth)
-                .readsStorage(clusterItems);
+                .readsStorage(clusterItems)
+                .readsTexture(sunCascades)
+                .readsTexture(shadowAtlas);
         graph.addPass("sky", this::sky).color(hdr).depthReadOnly(depth);
         graph.addPass("resolve", this::resolve).readsTexture(hdr).color(FrameGraph.BACKBUFFER);
     }
@@ -135,6 +184,16 @@ public final class SceneRenderer implements AutoCloseable {
     /** Returns the light clusters. */
     public LightClusters clusters() {
         return clusters;
+    }
+
+    /** Returns the sun cascades, or {@code null} when disabled. */
+    public SunShadows sunShadows() {
+        return sunShadows;
+    }
+
+    /** Returns the spot and point light shadows, or {@code null} when disabled. */
+    public LocalShadows localShadows() {
+        return localShadows;
     }
 
     /** Returns the frame graph (debug views, timings, extra passes). */
@@ -172,10 +231,17 @@ public final class SceneRenderer implements AutoCloseable {
             visible = new int[Math.max(p.count(), visible.length * 2)];
         }
         int n = culling.cull(p, visible);
-        draws.setLod(lodPixels(p), p.orthographic, 1f);
+        float lod = lodPixels(p);
+        draws.setLod(lod, p.orthographic, 1f);
         draws.build(p, visible, n, ring);
+        if (sunShadows != null) {
+            sunShadows.update(p, ring, lod);
+        }
         materials.flush();
         clusters.upload(p, ring);
+        if (localShadows != null) {
+            localShadows.update(p, ring, clusters.lightsOffset(), lod);
+        }
         frameOffset = writeFrameConstants(p);
         StateCache state = device.state();
         state.bindUniform(FRAME_BINDING, ring.glName(), frameOffset, FRAME_BYTES);
@@ -257,6 +323,18 @@ public final class SceneRenderer implements AutoCloseable {
         clusters.dispatch(state, packet, ring);
     }
 
+    private void sunShadowPass(PassContext ctx) {
+        if (sunShadows != null) {
+            sunShadows.render(ctx.state(), ring);
+        }
+    }
+
+    private void localShadowPass(PassContext ctx) {
+        if (localShadows != null) {
+            localShadows.render(ctx.state(), ring);
+        }
+    }
+
     private final MaterialSystem.DepthUniforms mainViewProjection =
             program -> glProgramUniformMatrix4fv(program, 0, 1, false, matrix);
 
@@ -271,6 +349,12 @@ public final class SceneRenderer implements AutoCloseable {
         state.bindUniform(FRAME_BINDING, ring.glName(), frameOffset, FRAME_BYTES);
         environment.bind(state);
         clusters.bind(state, ring);
+        if (sunShadows != null) {
+            sunShadows.bind(state, ring);
+        }
+        if (localShadows != null) {
+            localShadows.bind(state, ring);
+        }
         materials.invalidateBindings();
         draws.submit(state, ring, materials.litOpaque);
     }
@@ -314,6 +398,12 @@ public final class SceneRenderer implements AutoCloseable {
         id.set(ValueLayout.JAVA_INT, 0, emptyVao);
         glDeleteVertexArrays(1, id);
         ring.close();
+        if (sunShadows != null) {
+            sunShadows.close();
+        }
+        if (localShadows != null) {
+            localShadows.close();
+        }
         clusters.close();
         environment.close();
         materials.close();

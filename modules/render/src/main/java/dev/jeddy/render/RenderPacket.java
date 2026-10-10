@@ -101,7 +101,7 @@ public final class RenderPacket {
      * Point and spot lights, {@link #LIGHT_FLOATS} floats each in the GPU layout: position xyz,
      * range; color × intensity rgb, type (int bits); spot direction xyz, cos(outer); cos(inner),
      * shadow index (int bits, -1 none), 0, 0. Fill with {@link #addPointLight} and {@link
-     * #addSpotLight}.
+     * #addSpotLight}. Index 14 holds the light's shadow key ({@link #setLightShadow}).
      */
     public float[] lights = new float[LIGHT_FLOATS * 64];
 
@@ -193,7 +193,7 @@ public final class RenderPacket {
         l[o + 11] = -1;
         l[o + 12] = 1;
         l[o + 13] = Float.intBitsToFloat(-1);
-        l[o + 14] = 0;
+        l[o + 14] = Float.intBitsToFloat(-1);
         l[o + 15] = 0;
         return o / LIGHT_FLOATS;
     }
@@ -231,10 +231,17 @@ public final class RenderPacket {
         return i;
     }
 
-    /** Sets the shadow index of light {@code i} (the renderer assigns atlas tiles; -1 none). */
-    public void setLightShadow(int i, int shadowIndex) {
-        lights[i * LIGHT_FLOATS + 13] = Float.intBitsToFloat(shadowIndex);
+    /**
+     * Makes light {@code i} cast shadows. {@code key} must identify the light across frames (an
+     * entity id): the renderer keeps its shadow tiles, and their static casters, under that key.
+     * {@code -1} turns shadows off.
+     */
+    public void setLightShadow(int i, int key) {
+        lights[i * LIGHT_FLOATS + 14] = Float.intBitsToFloat(key);
     }
+
+    /** Bumped by the game whenever static geometry changes (invalidates cached shadow maps). */
+    public int staticVersion;
 
     /** Sets the debug line count, growing the arrays if needed. */
     public void resizeDebugLines(int n) {
