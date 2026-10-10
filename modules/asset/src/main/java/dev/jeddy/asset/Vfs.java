@@ -136,6 +136,51 @@ public final class Vfs implements AutoCloseable {
     }
 
     /**
+     * Where a game's cooked content is: {@code -Djeddy.assets.dir} if set, else {@code paks/} in
+     * {@code -Djeddy.app.dir} when that exists (the packaged launchers point it at the image, and
+     * the {@code dev.jeddy.game} Gradle plugin's {@code run} task at {@code build/}), else {@code
+     * fallback}.
+     *
+     * <p>Thread ownership: any thread (reads system properties).
+     */
+    public static Path contentDirectory(Path fallback) {
+        String explicit = System.getProperty("jeddy.assets.dir");
+        if (explicit != null && !explicit.isBlank()) {
+            return Path.of(explicit);
+        }
+        String app = System.getProperty("jeddy.app.dir");
+        if (app != null && !app.isBlank() && Files.isDirectory(Path.of(app, "paks"))) {
+            return Path.of(app, "paks");
+        }
+        return fallback;
+    }
+
+    /**
+     * Mounts a content directory: every {@code .jpak} in it in name order (a later pak overrides
+     * earlier ones), or, if it holds none, the directory itself as a loose cooked tree.
+     *
+     * @return the mount ids, in mount order
+     * @throws IOException if the directory cannot be listed or a pak cannot be opened
+     */
+    public synchronized int[] mountContent(Path dir) throws IOException {
+        List<Path> paks;
+        try (Stream<Path> files = Files.list(dir)) {
+            paks =
+                    files.filter(p -> p.getFileName().toString().endsWith(".jpak"))
+                            .sorted()
+                            .toList();
+        }
+        if (paks.isEmpty()) {
+            return new int[] {mountDirectory(dir)};
+        }
+        int[] ids = new int[paks.size()];
+        for (int i = 0; i < ids.length; i++) {
+            ids[i] = mountPak(paks.get(i));
+        }
+        return ids;
+    }
+
+    /**
      * Mounts a loose cooked directory on top of the current mounts. Files whose name starts with
      * {@code .} or ends with {@code .tmp} (writes in progress) are ignored.
      *

@@ -28,6 +28,8 @@ import java.util.Set;
  * <ol>
  *   <li>the directory in system property {@code jeddy.natives.dir} (holding {@code natives.json}
  *       and the libraries, as written by {@code natives/build.py}); used in place;
+ *   <li>{@code lib/jeddy/natives} of the running Java image, where packaging (a {@code jlink}
+ *       image, M11-01) puts them; used in place;
  *   <li>the classpath resource {@code natives/<platform>/natives.json} from a {@code
  *       jeddy-natives-<platform>} jar; the libraries are extracted once into a cache directory
  *       ({@code jeddy.natives.cache}, else {@code %LOCALAPPDATA%\Jeddy\natives} or {@code
@@ -122,6 +124,11 @@ public final class NativeLoader {
         Platform platform = Platform.current();
         String dirProperty = System.getProperty("jeddy.natives.dir");
         try {
+            Path image = Path.of(System.getProperty("java.home"), "lib", "jeddy", "natives");
+            if ((dirProperty == null || dirProperty.isBlank())
+                    && Files.isRegularFile(image.resolve("natives.json"))) {
+                dirProperty = image.toString();
+            }
             if (dirProperty != null && !dirProperty.isBlank()) {
                 Path dir = Path.of(dirProperty).toAbsolutePath();
                 Path json = dir.resolve("natives.json");

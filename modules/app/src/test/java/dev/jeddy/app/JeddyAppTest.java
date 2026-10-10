@@ -96,6 +96,18 @@ class JeddyAppTest {
     }
 
     @Test
+    void quitsAfterTheConfiguredNumberOfFrames() {
+        CountingGame game = new CountingGame(Long.MAX_VALUE); // never quits by itself
+        AtomicLong mainFrames = new AtomicLong();
+        int code =
+                JeddyApp.run(
+                        headless().quitAfterFrames(12).observer(ctx -> mainFrames.set(ctx.frame())),
+                        game);
+        assertEquals(0, code);
+        assertEquals(12, mainFrames.get());
+    }
+
+    @Test
     void aCrashOnTheGameThreadStopsTheAppWithExitCode1() {
         Game crashing =
                 new Game() {

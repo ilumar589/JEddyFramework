@@ -107,6 +107,56 @@ class VfsTest {
     }
 
     @Test
+    void mountsContentDirectoriesAsPaksOrLooseTrees() throws IOException {
+        Path paks = Files.createDirectories(dir.resolve("paks"));
+        Files.move(pak("a.jpak", "x.txt", "from a", "y.txt", "only a"), paks.resolve("a.jpak"));
+        Files.move(pak("b.jpak", "x.txt", "from b"), paks.resolve("b.jpak"));
+        Files.writeString(paks.resolve("readme.txt"), "not mounted");
+        Path loose = Files.createDirectories(dir.resolve("cooked"));
+        Files.writeString(loose.resolve("z.txt"), "loose z");
+        try (Vfs vfs = new Vfs();
+                ZstdDecompressor d = new ZstdDecompressor()) {
+            assertEquals(2, vfs.mountContent(paks).length);
+            assertEquals("from b", read(vfs, "x.txt", d), "later paks in name order win");
+            assertEquals("only a", read(vfs, "y.txt", d));
+            assertFalse(vfs.exists("readme.txt"));
+            assertEquals(1, vfs.mountContent(loose).length);
+            assertEquals("loose z", read(vfs, "z.txt", d));
+            assertTrue(vfs.isLoose(AssetPaths.id("z.txt")));
+        }
+    }
+
+    @Test
+    void findsTheContentDirectoryFromLauncherProperties() throws IOException {
+        Path fallback = dir.resolve("fallback");
+        Path image = Files.createDirectories(dir.resolve("image/paks")).getParent();
+        String assets = System.getProperty("jeddy.assets.dir");
+        String app = System.getProperty("jeddy.app.dir");
+        try {
+            System.clearProperty("jeddy.assets.dir");
+            System.clearProperty("jeddy.app.dir");
+            assertEquals(fallback, Vfs.contentDirectory(fallback));
+            System.setProperty("jeddy.app.dir", dir.resolve("no-image").toString());
+            assertEquals(fallback, Vfs.contentDirectory(fallback), "no paks/ there");
+            System.setProperty("jeddy.app.dir", image.toString());
+            assertEquals(image.resolve("paks"), Vfs.contentDirectory(fallback));
+            System.setProperty("jeddy.assets.dir", dir.resolve("explicit").toString());
+            assertEquals(dir.resolve("explicit"), Vfs.contentDirectory(fallback));
+        } finally {
+            restore("jeddy.assets.dir", assets);
+            restore("jeddy.app.dir", app);
+        }
+    }
+
+    private static void restore(String key, String value) {
+        if (value == null) {
+            System.clearProperty(key);
+        } else {
+            System.setProperty(key, value);
+        }
+    }
+
+    @Test
     void pinsKeepStoredEntriesMappedPastUnmount() throws IOException {
         Path file = dir.resolve("pins.jpak");
         byte[] stored = "stored bytes, read in place".getBytes(StandardCharsets.UTF_8);

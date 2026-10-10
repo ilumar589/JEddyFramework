@@ -194,6 +194,9 @@ public final class JeddyApp {
             }
             limiter.waitForNextFrame();
             main.frame++;
+            if (main.frame == config.quitAfterFrames) {
+                requestStop();
+            }
             if (config.observer != null) {
                 config.observer.onMainFrame(main);
             }

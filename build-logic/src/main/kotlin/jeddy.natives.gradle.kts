@@ -13,6 +13,7 @@ import dev.jeddy.gradle.FetchNativesTask
 
 plugins {
     `java-library`
+    id("jeddy.publishing")
 }
 
 group = "dev.jeddy"

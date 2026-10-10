@@ -1,6 +1,8 @@
 plugins {
     id("jeddy.application")
     id("jeddy.ffm-bindings")
+    // Game projects resolve the cooker for their asset builds (dev.jeddy.assets plugin).
+    id("jeddy.publishing")
 }
 
 dependencies {

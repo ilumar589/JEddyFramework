@@ -433,6 +433,9 @@ final class DemoGame implements Game {
             audio.update(dt);
         }
         probe.mark(AllocProbe.AUDIO);
+        if (options.quitAfterFirstFrame && renderer.firstFrameShown()) {
+            ctx.quit();
+        }
         if (in.wasKeyPressed(Scancode.ESCAPE)) {
             if (spells != null && spells.targeting) {
                 spells.targeting = false;

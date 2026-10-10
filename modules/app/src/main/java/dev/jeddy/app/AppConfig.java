@@ -23,6 +23,7 @@ public final class AppConfig {
     int commandQueueRecords = 1024;
     int workerThreads = -1;
     boolean crashDialog = true;
+    long quitAfterFrames = Long.getLong("jeddy.app.quitAfterFrames", 0);
     Path settingsFile;
     FrameRenderer renderer;
     MainFrameObserver observer;
@@ -82,6 +83,16 @@ public final class AppConfig {
     /** Show an SDL message box when a thread crashes (default {@code true}; tests turn it off). */
     public AppConfig crashDialog(boolean show) {
         this.crashDialog = show;
+        return this;
+    }
+
+    /**
+     * Quits after this many main-thread frames; 0 (the default) runs until the game quits. The
+     * default comes from {@code -Djeddy.app.quitAfterFrames=N}, so smoke tests and CI can run a
+     * packaged game for a few frames without code changes.
+     */
+    public AppConfig quitAfterFrames(long frames) {
+        this.quitAfterFrames = frames;
         return this;
     }
 

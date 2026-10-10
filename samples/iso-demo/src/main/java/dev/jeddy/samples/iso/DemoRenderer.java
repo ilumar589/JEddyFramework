@@ -29,6 +29,7 @@ import dev.jeddy.render.post.PostProcess;
 import java.io.IOException;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.management.ManagementFactory;
 import java.nio.file.Path;
 
 /**
@@ -68,6 +69,7 @@ final class DemoRenderer implements FrameRenderer, WorldRenderer.Hud {
     private Audio audio;
     private String gpu = "unknown";
     private int screenshots;
+    private volatile boolean firstFrameShown;
 
     DemoRenderer(
             Vfs vfs, RenderPackets packets, DemoOptions options, DemoHud hud, PerfCapture perf) {
@@ -108,6 +110,20 @@ final class DemoRenderer implements FrameRenderer, WorldRenderer.Hud {
         return audio;
     }
 
+    /** Whether a frame was presented (startup measurement). Any thread. */
+    boolean firstFrameShown() {
+        return firstFrameShown;
+    }
+
+    /** Logs the time from JVM start to the first frame (cold start, DESIGN §14), once. */
+    private void firstFrame() {
+        long jvmStart = ManagementFactory.getRuntimeMXBean().getStartTime();
+        long ms = System.currentTimeMillis() - jvmStart;
+        LOG.info("startup: first frame " + ms + " ms after JVM start");
+        System.out.println("startup: first frame " + ms + " ms after JVM start");
+        firstFrameShown = true;
+    }
+
     /** The GL renderer string, for reports. */
     String gpu() {
         return gpu;
@@ -145,6 +161,13 @@ final class DemoRenderer implements FrameRenderer, WorldRenderer.Hud {
 
     @Override
     public void render(MainContext ctx, int index, boolean fresh) {
+        if (!firstFrameShown) {
+            if (!options.headless) {
+                world.render(ctx, index, fresh);
+            }
+            firstFrame();
+            return;
+        }
         if (options.headless) {
             if (fresh) {
                 gameStats.record(hud.gameNanos[index]);
