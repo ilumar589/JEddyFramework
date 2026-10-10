@@ -1,0 +1,26 @@
+#version 460 core
+// Packs the non-empty indirect commands of each batch (program slot) together and counts them,
+// for glMultiDrawElementsIndirectCount (TASKS M7-11).
+layout(local_size_x = 64) in;
+
+layout(std430, binding = 3) readonly buffer Batches {
+    uint batchTable[]; // command -> batch for every command, then each batch's first packed slot
+};
+layout(std430, binding = 4) buffer Commands {
+    uint commands[]; // commands, packed commands, per-batch counts
+};
+
+layout(location = 0) uniform uvec4 uParams; // x commands, y packed offset, z counts offset, w batch table offset
+
+void main() {
+    uint c = gl_GlobalInvocationID.x;
+    if (c >= uParams.x || commands[c * 5u + 1u] == 0u) {
+        return;
+    }
+    uint batch = batchTable[c];
+    uint at = batchTable[uParams.w + batch] + atomicAdd(commands[uParams.z + batch], 1u);
+    uint dst = uParams.y + at * 5u;
+    for (uint k = 0u; k < 5u; k++) {
+        commands[dst + k] = commands[c * 5u + k];
+    }
+}

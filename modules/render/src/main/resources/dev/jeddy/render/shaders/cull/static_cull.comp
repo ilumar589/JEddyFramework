@@ -1,0 +1,84 @@
+#version 460 core
+// GPU culling of the static scene for one view (TASKS M7-11): one invocation per (instance,
+// submesh) item tests its bounding sphere against the view's planes, picks the LOD from its
+// projected error like DrawBuilder, takes a slot in its (bin, LOD) indirect command with an atomic
+// increment and writes its instance record there, with this frame's flags and camera fade.
+layout(local_size_x = 64) in;
+
+struct Item {
+    vec4 rows[3]; // world transform (row-major 3x4)
+    vec4 bounds;  // world bounding sphere
+    uvec4 ids;    // x packet index, y bin, z material, w entity
+    vec4 extra;   // x largest axis scale (LOD)
+};
+
+struct Bin {
+    uvec4 info;    // x LOD count, y items, z first record, w first command
+    vec4 errors[2]; // LOD errors 0..7
+};
+
+struct Record {
+    vec4 rows[3];
+    uvec4 data;
+};
+
+layout(std430, binding = 0) writeonly buffer Records {
+    Record records[];
+};
+layout(std430, binding = 2) readonly buffer Items {
+    Item items[];
+};
+layout(std430, binding = 3) readonly buffer Bins {
+    Bin bins[];
+};
+layout(std430, binding = 4) buffer Commands {
+    uint commands[]; // DrawElementsIndirectCommand: count, instances, first index, base vertex, base instance
+};
+layout(std430, binding = 5) readonly buffer Flags {
+    uint frameFlags[];
+};
+layout(std430, binding = 6) readonly buffer Fades {
+    float frameFades[];
+};
+
+layout(location = 0) uniform vec4 uPlanes[6];
+layout(location = 6) uniform vec4 uEye;      // xyz eye, w LOD pixels per unit
+layout(location = 7) uniform uvec4 uParams;  // x items, y orthographic, z required flags, w threshold (float bits)
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= uParams.x) {
+        return;
+    }
+    Item it = items[i];
+    uint flags = frameFlags[it.ids.x];
+    if ((flags & uParams.z) != uParams.z) {
+        return;
+    }
+    vec4 b = it.bounds;
+    for (int p = 0; p < 6; p++) {
+        if (dot(uPlanes[p].xyz, b.xyz) + uPlanes[p].w < -b.w) {
+            return;
+        }
+    }
+    Bin bin = bins[it.ids.y];
+    vec3 t = vec3(it.rows[0].w, it.rows[1].w, it.rows[2].w);
+    float distance = length(t - uEye.xyz);
+    float k = uParams.y != 0u ? uEye.w * it.extra.x : uEye.w * it.extra.x / max(distance, 1e-3);
+    float threshold = uintBitsToFloat(uParams.w);
+    uint lod = 0u;
+    for (uint l = 1u; l < bin.info.x; l++) {
+        if (bin.errors[l >> 2u][l & 3u] * k <= threshold) {
+            lod = l;
+        } else {
+            break;
+        }
+    }
+    uint command = bin.info.w + lod;
+    uint slot = atomicAdd(commands[command * 5u + 1u], 1u);
+    uint r = bin.info.z + lod * bin.info.y + slot;
+    records[r].rows[0] = it.rows[0];
+    records[r].rows[1] = it.rows[1];
+    records[r].rows[2] = it.rows[2];
+    records[r].data = uvec4(it.ids.z, flags, it.ids.w, floatBitsToUint(frameFades[it.ids.x]));
+}

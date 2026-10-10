@@ -3,10 +3,12 @@ package dev.jeddy.render;
 import static dev.jeddy.gl.ffi.GL46.*;
 
 import dev.jeddy.core.job.JobSystem;
+import dev.jeddy.math.CullOps;
 import dev.jeddy.math.Mat4Ops;
 import dev.jeddy.render.decal.DecalTextures;
 import dev.jeddy.render.draw.Culling;
 import dev.jeddy.render.draw.DrawBuilder;
+import dev.jeddy.render.draw.StaticScene;
 import dev.jeddy.render.fog.FogOfWar;
 import dev.jeddy.render.gpu.FrameRing;
 import dev.jeddy.render.gpu.GpuDevice;
@@ -59,6 +61,8 @@ public final class SceneRenderer implements AutoCloseable {
      * @param outlines whether highlighted instances get outlines
      * @param particleCapacity GPU particle pool size, or 0 for no particles
      * @param fogOfWar whether the lit pass applies the packet's fog-of-war grid
+     * @param gpuCulling whether static instances are culled and drawn GPU-driven ({@link
+     *     StaticScene})
      * @param post bloom, exposure, tone mapping, grading and anti-aliasing settings
      */
     public record Config(
@@ -71,10 +75,11 @@ public final class SceneRenderer implements AutoCloseable {
             boolean outlines,
             int particleCapacity,
             boolean fogOfWar,
+            boolean gpuCulling,
             PostProcess.Config post) {
         /**
          * 32 MiB per frame, 256 materials, shadows, AO, 256² decal textures, outlines, 64k
-         * particles, fog of war, default post.
+         * particles, fog of war, GPU culling of static instances, default post.
          */
         public static final Config DEFAULT =
                 new Config(
@@ -86,6 +91,7 @@ public final class SceneRenderer implements AutoCloseable {
                         256,
                         true,
                         1 << 16,
+                        true,
                         true,
                         PostProcess.Config.DEFAULT);
 
@@ -106,6 +112,7 @@ public final class SceneRenderer implements AutoCloseable {
                     outlines,
                     particleCapacity,
                     fogOfWar,
+                    gpuCulling,
                     post);
         }
 
@@ -121,6 +128,7 @@ public final class SceneRenderer implements AutoCloseable {
                     outlines,
                     particleCapacity,
                     fogOfWar,
+                    gpuCulling,
                     post);
         }
 
@@ -136,6 +144,7 @@ public final class SceneRenderer implements AutoCloseable {
                     outlines,
                     particleCapacity,
                     fogOfWar,
+                    gpuCulling,
                     post);
         }
 
@@ -151,6 +160,7 @@ public final class SceneRenderer implements AutoCloseable {
                     outlines,
                     particleCapacity,
                     fogOfWar,
+                    gpuCulling,
                     post);
         }
 
@@ -166,6 +176,7 @@ public final class SceneRenderer implements AutoCloseable {
                     value,
                     particleCapacity,
                     fogOfWar,
+                    gpuCulling,
                     post);
         }
 
@@ -181,6 +192,7 @@ public final class SceneRenderer implements AutoCloseable {
                     outlines,
                     value,
                     fogOfWar,
+                    gpuCulling,
                     post);
         }
 
@@ -195,6 +207,23 @@ public final class SceneRenderer implements AutoCloseable {
                     decalTextureSize,
                     outlines,
                     particleCapacity,
+                    value,
+                    gpuCulling,
+                    post);
+        }
+
+        /** Returns a copy with GPU-driven static instances on or off. */
+        public Config withGpuCulling(boolean value) {
+            return new Config(
+                    ringBytesPerFrame,
+                    maxMaterials,
+                    sunShadows,
+                    localShadows,
+                    ambientOcclusion,
+                    decalTextureSize,
+                    outlines,
+                    particleCapacity,
+                    fogOfWar,
                     value,
                     post);
         }
@@ -211,6 +240,7 @@ public final class SceneRenderer implements AutoCloseable {
                     outlines,
                     particleCapacity,
                     fogOfWar,
+                    gpuCulling,
                     value);
         }
     }
@@ -229,6 +259,7 @@ public final class SceneRenderer implements AutoCloseable {
     private final Outlines outlines;
     private final GpuParticles particles;
     private final FogOfWar fogOfWar;
+    private final StaticScene staticScene;
     private final FrameRing ring;
     private final Culling culling;
     private final DrawBuilder draws;
@@ -250,6 +281,7 @@ public final class SceneRenderer implements AutoCloseable {
     private long frameOffset;
     private long frameNumber;
     private float lastTime = Float.NaN;
+    private long prepareNanos;
     private int width;
     private int height;
 
@@ -269,12 +301,17 @@ public final class SceneRenderer implements AutoCloseable {
         this.ring = new FrameRing(device, config.ringBytesPerFrame(), 3, "scene ring");
         this.culling = new Culling(jobs);
         this.draws = new DrawBuilder(meshes, materials.table(), jobs);
+        this.staticScene =
+                config.gpuCulling()
+                        ? new StaticScene(device, programs, meshes, materials.table())
+                        : null;
         this.sunShadows =
                 config.sunShadows() == null
                         ? null
                         : new SunShadows(device, meshes, materials, jobs, config.sunShadows());
         if (sunShadows != null) {
             materials.setGlobalFeatures(materials.globalFeatures() | MaterialSystem.SUN_SHADOWS);
+            sunShadows.setStaticScene(staticScene);
         }
         this.localShadows =
                 config.localShadows() == null
@@ -330,6 +367,10 @@ public final class SceneRenderer implements AutoCloseable {
             graph.setTexture(shadowAtlas, device.textures().glName(localShadows.texture()));
         }
         graph.addComputePass("light cull", this::lightCull).writes(clusterItems);
+        if (staticScene != null) {
+            int scene = graph.importedBuffer("static scene");
+            graph.addComputePass("static cull", this::staticCull).writes(scene);
+        }
         graph.addPass("sun shadows", this::sunShadowPass).writes(sunCascades);
         graph.addPass("local shadows", this::localShadowPass).writes(shadowAtlas);
         graph.addPass("depth prepass", this::depthPrepass).depth(depth, 0f);
@@ -425,6 +466,19 @@ public final class SceneRenderer implements AutoCloseable {
         return fogOfWar;
     }
 
+    /**
+     * Returns the wall time the last {@link #render} spent preparing the frame on the CPU before
+     * issuing GL work: culling, draw building, uploads (the part GPU-driven culling removes).
+     */
+    public long prepareNanos() {
+        return prepareNanos;
+    }
+
+    /** Returns the GPU-driven static scene, or {@code null} when off. */
+    public StaticScene staticScene() {
+        return staticScene;
+    }
+
     /** Returns the post-processing chain. */
     public PostProcess post() {
         return post;
@@ -458,18 +512,22 @@ public final class SceneRenderer implements AutoCloseable {
         if (width == 0) {
             throw new IllegalStateException("call resize first");
         }
+        long start = System.nanoTime();
         packet = p;
         frameNumber++;
         ring.beginFrame();
         if (visible.length < p.count()) {
             visible = new int[Math.max(p.count(), visible.length * 2)];
         }
-        int n = culling.cull(p, visible);
+        if (staticScene != null) {
+            staticScene.update(p, ring);
+        }
+        int n = cullMainView(p);
         float lod = lodPixels(p);
         draws.setLod(lod, p.orthographic, 1f);
         draws.build(p, visible, n, ring);
         if (outlines != null) {
-            outlines.collect(p, visible, n, ring, lod);
+            outlines.collect(p, ring, lod);
         }
         float elapsed = Float.isNaN(lastTime) ? 0f : Math.clamp(p.time - lastTime, 0f, 1f);
         lastTime = p.time;
@@ -492,9 +550,41 @@ public final class SceneRenderer implements AutoCloseable {
         StateCache state = device.state();
         state.bindUniform(FRAME_BINDING, ring.glName(), frameOffset, FRAME_BYTES);
         materials.invalidateBindings();
+        prepareNanos = System.nanoTime() - start;
         graph.execute(frameNumber);
         ring.endFrame();
         packet = null;
+    }
+
+    /**
+     * Culls the main view on the CPU: everything, or with GPU culling the dynamic instances plus
+     * the static ones the GPU path leaves to the CPU (blended materials).
+     */
+    private int cullMainView(RenderPacket p) {
+        boolean gpu = staticScene != null && staticScene.active();
+        int n =
+                culling.cull(
+                        p,
+                        p.frustumPlanes,
+                        0,
+                        gpu ? RenderPacket.FLAG_STATIC : 0,
+                        0,
+                        0,
+                        0,
+                        -1,
+                        visible);
+        if (gpu) {
+            int[] cpu = staticScene.cpuInstances();
+            float[] b = p.bounds;
+            for (int k = 0; k < staticScene.cpuCount(); k++) {
+                int i = cpu[k];
+                int o = i * 4;
+                if (CullOps.sphereVisible(p.frustumPlanes, b[o], b[o + 1], b[o + 2], b[o + 3])) {
+                    visible[n++] = i;
+                }
+            }
+        }
+        return n;
     }
 
     private float lodPixels(RenderPacket p) {
@@ -587,6 +677,19 @@ public final class SceneRenderer implements AutoCloseable {
         clusters.dispatch(state, packet, ring);
     }
 
+    private void staticCull(PassContext ctx) {
+        StateCache state = ctx.state();
+        state.bindUniform(FRAME_BINDING, ring.glName(), frameOffset, FRAME_BYTES);
+        staticScene.cull(
+                state,
+                StaticScene.VIEW_MAIN,
+                packet.frustumPlanes,
+                packet.eye,
+                lodPixels(packet),
+                packet.orthographic,
+                0);
+    }
+
     private void sunShadowPass(PassContext ctx) {
         if (sunShadows != null) {
             sunShadows.render(ctx.state(), ring);
@@ -610,6 +713,9 @@ public final class SceneRenderer implements AutoCloseable {
         MemorySegment.copy(packet.viewProjection, 0, matrix, ValueLayout.JAVA_FLOAT, 0, 16);
         materials.configureDepth(mainViewProjection, 0);
         draws.submit(ctx.state(), ring, materials.depthOnly);
+        if (staticScene != null) {
+            staticScene.submit(ctx.state(), StaticScene.VIEW_MAIN, materials.depthOnly);
+        }
     }
 
     private void aoPass(PassContext ctx) {
@@ -627,6 +733,9 @@ public final class SceneRenderer implements AutoCloseable {
     private void opaque(PassContext ctx) {
         bindLighting(ctx);
         draws.submit(ctx.state(), ring, materials.litOpaque);
+        if (staticScene != null) {
+            staticScene.submit(ctx.state(), StaticScene.VIEW_MAIN, materials.litOpaque);
+        }
     }
 
     private void transparent(PassContext ctx) {
@@ -686,6 +795,9 @@ public final class SceneRenderer implements AutoCloseable {
         }
         if (fogOfWar != null) {
             fogOfWar.close();
+        }
+        if (staticScene != null) {
+            staticScene.close();
         }
         if (decalTextures != null) {
             decalTextures.close();

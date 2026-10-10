@@ -9,6 +9,7 @@ import dev.jeddy.math.Mat4Ops;
 import dev.jeddy.render.RenderPacket;
 import dev.jeddy.render.draw.Culling;
 import dev.jeddy.render.draw.DrawBuilder;
+import dev.jeddy.render.draw.StaticScene;
 import dev.jeddy.render.gpu.FrameRing;
 import dev.jeddy.render.gpu.GpuDevice;
 import dev.jeddy.render.gpu.GpuTextures;
@@ -91,6 +92,10 @@ public final class SunShadows implements AutoCloseable {
     private final float[] point = new float[3];
     private int[] visible = new int[1024];
     private int cascadeCount;
+    private StaticScene staticScene;
+    private final float[] eye = new float[3];
+    private float lod;
+    private boolean orthographic;
     private long blockOffset = -1;
     private final MaterialSystem.DepthUniforms uniforms =
             program -> {
@@ -155,6 +160,13 @@ public final class SunShadows implements AutoCloseable {
     }
 
     /**
+     * Culls static casters on the GPU from {@code scene} (when it is active) instead of on the CPU.
+     */
+    public void setStaticScene(StaticScene scene) {
+        staticScene = scene;
+    }
+
+    /**
      * Fits the cascades to the packet's camera and sun, culls casters for each and builds their
      * draws in {@code ring}, and writes the uniform block. Main-view LOD settings are copied from
      * {@code lodSource} so shadows match what is drawn.
@@ -208,12 +220,48 @@ public final class SunShadows implements AutoCloseable {
         if (visible.length < p.count()) {
             visible = new int[Math.max(p.count(), visible.length * 2)];
         }
+        boolean gpu = staticScene != null && staticScene.active();
+        System.arraycopy(p.eye, 0, eye, 0, 3);
+        lod = lodPixels;
+        orthographic = p.orthographic;
         for (int c = 0; c < n; c++) {
-            int count = culling.cull(p, planes[c], RenderPacket.FLAG_CASTS_SHADOW, visible);
+            int count =
+                    culling.cull(
+                            p,
+                            planes[c],
+                            RenderPacket.FLAG_CASTS_SHADOW,
+                            gpu ? RenderPacket.FLAG_STATIC : 0,
+                            0,
+                            0,
+                            0,
+                            -1,
+                            visible);
+            if (gpu) {
+                count = appendCpuStatic(p, planes[c], count);
+            }
             builders[c].setLod(lodPixels, p.orthographic, 1f);
             builders[c].build(p, visible, count, ring);
         }
         writeBlock(ring);
+    }
+
+    /** Adds the static scene's CPU-path casters inside {@code frustum} to {@link #visible}. */
+    private int appendCpuStatic(RenderPacket p, float[] frustum, int count) {
+        int[] cpu = staticScene.cpuInstances();
+        for (int k = 0; k < staticScene.cpuCount(); k++) {
+            int i = cpu[k];
+            int o = i * 4;
+            if ((p.flags[i] & RenderPacket.FLAG_CASTS_SHADOW) != 0
+                    && CullOps.sphereVisible(
+                            frustum,
+                            p.bounds[o],
+                            p.bounds[o + 1],
+                            p.bounds[o + 2],
+                            p.bounds[o + 3])) {
+                visible[count++] = i;
+            }
+        }
+        return count;
     }
 
     /** Fits cascade {@code c} to the camera frustum slice between view depths a and b. */
@@ -318,6 +366,17 @@ public final class SunShadows implements AutoCloseable {
             MemorySegment.copy(matrices[c], 0, matrix, ValueLayout.JAVA_FLOAT, 0, 16);
             materials.configureDepth(uniforms, pipeline);
             builders[c].submit(state, ring, materials.depthOnly);
+            if (staticScene != null) {
+                staticScene.cull(
+                        state,
+                        StaticScene.VIEW_CASCADES + c,
+                        planes[c],
+                        eye,
+                        lod,
+                        orthographic,
+                        RenderPacket.FLAG_CASTS_SHADOW);
+                staticScene.submit(state, StaticScene.VIEW_CASCADES + c, materials.depthOnly);
+            }
         }
         materials.configureDepth(null, 0);
         glDisable(GL_DEPTH_CLAMP);

@@ -3,6 +3,7 @@ package dev.jeddy.render.outline;
 import static dev.jeddy.gl.ffi.GL46.*;
 
 import dev.jeddy.core.job.JobSystem;
+import dev.jeddy.math.CullOps;
 import dev.jeddy.render.RenderPacket;
 import dev.jeddy.render.draw.DrawBuilder;
 import dev.jeddy.render.gpu.FrameRing;
@@ -159,24 +160,30 @@ public final class Outlines implements AutoCloseable {
     }
 
     /**
-     * Picks the highlighted instances among the visible ones and builds their draws with the main
-     * view's level-of-detail scale. Allocates nothing unless more instances than ever before are
-     * highlighted.
+     * Picks the highlighted instances inside the view frustum (static ones included, whoever culls
+     * them for the main view) and builds their draws with the main view's level-of-detail scale.
+     * Allocates nothing unless more instances than ever before are highlighted.
      */
-    public void collect(
-            RenderPacket p, int[] visible, int visibleCount, FrameRing frameRing, float lodPixels) {
+    public void collect(RenderPacket p, FrameRing frameRing, float lodPixels) {
         int n = 0;
         int[] flags = p.flags;
-        for (int v = 0; v < visibleCount; v++) {
-            int i = visible[v];
-            if ((flags[i] & RenderPacket.FLAG_HIGHLIGHT) != 0) {
-                if (n == highlighted.length) {
-                    highlighted = java.util.Arrays.copyOf(highlighted, n * 2);
-                }
-                highlighted[n++] = i;
+        float[] b = p.bounds;
+        float[] planes = p.frustumPlanes;
+        int count = p.count();
+        for (int i = 0; i < count; i++) {
+            if ((flags[i] & RenderPacket.FLAG_HIGHLIGHT) == 0) {
+                continue;
             }
+            int o = i * 4;
+            if (!CullOps.sphereVisible(planes, b[o], b[o + 1], b[o + 2], b[o + 3])) {
+                continue;
+            }
+            if (n == highlighted.length) {
+                highlighted = java.util.Arrays.copyOf(highlighted, n * 2);
+            }
+            highlighted[n++] = i;
         }
-        count = n;
+        this.count = n;
         packet = p;
         ring = frameRing;
         if (n > 0) {

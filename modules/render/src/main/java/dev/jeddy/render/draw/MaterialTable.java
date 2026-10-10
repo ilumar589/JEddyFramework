@@ -33,6 +33,7 @@ public final class MaterialTable implements AutoCloseable {
     private int[] slotOfMaterial;
     private int dirtyFrom = Integer.MAX_VALUE;
     private int dirtyTo = -1;
+    private int slotVersion;
 
     // Program slots: (definition, mask, texture set) triples.
     private int slotCount;
@@ -78,7 +79,19 @@ public final class MaterialTable implements AutoCloseable {
 
     /** Changes the program variant or texture set of a material (textures arrived, settings). */
     public void setSlot(int material, int definition, long mask, int textureSet) {
-        slotOfMaterial[material] = slot(definition, mask, textureSet);
+        int s = slot(definition, mask, textureSet);
+        if (slotOfMaterial[material] != s) {
+            slotOfMaterial[material] = s;
+            slotVersion++;
+        }
+    }
+
+    /**
+     * Returns a counter that changes whenever an existing material moves to another program slot
+     * (GPU-resident draw lists keyed by slot rebuild then).
+     */
+    public int slotVersion() {
+        return slotVersion;
     }
 
     /** Returns the program definition of a slot. */
