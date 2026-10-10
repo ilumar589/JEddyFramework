@@ -99,6 +99,14 @@ public final class UploadRing implements AutoCloseable {
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
     }
 
+    /** Uploads one level of one array layer from {@code ringOffset} through the unpack binding. */
+    public void copyToTextureLayer(
+            int textureHandle, int level, int layer, long ringOffset, int bytes) {
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, glName);
+        device.textures().uploadLayer(textureHandle, level, layer, ringOffset, bytes);
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+    }
+
     /** Ends the frame: fences what this frame copied. */
     public void endFrame() {
         if (usedThisFrame == 0) {

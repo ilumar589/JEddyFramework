@@ -63,7 +63,7 @@ class DrawBuilderTest {
             layout(location = 0) flat in uint material;
             layout(location = 0) out vec4 color;
             void main() {
-                color = rows[material * 4u];
+                color = rows[material * 8u];
             #ifdef HALF
                 color.rgb *= 0.5;
             #endif

@@ -1,0 +1,33 @@
+#version 460 core
+// Ages and moves the current alive list (TASKS M7-09): survivors go to the next list, the dead
+// back onto the dead stack.
+#include "particles.glsl"
+
+layout(local_size_x = 256) in;
+layout(location = 0) uniform uvec4 uParams; // x capacity, y current list
+layout(location = 1) uniform float uSeconds;
+
+void main() {
+    uint id = gl_GlobalInvocationID.x;
+    uint current = uParams.y;
+    if (id >= jAliveCount[current]) {
+        return;
+    }
+    uint capacity = uParams.x;
+    uint index = jIndices[jeddyAlive(current, id, capacity)];
+    JeddyParticle p = jParticles[index];
+    float age = p.positionAge.w + uSeconds;
+    if (age >= p.velocityLife.w) {
+        uint slot = atomicAdd(jDeadCount, 1u);
+        jIndices[jeddyDead(slot, capacity)] = index;
+        return;
+    }
+    vec3 v = p.velocityLife.xyz;
+    v.y -= 9.81 * p.sizeForces.z * uSeconds;
+    v *= exp(-p.sizeForces.w * uSeconds);
+    jParticles[index].positionAge = vec4(p.positionAge.xyz + v * uSeconds, age);
+    jParticles[index].velocityLife.xyz = v;
+    uint next = 1u - current;
+    uint slot = atomicAdd(jAliveCount[next], 1u);
+    jIndices[jeddyAlive(next, slot, capacity)] = index;
+}

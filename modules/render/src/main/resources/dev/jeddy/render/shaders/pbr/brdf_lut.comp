@@ -1,0 +1,49 @@
+#version 460 core
+// The split-sum environment BRDF (Karis 2013), generated once at startup (TASKS M7-02): scale and
+// bias of F0 for N.V along x and perceptual roughness along y, Smith-GGX with k = alpha / 2.
+layout(local_size_x = 8, local_size_y = 8) in;
+layout(rg16f, binding = 0) uniform writeonly image2D uLut;
+layout(location = 0) uniform int uSamples;
+
+vec2 hammersley(uint i, uint n) {
+    uint bits = bitfieldReverse(i);
+    return vec2(float(i) / float(n), float(bits) * 2.3283064365386963e-10);
+}
+
+void main() {
+    ivec2 size = imageSize(uLut);
+    ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+    if (p.x >= size.x || p.y >= size.y) {
+        return;
+    }
+    float NoV = (float(p.x) + 0.5) / float(size.x);
+    float roughness = (float(p.y) + 0.5) / float(size.y);
+    float alpha = roughness * roughness;
+    float a2 = alpha * alpha;
+    float k = alpha * 0.5;
+    vec3 v = vec3(sqrt(1.0 - NoV * NoV), 0.0, NoV);
+    float scale = 0.0;
+    float bias = 0.0;
+    uint n = uint(uSamples);
+    for (uint i = 0u; i < n; i++) {
+        vec2 xi = hammersley(i, n);
+        float phi = 6.28318530718 * xi.x;
+        float cosTheta = sqrt((1.0 - xi.y) / (1.0 + (a2 - 1.0) * xi.y));
+        float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
+        vec3 h = vec3(sinTheta * cos(phi), sinTheta * sin(phi), cosTheta);
+        float VoH = dot(v, h);
+        vec3 l = 2.0 * VoH * h - v;
+        float NoL = max(l.z, 0.0);
+        float NoH = max(h.z, 0.0);
+        VoH = max(VoH, 0.0);
+        if (NoL > 0.0) {
+            float gv = NoV / (NoV * (1.0 - k) + k);
+            float gl = NoL / (NoL * (1.0 - k) + k);
+            float gVis = gv * gl * VoH / max(NoH * NoV, 1e-6);
+            float fc = pow(1.0 - VoH, 5.0);
+            scale += (1.0 - fc) * gVis;
+            bias += fc * gVis;
+        }
+    }
+    imageStore(uLut, p, vec4(scale / float(n), bias / float(n), 0.0, 0.0));
+}

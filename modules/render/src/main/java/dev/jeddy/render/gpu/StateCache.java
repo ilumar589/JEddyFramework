@@ -171,6 +171,40 @@ public final class StateCache {
         }
     }
 
+    /**
+     * Forgets bindings of a texture that is being deleted: GL unbinds it from every unit, and a new
+     * texture may reuse its name. Called by {@link GpuTextures#destroy}.
+     */
+    public void forgetTexture(int name) {
+        for (int u = 0; u < UNITS; u++) {
+            if (textures[u] == name) {
+                textures[u] = -1;
+            }
+        }
+    }
+
+    /** Forgets bindings of a buffer that is being deleted (see {@link #forgetTexture}). */
+    public void forgetBuffer(int name) {
+        for (int b = 0; b < BINDINGS; b++) {
+            if (ssbo[b] == name) {
+                ssbo[b] = -1;
+            }
+            if (ubo[b] == name) {
+                ubo[b] = -1;
+            }
+        }
+        if (drawIndirect == name) {
+            drawIndirect = -1;
+        }
+    }
+
+    /** Forgets a framebuffer that is being deleted (see {@link #forgetTexture}). */
+    public void forgetFramebuffer(int name) {
+        if (drawFramebuffer == name) {
+            drawFramebuffer = -1;
+        }
+    }
+
     /** Binds a texture to a unit. */
     public void bindTexture(int unit, int name) {
         if (textures[unit] != name) {

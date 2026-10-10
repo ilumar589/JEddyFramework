@@ -2,6 +2,7 @@ package dev.jeddy.render.draw;
 
 import static dev.jeddy.gl.ffi.GL46.*;
 
+import dev.jeddy.asset.format.MaterialData;
 import dev.jeddy.core.collections.LongSort;
 import dev.jeddy.core.handle.Handles;
 import dev.jeddy.core.job.JobKernel;
@@ -73,6 +74,7 @@ public final class DrawBuilder {
     private long[] keys = new long[0];
     private int[] order = new int[0]; // sorted item → item index
     private int[] itemInstance = new int[0];
+    private int[] itemMaterial = new int[0];
     private int[] itemFirst = new int[0]; // first item of each visible instance (prefix sum)
     private byte[] itemLod = new byte[0];
 
@@ -218,10 +220,49 @@ public final class DrawBuilder {
     }
 
     /**
+     * Chooses the program, textures and pipeline state of each batch in one pass (depth prepass,
+     * shadows, lit opaque, transparent). Called for every batch in submission order; returning
+     * {@code false} skips the batch.
+     *
+     * <p>Thread ownership: the render thread, inside {@link #submit}.
+     */
+    @FunctionalInterface
+    public interface BatchBinder {
+        /**
+         * Prepares batch drawing for program {@code slot} of the material table.
+         *
+         * @param translucent whether the batch is in the translucent pass
+         * @return {@code false} to skip the batch
+         */
+        boolean bind(StateCache state, int slot, boolean translucent);
+    }
+
+    /**
      * Issues the draws built by {@link #build}. Binds the mesh vertex array, the instance records
      * and the materials; programs still compiling are skipped this frame.
      */
     public void submit(StateCache state, FrameRing ring) {
+        submit(state, ring, defaultBinder);
+    }
+
+    private final BatchBinder defaultBinder = this::bindDefault;
+
+    private boolean bindDefault(StateCache state, int slot, boolean translucent) {
+        int program = materials.glProgram(slot);
+        if (program == 0) {
+            return false;
+        }
+        state.apply(translucent ? PipelineState.TRANSPARENT : PipelineState.OPAQUE);
+        state.useProgram(program);
+        return true;
+    }
+
+    /**
+     * Issues the draws built by {@link #build}, letting {@code binder} set up each batch. Binds the
+     * mesh vertex array, the instance records (binding {@value #INSTANCE_BINDING}), the materials
+     * (binding {@value #MATERIAL_BINDING}) and the indirect buffer. Allocates nothing.
+     */
+    public void submit(StateCache state, FrameRing ring, BatchBinder binder) {
         if (itemCount == 0) {
             return;
         }
@@ -230,15 +271,9 @@ public final class DrawBuilder {
         state.bindStorage(MATERIAL_BINDING, materials.glBuffer(), 0, materials.byteSize());
         state.bindDrawIndirect(ring.glName());
         for (int b = 0; b < batchCount; b++) {
-            int program = materials.glProgram(batchSlot[b]);
-            if (program == 0) {
+            if (!binder.bind(state, batchSlot[b], batchPass[b] == PASS_TRANSLUCENT)) {
                 continue;
             }
-            state.apply(
-                    batchPass[b] == PASS_TRANSLUCENT
-                            ? PipelineState.TRANSPARENT
-                            : PipelineState.OPAQUE);
-            state.useProgram(program);
             glMultiDrawElementsIndirect(
                     GL_TRIANGLES, GL_UNSIGNED_INT, batchOffset[b], batchCommands[b], COMMAND_BYTES);
         }
@@ -294,13 +329,24 @@ public final class DrawBuilder {
                                             + world[w + 4] * world[w + 4]
                                             + world[w + 8] * world[w + 8]);
             int lod = selectLod(mesh, scale, distance);
-            boolean translucent = (p.flags[i] & RenderPacket.FLAG_TRANSLUCENT) != 0;
+            boolean translucentInstance = (p.flags[i] & RenderPacket.FLAG_TRANSLUCENT) != 0;
             int depth = (int) Math.min(65535f, distance * 64f);
             long meshBits = (long) (Handles.index(mesh) & 0xFFFFF) << 28 | (long) lod << 24;
-            int slot = materials.programSlot(p.material[i]);
+            int instanceMaterial = p.material[i];
             for (int s = 0; s < submeshes; s++) {
                 int item = first + s;
+                int material =
+                        instanceMaterial >= 0
+                                ? instanceMaterial
+                                : meshes.submeshMaterialIndex(mesh, s);
+                int slot = materials.programSlot(material);
+                // Blended materials draw in the translucent pass whatever the instance says.
+                boolean translucent =
+                        translucentInstance
+                                || (materials.slotMask(slot) & MaterialData.FEATURE_ALPHA_BLEND)
+                                        != 0;
                 itemInstance[item] = v;
+                itemMaterial[item] = material;
                 itemLod[item] = (byte) lod;
                 long key;
                 if (translucent) {
@@ -370,10 +416,10 @@ public final class DrawBuilder {
                 float x = prev[w + j];
                 m.set(F32, o + 4L * j, x + (curr[w + j] - x) * a);
             }
-            m.set(I32, o + 48, p.material[instance]);
+            m.set(I32, o + 48, itemMaterial[item]);
             m.set(I32, o + 52, p.flags[instance]);
             m.set(I32, o + 56, p.entity[instance]);
-            m.set(I32, o + 60, 0);
+            m.set(F32, o + 60, p.fade[instance]);
         }
     }
 
@@ -393,6 +439,7 @@ public final class DrawBuilder {
             scratchOrder = new int[cap];
         }
         itemInstance = new int[cap];
+        itemMaterial = new int[cap];
         itemLod = new byte[cap];
         runStart = new int[cap + 1];
     }

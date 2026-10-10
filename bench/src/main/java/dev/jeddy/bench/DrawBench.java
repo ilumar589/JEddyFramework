@@ -14,6 +14,7 @@ import dev.jeddy.render.RenderPacket;
 import dev.jeddy.render.draw.Culling;
 import dev.jeddy.render.draw.DrawBuilder;
 import dev.jeddy.render.draw.MaterialTable;
+import dev.jeddy.render.draw.StaticScene;
 import dev.jeddy.render.gpu.FrameRing;
 import dev.jeddy.render.gpu.GpuDevice;
 import dev.jeddy.render.mesh.MeshRegistry;
@@ -47,7 +48,11 @@ import java.util.concurrent.TimeUnit;
  * Main-thread submission for 20k instances (TASKS M5-08 AC: ≤ 2 ms, 0 B/frame): culling, sort keys,
  * the parallel sort, instance records and indirect commands built on the job system, then the GL
  * calls. Needs a GL 4.6 context (CI: Xvfb + llvmpipe, where the driver's own vertex work makes
- * {@code submit} slow; compare {@code cullAndBuild} with the budget).
+ * {@code submit} slow; compare {@code cullAndBuild} with the budget). The {@code gpu*} benchmarks
+ * draw the same instances as a GPU-culled {@link StaticScene} (TASKS M7-11 AC: at least 30% less
+ * main-thread CPU): {@code gpuPrepare} is the per-frame CPU work left, {@code gpuCullSubmit} adds
+ * the compute dispatches and multi-draw-indirect-count calls (on llvmpipe the "GPU" work runs on
+ * the CPU inside them).
  */
 @State(Scope.Thread)
 @BenchmarkMode(Mode.AverageTime)
@@ -85,6 +90,10 @@ public class DrawBench {
     private Culling culling;
     private DrawBuilder builder;
     private int[] visible;
+    private RenderPacket staticPacket;
+    private StaticScene staticScene;
+    private final float[] eye = {0, 100, 0};
+    private DrawBuilder.BatchBinder binder;
 
     /** Creates the context and a 20k-instance packet over 8 meshes and 16 materials. */
     @Setup(Level.Trial)
@@ -157,12 +166,43 @@ public class DrawBench {
         builder = new DrawBuilder(meshes, materials, jobs);
         builder.setLod(500, false, 1);
         visible = new int[20_000];
+        staticPacket = new RenderPacket(20_000);
+        r = new Random(1);
+        for (int i = 0; i < 20_000; i++) {
+            AffineOps.identity(world, 0);
+            world[3] = r.nextFloat() * 200 - 100;
+            world[11] = r.nextFloat() * 200 - 100;
+            int idx =
+                    staticPacket.add(
+                            world,
+                            0,
+                            world,
+                            0,
+                            meshHandles[r.nextInt(8)],
+                            r.nextInt(16),
+                            RenderPacket.FLAG_STATIC,
+                            i);
+            staticPacket.setBounds(idx, world[3], 0, world[11], 1);
+        }
+        System.arraycopy(packet.frustumPlanes, 0, staticPacket.frustumPlanes, 0, 24);
+        staticPacket.staticVersion = 1;
+        staticScene = new StaticScene(device, programs, meshes, materials);
+        binder =
+                (state, slot, translucent) -> {
+                    int program = materials.glProgram(slot);
+                    state.useProgram(program);
+                    return program != 0 && !translucent;
+                };
+        ring.beginFrame();
+        staticScene.update(staticPacket, ring);
+        ring.endFrame();
     }
 
     /** Releases everything. */
     @TearDown(Level.Trial)
     public void tearDown() {
         glFinish();
+        staticScene.close();
         ring.close();
         materials.close();
         programs.close();
@@ -193,5 +233,32 @@ public class DrawBench {
         builder.submit(device.state(), ring);
         ring.endFrame();
         return builder.batchCount();
+    }
+
+    /** The CPU work per frame left for GPU-culled static instances: copying flags and fades. */
+    @Benchmark
+    public boolean gpuPrepare() {
+        ring.beginFrame();
+        staticScene.update(staticPacket, ring);
+        ring.endFrame();
+        return staticScene.active();
+    }
+
+    /** {@link #gpuPrepare} plus the culling dispatches and the multi-draw-indirect-count calls. */
+    @Benchmark
+    public int gpuCullSubmit() {
+        ring.beginFrame();
+        staticScene.update(staticPacket, ring);
+        staticScene.cull(
+                device.state(),
+                StaticScene.VIEW_MAIN,
+                staticPacket.frustumPlanes,
+                eye,
+                500,
+                false,
+                0);
+        staticScene.submit(device.state(), StaticScene.VIEW_MAIN, binder);
+        ring.endFrame();
+        return staticScene.batchCount();
     }
 }
