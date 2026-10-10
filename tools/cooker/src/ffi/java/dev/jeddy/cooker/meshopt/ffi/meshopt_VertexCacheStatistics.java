@@ -54,7 +54,7 @@ public class meshopt_VertexCacheStatistics {
         return vertices_transformed$LAYOUT;
     }
 
-    private static final long vertices_transformed$OFFSET = $LAYOUT.byteOffset(groupElement("vertices_transformed"));
+    private static final long vertices_transformed$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -98,7 +98,7 @@ public class meshopt_VertexCacheStatistics {
         return warps_executed$LAYOUT;
     }
 
-    private static final long warps_executed$OFFSET = $LAYOUT.byteOffset(groupElement("warps_executed"));
+    private static final long warps_executed$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -142,7 +142,7 @@ public class meshopt_VertexCacheStatistics {
         return acmr$LAYOUT;
     }
 
-    private static final long acmr$OFFSET = $LAYOUT.byteOffset(groupElement("acmr"));
+    private static final long acmr$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -186,7 +186,7 @@ public class meshopt_VertexCacheStatistics {
         return atvr$LAYOUT;
     }
 
-    private static final long atvr$OFFSET = $LAYOUT.byteOffset(groupElement("atvr"));
+    private static final long atvr$OFFSET = 12;
 
     /**
      * Offset for field:

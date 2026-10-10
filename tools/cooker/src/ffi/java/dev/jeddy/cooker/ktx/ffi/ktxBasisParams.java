@@ -100,7 +100,7 @@ public class ktxBasisParams {
         return structSize$LAYOUT;
     }
 
-    private static final long structSize$OFFSET = $LAYOUT.byteOffset(groupElement("structSize"));
+    private static final long structSize$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -144,7 +144,7 @@ public class ktxBasisParams {
         return uastc$LAYOUT;
     }
 
-    private static final long uastc$OFFSET = $LAYOUT.byteOffset(groupElement("uastc"));
+    private static final long uastc$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -188,7 +188,7 @@ public class ktxBasisParams {
         return verbose$LAYOUT;
     }
 
-    private static final long verbose$OFFSET = $LAYOUT.byteOffset(groupElement("verbose"));
+    private static final long verbose$OFFSET = 5;
 
     /**
      * Offset for field:
@@ -232,7 +232,7 @@ public class ktxBasisParams {
         return noSSE$LAYOUT;
     }
 
-    private static final long noSSE$OFFSET = $LAYOUT.byteOffset(groupElement("noSSE"));
+    private static final long noSSE$OFFSET = 6;
 
     /**
      * Offset for field:
@@ -276,7 +276,7 @@ public class ktxBasisParams {
         return threadCount$LAYOUT;
     }
 
-    private static final long threadCount$OFFSET = $LAYOUT.byteOffset(groupElement("threadCount"));
+    private static final long threadCount$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -320,7 +320,7 @@ public class ktxBasisParams {
         return compressionLevel$LAYOUT;
     }
 
-    private static final long compressionLevel$OFFSET = $LAYOUT.byteOffset(groupElement("compressionLevel"));
+    private static final long compressionLevel$OFFSET = 12;
 
     /**
      * Offset for field:
@@ -364,7 +364,7 @@ public class ktxBasisParams {
         return qualityLevel$LAYOUT;
     }
 
-    private static final long qualityLevel$OFFSET = $LAYOUT.byteOffset(groupElement("qualityLevel"));
+    private static final long qualityLevel$OFFSET = 16;
 
     /**
      * Offset for field:
@@ -408,7 +408,7 @@ public class ktxBasisParams {
         return maxEndpoints$LAYOUT;
     }
 
-    private static final long maxEndpoints$OFFSET = $LAYOUT.byteOffset(groupElement("maxEndpoints"));
+    private static final long maxEndpoints$OFFSET = 20;
 
     /**
      * Offset for field:
@@ -452,7 +452,7 @@ public class ktxBasisParams {
         return endpointRDOThreshold$LAYOUT;
     }
 
-    private static final long endpointRDOThreshold$OFFSET = $LAYOUT.byteOffset(groupElement("endpointRDOThreshold"));
+    private static final long endpointRDOThreshold$OFFSET = 24;
 
     /**
      * Offset for field:
@@ -496,7 +496,7 @@ public class ktxBasisParams {
         return maxSelectors$LAYOUT;
     }
 
-    private static final long maxSelectors$OFFSET = $LAYOUT.byteOffset(groupElement("maxSelectors"));
+    private static final long maxSelectors$OFFSET = 28;
 
     /**
      * Offset for field:
@@ -540,7 +540,7 @@ public class ktxBasisParams {
         return selectorRDOThreshold$LAYOUT;
     }
 
-    private static final long selectorRDOThreshold$OFFSET = $LAYOUT.byteOffset(groupElement("selectorRDOThreshold"));
+    private static final long selectorRDOThreshold$OFFSET = 32;
 
     /**
      * Offset for field:
@@ -584,7 +584,7 @@ public class ktxBasisParams {
         return inputSwizzle$LAYOUT;
     }
 
-    private static final long inputSwizzle$OFFSET = $LAYOUT.byteOffset(groupElement("inputSwizzle"));
+    private static final long inputSwizzle$OFFSET = 36;
 
     /**
      * Offset for field:
@@ -636,7 +636,7 @@ public class ktxBasisParams {
      * }
      */
     public static byte inputSwizzle(MemorySegment struct, long index0) {
-        return (byte)inputSwizzle$ELEM_HANDLE.get(struct, inputSwizzle$OFFSET, index0);
+        return (byte)inputSwizzle$ELEM_HANDLE.get(struct, 0L, index0);
     }
 
     /**
@@ -646,7 +646,7 @@ public class ktxBasisParams {
      * }
      */
     public static void inputSwizzle(MemorySegment struct, long index0, byte fieldValue) {
-        inputSwizzle$ELEM_HANDLE.set(struct, inputSwizzle$OFFSET, index0, fieldValue);
+        inputSwizzle$ELEM_HANDLE.set(struct, 0L, index0, fieldValue);
     }
 
     private static final OfBoolean normalMap$LAYOUT = (OfBoolean)$LAYOUT.select(groupElement("normalMap"));
@@ -661,7 +661,7 @@ public class ktxBasisParams {
         return normalMap$LAYOUT;
     }
 
-    private static final long normalMap$OFFSET = $LAYOUT.byteOffset(groupElement("normalMap"));
+    private static final long normalMap$OFFSET = 40;
 
     /**
      * Offset for field:
@@ -705,7 +705,7 @@ public class ktxBasisParams {
         return separateRGToRGB_A$LAYOUT;
     }
 
-    private static final long separateRGToRGB_A$OFFSET = $LAYOUT.byteOffset(groupElement("separateRGToRGB_A"));
+    private static final long separateRGToRGB_A$OFFSET = 41;
 
     /**
      * Offset for field:
@@ -749,7 +749,7 @@ public class ktxBasisParams {
         return preSwizzle$LAYOUT;
     }
 
-    private static final long preSwizzle$OFFSET = $LAYOUT.byteOffset(groupElement("preSwizzle"));
+    private static final long preSwizzle$OFFSET = 42;
 
     /**
      * Offset for field:
@@ -793,7 +793,7 @@ public class ktxBasisParams {
         return noEndpointRDO$LAYOUT;
     }
 
-    private static final long noEndpointRDO$OFFSET = $LAYOUT.byteOffset(groupElement("noEndpointRDO"));
+    private static final long noEndpointRDO$OFFSET = 43;
 
     /**
      * Offset for field:
@@ -837,7 +837,7 @@ public class ktxBasisParams {
         return noSelectorRDO$LAYOUT;
     }
 
-    private static final long noSelectorRDO$OFFSET = $LAYOUT.byteOffset(groupElement("noSelectorRDO"));
+    private static final long noSelectorRDO$OFFSET = 44;
 
     /**
      * Offset for field:
@@ -881,7 +881,7 @@ public class ktxBasisParams {
         return uastcFlags$LAYOUT;
     }
 
-    private static final long uastcFlags$OFFSET = $LAYOUT.byteOffset(groupElement("uastcFlags"));
+    private static final long uastcFlags$OFFSET = 48;
 
     /**
      * Offset for field:
@@ -925,7 +925,7 @@ public class ktxBasisParams {
         return uastcRDO$LAYOUT;
     }
 
-    private static final long uastcRDO$OFFSET = $LAYOUT.byteOffset(groupElement("uastcRDO"));
+    private static final long uastcRDO$OFFSET = 52;
 
     /**
      * Offset for field:
@@ -969,7 +969,7 @@ public class ktxBasisParams {
         return uastcRDOQualityScalar$LAYOUT;
     }
 
-    private static final long uastcRDOQualityScalar$OFFSET = $LAYOUT.byteOffset(groupElement("uastcRDOQualityScalar"));
+    private static final long uastcRDOQualityScalar$OFFSET = 56;
 
     /**
      * Offset for field:
@@ -1013,7 +1013,7 @@ public class ktxBasisParams {
         return uastcRDODictSize$LAYOUT;
     }
 
-    private static final long uastcRDODictSize$OFFSET = $LAYOUT.byteOffset(groupElement("uastcRDODictSize"));
+    private static final long uastcRDODictSize$OFFSET = 60;
 
     /**
      * Offset for field:
@@ -1057,7 +1057,7 @@ public class ktxBasisParams {
         return uastcRDOMaxSmoothBlockErrorScale$LAYOUT;
     }
 
-    private static final long uastcRDOMaxSmoothBlockErrorScale$OFFSET = $LAYOUT.byteOffset(groupElement("uastcRDOMaxSmoothBlockErrorScale"));
+    private static final long uastcRDOMaxSmoothBlockErrorScale$OFFSET = 64;
 
     /**
      * Offset for field:
@@ -1101,7 +1101,7 @@ public class ktxBasisParams {
         return uastcRDOMaxSmoothBlockStdDev$LAYOUT;
     }
 
-    private static final long uastcRDOMaxSmoothBlockStdDev$OFFSET = $LAYOUT.byteOffset(groupElement("uastcRDOMaxSmoothBlockStdDev"));
+    private static final long uastcRDOMaxSmoothBlockStdDev$OFFSET = 68;
 
     /**
      * Offset for field:
@@ -1145,7 +1145,7 @@ public class ktxBasisParams {
         return uastcRDODontFavorSimplerModes$LAYOUT;
     }
 
-    private static final long uastcRDODontFavorSimplerModes$OFFSET = $LAYOUT.byteOffset(groupElement("uastcRDODontFavorSimplerModes"));
+    private static final long uastcRDODontFavorSimplerModes$OFFSET = 72;
 
     /**
      * Offset for field:
@@ -1189,7 +1189,7 @@ public class ktxBasisParams {
         return uastcRDONoMultithreading$LAYOUT;
     }
 
-    private static final long uastcRDONoMultithreading$OFFSET = $LAYOUT.byteOffset(groupElement("uastcRDONoMultithreading"));
+    private static final long uastcRDONoMultithreading$OFFSET = 73;
 
     /**
      * Offset for field:

@@ -12,17 +12,61 @@ import java.util.stream.*;
 import static java.lang.foreign.ValueLayout.*;
 import static java.lang.foreign.MemoryLayout.PathElement.*;
 
-public class MeshOpt extends MeshOpt$shared {
+public class MeshOpt {
 
     MeshOpt() {
         // Should not be called directly
     }
 
     static final Arena LIBRARY_ARENA = Arena.global();
+    static final boolean TRACE_DOWNCALLS = Boolean.getBoolean("jextract.trace.downcalls");
+
+    static void traceDowncall(String name, Object... args) {
+         String traceArgs = Arrays.stream(args)
+                       .map(Object::toString)
+                       .collect(Collectors.joining(", "));
+         System.out.printf("%s(%s)\n", name, traceArgs);
+    }
+
+    static MemorySegment findOrThrow(String symbol) {
+        return SYMBOL_LOOKUP.find(symbol)
+            .orElseThrow(() -> new UnsatisfiedLinkError("unresolved symbol: " + symbol));
+    }
+
+    static MethodHandle upcallHandle(Class<?> fi, String name, FunctionDescriptor fdesc) {
+        try {
+            return MethodHandles.lookup().findVirtual(fi, name, fdesc.toMethodType());
+        } catch (ReflectiveOperationException ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
+    static MemoryLayout align(MemoryLayout layout, long align) {
+        return switch (layout) {
+            case PaddingLayout p -> p;
+            case ValueLayout v -> v.withByteAlignment(align);
+            case GroupLayout g -> {
+                MemoryLayout[] alignedMembers = g.memberLayouts().stream()
+                        .map(m -> align(m, align)).toArray(MemoryLayout[]::new);
+                yield g instanceof StructLayout ?
+                        MemoryLayout.structLayout(alignedMembers) : MemoryLayout.unionLayout(alignedMembers);
+            }
+            case SequenceLayout s -> MemoryLayout.sequenceLayout(s.elementCount(), align(s.elementLayout(), align));
+        };
+    }
 
     static final SymbolLookup SYMBOL_LOOKUP = SymbolLookup.loaderLookup()
             .or(Linker.nativeLinker().defaultLookup());
 
+    public static final ValueLayout.OfBoolean C_BOOL = ValueLayout.JAVA_BOOLEAN;
+    public static final ValueLayout.OfByte C_CHAR = ValueLayout.JAVA_BYTE;
+    public static final ValueLayout.OfShort C_SHORT = ValueLayout.JAVA_SHORT;
+    public static final ValueLayout.OfInt C_INT = ValueLayout.JAVA_INT;
+    public static final ValueLayout.OfLong C_LONG_LONG = ValueLayout.JAVA_LONG;
+    public static final ValueLayout.OfFloat C_FLOAT = ValueLayout.JAVA_FLOAT;
+    public static final ValueLayout.OfDouble C_DOUBLE = ValueLayout.JAVA_DOUBLE;
+    public static final AddressLayout C_POINTER = ValueLayout.ADDRESS
+            .withTargetLayout(MemoryLayout.sequenceLayout(java.lang.Long.MAX_VALUE, JAVA_BYTE));
 
     private static class meshopt_generateVertexRemap {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
@@ -35,7 +79,7 @@ public class MeshOpt extends MeshOpt$shared {
             MeshOpt.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("meshopt_generateVertexRemap");
+        public static final MemorySegment ADDR = MeshOpt.findOrThrow("meshopt_generateVertexRemap");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -82,8 +126,6 @@ public class MeshOpt extends MeshOpt$shared {
                 traceDowncall("meshopt_generateVertexRemap", destination, indices, index_count, vertices, vertex_count, vertex_size);
             }
             return (long)mh$.invokeExact(destination, indices, index_count, vertices, vertex_count, vertex_size);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -98,7 +140,7 @@ public class MeshOpt extends MeshOpt$shared {
             MeshOpt.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("meshopt_remapVertexBuffer");
+        public static final MemorySegment ADDR = MeshOpt.findOrThrow("meshopt_remapVertexBuffer");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -145,8 +187,6 @@ public class MeshOpt extends MeshOpt$shared {
                 traceDowncall("meshopt_remapVertexBuffer", destination, vertices, vertex_count, vertex_size, remap);
             }
             mh$.invokeExact(destination, vertices, vertex_count, vertex_size, remap);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -160,7 +200,7 @@ public class MeshOpt extends MeshOpt$shared {
             MeshOpt.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("meshopt_remapIndexBuffer");
+        public static final MemorySegment ADDR = MeshOpt.findOrThrow("meshopt_remapIndexBuffer");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -207,8 +247,6 @@ public class MeshOpt extends MeshOpt$shared {
                 traceDowncall("meshopt_remapIndexBuffer", destination, indices, index_count, remap);
             }
             mh$.invokeExact(destination, indices, index_count, remap);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -222,7 +260,7 @@ public class MeshOpt extends MeshOpt$shared {
             MeshOpt.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("meshopt_optimizeVertexCache");
+        public static final MemorySegment ADDR = MeshOpt.findOrThrow("meshopt_optimizeVertexCache");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -269,8 +307,6 @@ public class MeshOpt extends MeshOpt$shared {
                 traceDowncall("meshopt_optimizeVertexCache", destination, indices, index_count, vertex_count);
             }
             mh$.invokeExact(destination, indices, index_count, vertex_count);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -287,7 +323,7 @@ public class MeshOpt extends MeshOpt$shared {
             MeshOpt.C_FLOAT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("meshopt_optimizeOverdraw");
+        public static final MemorySegment ADDR = MeshOpt.findOrThrow("meshopt_optimizeOverdraw");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -334,8 +370,6 @@ public class MeshOpt extends MeshOpt$shared {
                 traceDowncall("meshopt_optimizeOverdraw", destination, indices, index_count, vertex_positions, vertex_count, vertex_positions_stride, threshold);
             }
             mh$.invokeExact(destination, indices, index_count, vertex_positions, vertex_count, vertex_positions_stride, threshold);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -352,7 +386,7 @@ public class MeshOpt extends MeshOpt$shared {
             MeshOpt.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("meshopt_optimizeVertexFetch");
+        public static final MemorySegment ADDR = MeshOpt.findOrThrow("meshopt_optimizeVertexFetch");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -399,8 +433,6 @@ public class MeshOpt extends MeshOpt$shared {
                 traceDowncall("meshopt_optimizeVertexFetch", destination, indices, index_count, vertices, vertex_count, vertex_size);
             }
             return (long)mh$.invokeExact(destination, indices, index_count, vertices, vertex_count, vertex_size);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -408,7 +440,7 @@ public class MeshOpt extends MeshOpt$shared {
     private static final int meshopt_SimplifyLockBorder = (int)1L;
     /**
      * {@snippet lang=c :
-     * enum enum (unnamed at /home/claude/jeddyframework/bindings/meshoptimizer/include/meshoptimizer.h:466:1).meshopt_SimplifyLockBorder = 1
+     * enum <anonymous>.meshopt_SimplifyLockBorder = 1
      * }
      */
     public static int meshopt_SimplifyLockBorder() {
@@ -417,7 +449,7 @@ public class MeshOpt extends MeshOpt$shared {
     private static final int meshopt_SimplifySparse = (int)2L;
     /**
      * {@snippet lang=c :
-     * enum enum (unnamed at /home/claude/jeddyframework/bindings/meshoptimizer/include/meshoptimizer.h:466:1).meshopt_SimplifySparse = 2
+     * enum <anonymous>.meshopt_SimplifySparse = 2
      * }
      */
     public static int meshopt_SimplifySparse() {
@@ -426,7 +458,7 @@ public class MeshOpt extends MeshOpt$shared {
     private static final int meshopt_SimplifyErrorAbsolute = (int)4L;
     /**
      * {@snippet lang=c :
-     * enum enum (unnamed at /home/claude/jeddyframework/bindings/meshoptimizer/include/meshoptimizer.h:466:1).meshopt_SimplifyErrorAbsolute = 4
+     * enum <anonymous>.meshopt_SimplifyErrorAbsolute = 4
      * }
      */
     public static int meshopt_SimplifyErrorAbsolute() {
@@ -448,7 +480,7 @@ public class MeshOpt extends MeshOpt$shared {
             MeshOpt.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("meshopt_simplify");
+        public static final MemorySegment ADDR = MeshOpt.findOrThrow("meshopt_simplify");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -495,8 +527,6 @@ public class MeshOpt extends MeshOpt$shared {
                 traceDowncall("meshopt_simplify", destination, indices, index_count, vertex_positions, vertex_count, vertex_positions_stride, target_index_count, target_error, options, result_error);
             }
             return (long)mh$.invokeExact(destination, indices, index_count, vertex_positions, vertex_count, vertex_positions_stride, target_index_count, target_error, options, result_error);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -522,7 +552,7 @@ public class MeshOpt extends MeshOpt$shared {
             MeshOpt.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("meshopt_simplifyWithAttributes");
+        public static final MemorySegment ADDR = MeshOpt.findOrThrow("meshopt_simplifyWithAttributes");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -569,8 +599,6 @@ public class MeshOpt extends MeshOpt$shared {
                 traceDowncall("meshopt_simplifyWithAttributes", destination, indices, index_count, vertex_positions, vertex_count, vertex_positions_stride, vertex_attributes, vertex_attributes_stride, attribute_weights, attribute_count, vertex_lock, target_index_count, target_error, options, result_error);
             }
             return (long)mh$.invokeExact(destination, indices, index_count, vertex_positions, vertex_count, vertex_positions_stride, vertex_attributes, vertex_attributes_stride, attribute_weights, attribute_count, vertex_lock, target_index_count, target_error, options, result_error);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -584,7 +612,7 @@ public class MeshOpt extends MeshOpt$shared {
             MeshOpt.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("meshopt_simplifyScale");
+        public static final MemorySegment ADDR = MeshOpt.findOrThrow("meshopt_simplifyScale");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -631,8 +659,6 @@ public class MeshOpt extends MeshOpt$shared {
                 traceDowncall("meshopt_simplifyScale", vertex_positions, vertex_count, vertex_positions_stride);
             }
             return (float)mh$.invokeExact(vertex_positions, vertex_count, vertex_positions_stride);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -649,7 +675,7 @@ public class MeshOpt extends MeshOpt$shared {
             MeshOpt.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("meshopt_analyzeVertexCache");
+        public static final MemorySegment ADDR = MeshOpt.findOrThrow("meshopt_analyzeVertexCache");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -696,8 +722,6 @@ public class MeshOpt extends MeshOpt$shared {
                 traceDowncall("meshopt_analyzeVertexCache", allocator, indices, index_count, vertex_count, cache_size, warp_size, primgroup_size);
             }
             return (MemorySegment)mh$.invokeExact(allocator, indices, index_count, vertex_count, cache_size, warp_size, primgroup_size);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -713,7 +737,7 @@ public class MeshOpt extends MeshOpt$shared {
             MeshOpt.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("meshopt_analyzeOverdraw");
+        public static final MemorySegment ADDR = MeshOpt.findOrThrow("meshopt_analyzeOverdraw");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -760,8 +784,6 @@ public class MeshOpt extends MeshOpt$shared {
                 traceDowncall("meshopt_analyzeOverdraw", allocator, indices, index_count, vertex_positions, vertex_count, vertex_positions_stride);
             }
             return (MemorySegment)mh$.invokeExact(allocator, indices, index_count, vertex_positions, vertex_count, vertex_positions_stride);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }

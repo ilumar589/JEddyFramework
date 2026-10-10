@@ -110,7 +110,7 @@ public class ktxTexture2 {
         return classId$LAYOUT;
     }
 
-    private static final long classId$OFFSET = $LAYOUT.byteOffset(groupElement("classId"));
+    private static final long classId$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -154,7 +154,7 @@ public class ktxTexture2 {
         return vtbl$LAYOUT;
     }
 
-    private static final long vtbl$OFFSET = $LAYOUT.byteOffset(groupElement("vtbl"));
+    private static final long vtbl$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -198,7 +198,7 @@ public class ktxTexture2 {
         return vvtbl$LAYOUT;
     }
 
-    private static final long vvtbl$OFFSET = $LAYOUT.byteOffset(groupElement("vvtbl"));
+    private static final long vvtbl$OFFSET = 16;
 
     /**
      * Offset for field:
@@ -242,7 +242,7 @@ public class ktxTexture2 {
         return _protected$LAYOUT;
     }
 
-    private static final long _protected$OFFSET = $LAYOUT.byteOffset(groupElement("_protected"));
+    private static final long _protected$OFFSET = 24;
 
     /**
      * Offset for field:
@@ -286,7 +286,7 @@ public class ktxTexture2 {
         return isArray$LAYOUT;
     }
 
-    private static final long isArray$OFFSET = $LAYOUT.byteOffset(groupElement("isArray"));
+    private static final long isArray$OFFSET = 32;
 
     /**
      * Offset for field:
@@ -330,7 +330,7 @@ public class ktxTexture2 {
         return isCubemap$LAYOUT;
     }
 
-    private static final long isCubemap$OFFSET = $LAYOUT.byteOffset(groupElement("isCubemap"));
+    private static final long isCubemap$OFFSET = 33;
 
     /**
      * Offset for field:
@@ -374,7 +374,7 @@ public class ktxTexture2 {
         return isCompressed$LAYOUT;
     }
 
-    private static final long isCompressed$OFFSET = $LAYOUT.byteOffset(groupElement("isCompressed"));
+    private static final long isCompressed$OFFSET = 34;
 
     /**
      * Offset for field:
@@ -418,7 +418,7 @@ public class ktxTexture2 {
         return generateMipmaps$LAYOUT;
     }
 
-    private static final long generateMipmaps$OFFSET = $LAYOUT.byteOffset(groupElement("generateMipmaps"));
+    private static final long generateMipmaps$OFFSET = 35;
 
     /**
      * Offset for field:
@@ -462,7 +462,7 @@ public class ktxTexture2 {
         return baseWidth$LAYOUT;
     }
 
-    private static final long baseWidth$OFFSET = $LAYOUT.byteOffset(groupElement("baseWidth"));
+    private static final long baseWidth$OFFSET = 36;
 
     /**
      * Offset for field:
@@ -506,7 +506,7 @@ public class ktxTexture2 {
         return baseHeight$LAYOUT;
     }
 
-    private static final long baseHeight$OFFSET = $LAYOUT.byteOffset(groupElement("baseHeight"));
+    private static final long baseHeight$OFFSET = 40;
 
     /**
      * Offset for field:
@@ -550,7 +550,7 @@ public class ktxTexture2 {
         return baseDepth$LAYOUT;
     }
 
-    private static final long baseDepth$OFFSET = $LAYOUT.byteOffset(groupElement("baseDepth"));
+    private static final long baseDepth$OFFSET = 44;
 
     /**
      * Offset for field:
@@ -594,7 +594,7 @@ public class ktxTexture2 {
         return numDimensions$LAYOUT;
     }
 
-    private static final long numDimensions$OFFSET = $LAYOUT.byteOffset(groupElement("numDimensions"));
+    private static final long numDimensions$OFFSET = 48;
 
     /**
      * Offset for field:
@@ -638,7 +638,7 @@ public class ktxTexture2 {
         return numLevels$LAYOUT;
     }
 
-    private static final long numLevels$OFFSET = $LAYOUT.byteOffset(groupElement("numLevels"));
+    private static final long numLevels$OFFSET = 52;
 
     /**
      * Offset for field:
@@ -682,7 +682,7 @@ public class ktxTexture2 {
         return numLayers$LAYOUT;
     }
 
-    private static final long numLayers$OFFSET = $LAYOUT.byteOffset(groupElement("numLayers"));
+    private static final long numLayers$OFFSET = 56;
 
     /**
      * Offset for field:
@@ -726,7 +726,7 @@ public class ktxTexture2 {
         return numFaces$LAYOUT;
     }
 
-    private static final long numFaces$OFFSET = $LAYOUT.byteOffset(groupElement("numFaces"));
+    private static final long numFaces$OFFSET = 60;
 
     /**
      * Offset for field:
@@ -770,7 +770,7 @@ public class ktxTexture2 {
         return orientation$LAYOUT;
     }
 
-    private static final long orientation$OFFSET = $LAYOUT.byteOffset(groupElement("orientation"));
+    private static final long orientation$OFFSET = 64;
 
     /**
      * Offset for field:
@@ -814,7 +814,7 @@ public class ktxTexture2 {
         return kvDataHead$LAYOUT;
     }
 
-    private static final long kvDataHead$OFFSET = $LAYOUT.byteOffset(groupElement("kvDataHead"));
+    private static final long kvDataHead$OFFSET = 80;
 
     /**
      * Offset for field:
@@ -858,7 +858,7 @@ public class ktxTexture2 {
         return kvDataLen$LAYOUT;
     }
 
-    private static final long kvDataLen$OFFSET = $LAYOUT.byteOffset(groupElement("kvDataLen"));
+    private static final long kvDataLen$OFFSET = 88;
 
     /**
      * Offset for field:
@@ -902,7 +902,7 @@ public class ktxTexture2 {
         return kvData$LAYOUT;
     }
 
-    private static final long kvData$OFFSET = $LAYOUT.byteOffset(groupElement("kvData"));
+    private static final long kvData$OFFSET = 96;
 
     /**
      * Offset for field:
@@ -946,7 +946,7 @@ public class ktxTexture2 {
         return dataSize$LAYOUT;
     }
 
-    private static final long dataSize$OFFSET = $LAYOUT.byteOffset(groupElement("dataSize"));
+    private static final long dataSize$OFFSET = 104;
 
     /**
      * Offset for field:
@@ -990,7 +990,7 @@ public class ktxTexture2 {
         return pData$LAYOUT;
     }
 
-    private static final long pData$OFFSET = $LAYOUT.byteOffset(groupElement("pData"));
+    private static final long pData$OFFSET = 112;
 
     /**
      * Offset for field:
@@ -1034,7 +1034,7 @@ public class ktxTexture2 {
         return vkFormat$LAYOUT;
     }
 
-    private static final long vkFormat$OFFSET = $LAYOUT.byteOffset(groupElement("vkFormat"));
+    private static final long vkFormat$OFFSET = 120;
 
     /**
      * Offset for field:
@@ -1078,7 +1078,7 @@ public class ktxTexture2 {
         return pDfd$LAYOUT;
     }
 
-    private static final long pDfd$OFFSET = $LAYOUT.byteOffset(groupElement("pDfd"));
+    private static final long pDfd$OFFSET = 128;
 
     /**
      * Offset for field:
@@ -1122,7 +1122,7 @@ public class ktxTexture2 {
         return supercompressionScheme$LAYOUT;
     }
 
-    private static final long supercompressionScheme$OFFSET = $LAYOUT.byteOffset(groupElement("supercompressionScheme"));
+    private static final long supercompressionScheme$OFFSET = 136;
 
     /**
      * Offset for field:
@@ -1166,7 +1166,7 @@ public class ktxTexture2 {
         return isVideo$LAYOUT;
     }
 
-    private static final long isVideo$OFFSET = $LAYOUT.byteOffset(groupElement("isVideo"));
+    private static final long isVideo$OFFSET = 140;
 
     /**
      * Offset for field:
@@ -1210,7 +1210,7 @@ public class ktxTexture2 {
         return duration$LAYOUT;
     }
 
-    private static final long duration$OFFSET = $LAYOUT.byteOffset(groupElement("duration"));
+    private static final long duration$OFFSET = 144;
 
     /**
      * Offset for field:
@@ -1254,7 +1254,7 @@ public class ktxTexture2 {
         return timescale$LAYOUT;
     }
 
-    private static final long timescale$OFFSET = $LAYOUT.byteOffset(groupElement("timescale"));
+    private static final long timescale$OFFSET = 148;
 
     /**
      * Offset for field:
@@ -1298,7 +1298,7 @@ public class ktxTexture2 {
         return loopcount$LAYOUT;
     }
 
-    private static final long loopcount$OFFSET = $LAYOUT.byteOffset(groupElement("loopcount"));
+    private static final long loopcount$OFFSET = 152;
 
     /**
      * Offset for field:
@@ -1342,7 +1342,7 @@ public class ktxTexture2 {
         return _private$LAYOUT;
     }
 
-    private static final long _private$OFFSET = $LAYOUT.byteOffset(groupElement("_private"));
+    private static final long _private$OFFSET = 160;
 
     /**
      * Offset for field:
