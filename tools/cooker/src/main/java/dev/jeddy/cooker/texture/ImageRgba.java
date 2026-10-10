@@ -68,18 +68,38 @@ public final class ImageRgba {
     }
 
     /**
+     * Linear [0, 1] quantized to 16 bits → sRGB byte. 65536 entries keep the error under 0.03 of an
+     * 8-bit step even where the curve is steepest (near black).
+     */
+    private static final byte[] SRGB_ENCODE = new byte[65536];
+
+    static {
+        for (int i = 0; i < SRGB_ENCODE.length; i++) {
+            SRGB_ENCODE[i] = (byte) Math.round(linearToSrgb(i / 65535f) * 255f);
+        }
+    }
+
+    /**
      * Quantizes to RGBA8 (sRGB-encoding the color channels when {@code srgb}; alpha is always
-     * linear).
+     * linear). Large images convert rows in parallel.
      */
     public byte[] toRgba8(boolean srgb) {
         byte[] out = new byte[width * height * 4];
-        for (int i = 0; i < out.length; i++) {
-            float v = pixels[i];
-            if (srgb && (i & 3) != 3) {
-                v = linearToSrgb(Math.max(0, v));
-            }
-            out[i] = (byte) Math.round(Math.max(0, Math.min(1, v)) * 255f);
+        java.util.stream.IntStream rows = java.util.stream.IntStream.range(0, height);
+        if ((long) width * height >= 1 << 16) {
+            rows = rows.parallel();
         }
+        rows.forEach(
+                y -> {
+                    int end = (y + 1) * width * 4;
+                    for (int i = y * width * 4; i < end; i++) {
+                        float v = Math.max(0, Math.min(1, pixels[i]));
+                        out[i] =
+                                srgb && (i & 3) != 3
+                                        ? SRGB_ENCODE[(int) (v * 65535f + 0.5f)]
+                                        : (byte) Math.round(v * 255f);
+                    }
+                });
         return out;
     }
 

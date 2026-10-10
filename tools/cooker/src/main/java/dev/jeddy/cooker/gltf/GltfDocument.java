@@ -31,14 +31,24 @@ public final class GltfDocument {
     static final int UNSIGNED_INT = 5125;
     static final int FLOAT = 5126;
 
+    /** Reads the files that URIs refer to (lets the cooker record them as dependencies). */
+    @FunctionalInterface
+    public interface UriReader {
+        /** Returns the bytes of {@code file}. */
+        byte[] read(Path file) throws IOException;
+    }
+
     private final Path file;
     private final Map<String, Object> json;
+    private final UriReader reader;
     private final List<ByteBuffer> buffers = new ArrayList<>();
 
-    private GltfDocument(Path file, Map<String, Object> json, ByteBuffer glbBinary)
+    private GltfDocument(
+            Path file, Map<String, Object> json, ByteBuffer glbBinary, UriReader reader)
             throws IOException {
         this.file = file;
         this.json = json;
+        this.reader = reader;
         Map<String, Object> asset = object(json.get("asset"), "asset");
         String version = Json.string(asset, "version", "");
         if (!version.startsWith("2.")) {
@@ -62,18 +72,80 @@ public final class GltfDocument {
 
     /** Reads a {@code .gltf} or {@code .glb} file. */
     public static GltfDocument read(Path file) throws IOException {
-        byte[] bytes = Files.readAllBytes(file);
-        if (bytes.length >= 12
+        return read(file, Files.readAllBytes(file), Files::readAllBytes);
+    }
+
+    /**
+     * Parses {@code bytes}, the content of {@code file}; external buffers and images are read
+     * through {@code reader}.
+     */
+    public static GltfDocument read(Path file, byte[] bytes, UriReader reader) throws IOException {
+        if (isGlb(bytes)) {
+            return readGlb(file, bytes, reader);
+        }
+        return new GltfDocument(file, parseJson(file, bytes, 0, bytes.length), null, reader);
+    }
+
+    private static boolean isGlb(byte[] bytes) {
+        return bytes.length >= 12
                 && bytes[0] == 'g'
                 && bytes[1] == 'l'
                 && bytes[2] == 'T'
-                && bytes[3] == 'F') {
-            return readGlb(file, bytes);
-        }
-        return new GltfDocument(file, object(Json.parse(bytes), "glTF"), null);
+                && bytes[3] == 'F';
     }
 
-    private static GltfDocument readGlb(Path file, byte[] bytes) throws IOException {
+    private static Map<String, Object> parseJson(Path file, byte[] bytes, int offset, int length)
+            throws IOException {
+        try {
+            return object(
+                    Json.parse(new String(bytes, offset, length, StandardCharsets.UTF_8)), "glTF");
+        } catch (RuntimeException e) {
+            throw new IOException(file + ": " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Returns the files that {@code bytes} (a {@code .gltf} or {@code .glb}) refers to: external
+     * buffers and images, resolved against its directory. Only the JSON is parsed.
+     */
+    public static List<Path> externalFiles(Path file, byte[] bytes) throws IOException {
+        Map<String, Object> json;
+        if (isGlb(bytes)) {
+            ByteBuffer b = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
+            if (bytes.length < 20) {
+                throw new IOException(file + ": truncated GLB");
+            }
+            int length = b.getInt(12);
+            if (b.getInt(16) != 0x4E4F534A || length < 0 || 20L + length > bytes.length) {
+                throw new IOException(file + ": GLB does not start with a JSON chunk");
+            }
+            json = parseJson(file, bytes, 20, length);
+        } else {
+            json = parseJson(file, bytes, 0, bytes.length);
+        }
+        List<Path> out = new ArrayList<>();
+        for (String key : List.of("buffers", "images")) {
+            Object list = json.get(key);
+            if (list == null) {
+                continue;
+            }
+            for (Object o : Json.asArray(list, key)) {
+                String uri = Json.string(object(o, key), "uri", null);
+                if (uri != null && !uri.startsWith("data:")) {
+                    out.add(resolveUri(file, uri));
+                }
+            }
+        }
+        return out;
+    }
+
+    private static Path resolveUri(Path file, String uri) {
+        String path = URLDecoder.decode(uri.replace("+", "%2B"), StandardCharsets.UTF_8);
+        return file.resolveSibling(path).normalize();
+    }
+
+    private static GltfDocument readGlb(Path file, byte[] bytes, UriReader reader)
+            throws IOException {
         ByteBuffer b = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
         int version = b.getInt(4);
         int length = b.getInt(8);
@@ -87,16 +159,11 @@ public final class GltfDocument {
             int chunkLength = b.getInt(p);
             int type = b.getInt(p + 4);
             int start = p + 8;
-            if (start + chunkLength > length) {
+            if (chunkLength < 0 || start + chunkLength > length) {
                 throw new IOException(file + ": truncated GLB chunk");
             }
             if (type == 0x4E4F534A) { // JSON
-                json =
-                        object(
-                                Json.parse(
-                                        new String(
-                                                bytes, start, chunkLength, StandardCharsets.UTF_8)),
-                                "glTF");
+                json = parseJson(file, bytes, start, chunkLength);
             } else if (type == 0x004E4942) { // BIN
                 bin = ByteBuffer.wrap(bytes, start, chunkLength).slice();
             }
@@ -105,7 +172,7 @@ public final class GltfDocument {
         if (json == null) {
             throw new IOException(file + ": GLB has no JSON chunk");
         }
-        return new GltfDocument(file, json, bin);
+        return new GltfDocument(file, json, bin, reader);
     }
 
     /** Returns the source file. */
@@ -219,28 +286,33 @@ public final class GltfDocument {
         return out;
     }
 
+    /**
+     * Returns the name of image {@code i} (its {@code name}, else its file name) without extension.
+     */
+    public String imageName(int i) {
+        Map<String, Object> img = get("images", i);
+        String name = Json.string(img, "name", null);
+        String uri = Json.string(img, "uri", null);
+        if (name == null && uri != null && !uri.startsWith("data:")) {
+            String path = URLDecoder.decode(uri.replace("+", "%2B"), StandardCharsets.UTF_8);
+            name = path.substring(path.lastIndexOf('/') + 1);
+        }
+        return stripExtension(name == null || name.isEmpty() ? "image" + i : name);
+    }
+
     /** Returns the bytes and MIME type of image {@code i}. */
     public Image image(int i) throws IOException {
         Map<String, Object> img = get("images", i);
         String uri = Json.string(img, "uri", null);
-        String name = Json.string(img, "name", null);
         if (uri != null) {
             String mime =
                     uri.startsWith("data:") ? uri.substring(5, uri.indexOf(';')) : guessMime(uri);
-            if (name == null) {
-                String path = uri.startsWith("data:") ? "image" + i : uri;
-                int slash = path.lastIndexOf('/');
-                name = path.substring(slash + 1);
-            }
-            return new Image(stripExtension(name), mime, readUri(uri));
+            return new Image(imageName(i), mime, readUri(uri));
         }
         View v = view(Json.integer(img, "bufferView", 0), 0);
         byte[] bytes = new byte[v.length];
         v.data.get(v.offset, bytes);
-        return new Image(
-                stripExtension(name == null ? "image" + i : name),
-                Json.string(img, "mimeType", ""),
-                bytes);
+        return new Image(imageName(i), Json.string(img, "mimeType", ""), bytes);
     }
 
     /** An embedded or referenced image. */
@@ -304,9 +376,7 @@ public final class GltfDocument {
             }
             return Base64.getDecoder().decode(uri.substring(comma + 1));
         }
-        Path target =
-                file.resolveSibling(URLDecoder.decode(uri, StandardCharsets.UTF_8)).normalize();
-        return Files.readAllBytes(target);
+        return reader.read(resolveUri(file, uri));
     }
 
     private static String guessMime(String uri) {

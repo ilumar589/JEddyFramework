@@ -11,8 +11,9 @@ import java.util.Map;
  * Turns a {@link GltfDocument} into the cooker's import model (TASKS M6-03, DESIGN §10.3): meshes
  * as lists of triangle primitives with float vertex streams, PBR metallic-roughness materials (with
  * {@code KHR_texture_transform} and {@code KHR_materials_emissive_strength}), textures with their
- * wrap modes, the node hierarchy and {@code KHR_lights_punctual} lights. Skins and animations stay
- * in the JSON for the future animation module.
+ * wrap modes, the node hierarchy and {@code KHR_lights_punctual} lights. Skins and animations are
+ * read as they are (joints, inverse bind matrices, keyframe streams) and stored raw in the {@code
+ * .jscene} for the future animation module.
  *
  * <p>Thread ownership: stateless; any thread.
  */
@@ -84,7 +85,7 @@ public final class GltfImporter {
     /** A texture: an image and its sampler's wrap modes ({@code true} = repeat). */
     public record Texture(int image, boolean wrapS, boolean wrapT) {}
 
-    /** A node: local TRS, parent (-1 for roots), mesh and light (-1 for none). */
+    /** A node: local TRS, parent (-1 for roots), mesh, light and skin (-1 for none). */
     public record Node(
             String name,
             int parent,
@@ -92,7 +93,8 @@ public final class GltfImporter {
             float[] rotation,
             float[] scale,
             int mesh,
-            int light) {}
+            int light,
+            int skin) {}
 
     /** A punctual light. */
     public record Light(
@@ -104,6 +106,21 @@ public final class GltfImporter {
             float innerCone,
             float outerCone) {}
 
+    /** A skin: joint nodes and inverse bind matrices (column-major 4×4, identity if absent). */
+    public record Skin(int skeleton, int[] joints, float[] inverseBind) {}
+
+    /** One animation channel: target node and path, keyframe times and output values. */
+    public record Channel(
+            int node,
+            String path,
+            String interpolation,
+            int components,
+            float[] times,
+            float[] values) {}
+
+    /** An animation clip. */
+    public record Animation(String name, List<Channel> channels) {}
+
     /** Everything imported from one file. */
     public record Scene(
             List<Mesh> meshes,
@@ -111,6 +128,8 @@ public final class GltfImporter {
             List<Texture> textures,
             List<Node> nodes,
             List<Light> lights,
+            List<Skin> skins,
+            List<Animation> animations,
             List<String> warnings) {}
 
     /** Imports {@code doc}. */
@@ -159,7 +178,82 @@ public final class GltfImporter {
             }
         }
         List<Node> nodes = nodes(doc);
-        return new Scene(meshes, materials, textures, nodes, lights, warnings);
+        List<Skin> skins = new ArrayList<>();
+        for (int i = 0; i < doc.list("skins").size(); i++) {
+            Map<String, Object> skin = doc.get("skins", i);
+            int[] joints = intArray(skin.get("joints"));
+            float[] ibm;
+            if (skin.containsKey("inverseBindMatrices")) {
+                ibm = doc.floats(Json.integer(skin, "inverseBindMatrices", 0));
+                if (ibm.length != joints.length * 16) {
+                    throw new IOException(
+                            doc.file()
+                                    + ": skin "
+                                    + i
+                                    + " has the wrong inverse bind matrix count");
+                }
+            } else {
+                ibm = new float[joints.length * 16];
+                for (int j = 0; j < joints.length; j++) {
+                    ibm[j * 16] = ibm[j * 16 + 5] = ibm[j * 16 + 10] = ibm[j * 16 + 15] = 1;
+                }
+            }
+            skins.add(new Skin(Json.integer(skin, "skeleton", -1), joints, ibm));
+        }
+        List<Animation> animations = new ArrayList<>();
+        for (int i = 0; i < doc.list("animations").size(); i++) {
+            animations.add(animation(doc, i, warnings));
+        }
+        return new Scene(meshes, materials, textures, nodes, lights, skins, animations, warnings);
+    }
+
+    private static Animation animation(GltfDocument doc, int i, List<String> warnings)
+            throws IOException {
+        Map<String, Object> anim = doc.get("animations", i);
+        String name = Json.string(anim, "name", "animation" + i);
+        List<Object> samplers = Json.asArray(anim.getOrDefault("samplers", List.of()), "samplers");
+        List<Channel> channels = new ArrayList<>();
+        for (Object o : Json.asArray(anim.getOrDefault("channels", List.of()), "channels")) {
+            Map<String, Object> ch = GltfDocument.object(o, "channel");
+            Map<String, Object> target = GltfDocument.object(ch.get("target"), "target");
+            if (!target.containsKey("node")) {
+                warnings.add(name + ": a channel without a target node is skipped");
+                continue;
+            }
+            Map<String, Object> sampler =
+                    GltfDocument.object(samplers.get(Json.integer(ch, "sampler", 0)), "sampler");
+            int input = Json.integer(sampler, "input", 0);
+            int output = Json.integer(sampler, "output", 0);
+            String interpolation = Json.string(sampler, "interpolation", "LINEAR");
+            float[] times = doc.floats(input);
+            float[] values = doc.floats(output);
+            int perKey = interpolation.equals("CUBICSPLINE") ? 3 : 1;
+            int components =
+                    times.length == 0
+                            ? doc.components(output)
+                            : values.length / (times.length * perKey);
+            if (components <= 0 || values.length != times.length * perKey * components) {
+                throw new IOException(doc.file() + ": " + name + " has mismatched sampler sizes");
+            }
+            channels.add(
+                    new Channel(
+                            Json.integer(target, "node", 0),
+                            Json.string(target, "path", "translation"),
+                            interpolation,
+                            components,
+                            times,
+                            values));
+        }
+        return new Animation(name, channels);
+    }
+
+    private static int[] intArray(Object v) {
+        List<Object> list = Json.asArray(v, "array");
+        int[] out = new int[list.size()];
+        for (int k = 0; k < out.length; k++) {
+            out[k] = ((Number) list.get(k)).intValue();
+        }
+        return out;
     }
 
     private static Mesh mesh(GltfDocument doc, int m, List<String> warnings) throws IOException {
@@ -316,7 +410,8 @@ public final class GltfImporter {
                             r,
                             s,
                             Json.integer(node, "mesh", -1),
-                            light == null ? -1 : Json.integer(light, "light", -1)));
+                            light == null ? -1 : Json.integer(light, "light", -1),
+                            Json.integer(node, "skin", -1)));
         }
         return nodes;
     }

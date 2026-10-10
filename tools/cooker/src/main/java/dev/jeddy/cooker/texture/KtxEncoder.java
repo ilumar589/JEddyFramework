@@ -60,7 +60,10 @@ public final class KtxEncoder {
             float rdoQuality,
             int zstdLevel,
             int threads) {
-        /** Base color defaults. */
+        /**
+         * Base color defaults: UASTC level 0 without RDO, zstd 10. {@link TextureCooker} retries at
+         * higher levels when the PSNR is too low.
+         */
         public static Settings color(int threads) {
             return new Settings(Target.BC7, true, 0, 0, 10, threads);
         }
@@ -78,6 +81,28 @@ public final class KtxEncoder {
     public static Result encode(int width, int height, List<byte[]> levels, Settings s)
             throws IOException {
         ToolNatives.load();
+        if (!initialized) {
+            // libktx initializes the Basis encoder and transcoder tables lazily on first use;
+            // run that once, alone, before parallel encodes.
+            synchronized (INIT) {
+                if (!initialized) {
+                    encodeOnce(
+                            4,
+                            4,
+                            List.of(new byte[64]),
+                            new Settings(Target.BC7, false, 0, 0, 0, 1));
+                    initialized = true;
+                }
+            }
+        }
+        return encodeOnce(width, height, levels, s);
+    }
+
+    private static final Object INIT = new Object();
+    private static volatile boolean initialized;
+
+    private static Result encodeOnce(int width, int height, List<byte[]> levels, Settings s)
+            throws IOException {
         long t0 = System.nanoTime();
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment info = ktxTextureCreateInfo.allocate(arena);
@@ -176,6 +201,94 @@ public final class KtxEncoder {
                 if (copy.address() != 0) {
                     ktxTexture2_Destroy(copy);
                 }
+                ktxTexture2_Destroy(tex);
+            }
+        }
+    }
+
+    /**
+     * Writes uncompressed levels (HDR environments, LUTs) into a KTX2 file with zstd
+     * supercompression.
+     *
+     * @param vkFormat the pixel format of {@code levels} (for example {@code R16G16B16A16_SFLOAT})
+     * @param faces 1, or 6 for a cube map (faces in GL order +X, -X, +Y, -Y, +Z, -Z)
+     * @param levels {@code levels[level][face]}: tightly packed rows, level 0 first
+     * @param keyValues extra key/value pairs (keys must not start with {@code KTX})
+     * @param zstdLevel supercompression level ({@code 0} for none)
+     */
+    public static byte[] encodeRaw(
+            int vkFormat,
+            int width,
+            int height,
+            int faces,
+            byte[][][] levels,
+            java.util.Map<String, byte[]> keyValues,
+            int zstdLevel)
+            throws IOException {
+        ToolNatives.load();
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment info = ktxTextureCreateInfo.allocate(arena);
+            info.fill((byte) 0);
+            ktxTextureCreateInfo.vkFormat(info, vkFormat);
+            ktxTextureCreateInfo.baseWidth(info, width);
+            ktxTextureCreateInfo.baseHeight(info, height);
+            ktxTextureCreateInfo.baseDepth(info, 1);
+            ktxTextureCreateInfo.numDimensions(info, 2);
+            ktxTextureCreateInfo.numLevels(info, levels.length);
+            ktxTextureCreateInfo.numLayers(info, 1);
+            ktxTextureCreateInfo.numFaces(info, faces);
+            ktxTextureCreateInfo.isArray(info, false);
+            ktxTextureCreateInfo.generateMipmaps(info, false);
+            MemorySegment out = arena.allocate(ValueLayout.ADDRESS);
+            check(ktxTexture2_Create(info, KTX_TEXTURE_CREATE_ALLOC_STORAGE(), out), "create");
+            MemorySegment tex = out.get(ValueLayout.ADDRESS, 0).reinterpret(ktxTexture2.sizeof());
+            try {
+                MemorySegment data = ktxTexture2.pData(tex).reinterpret(ktxTexture2.dataSize(tex));
+                MemorySegment offset = arena.allocate(ValueLayout.JAVA_LONG);
+                for (int l = 0; l < levels.length; l++) {
+                    if (levels[l].length != faces) {
+                        throw new IllegalArgumentException(
+                                "level " + l + " needs " + faces + " faces");
+                    }
+                    for (int f = 0; f < faces; f++) {
+                        check(ktxTexture2_GetImageOffset(tex, l, 0, f, offset), "image offset");
+                        byte[] img = levels[l][f];
+                        long at = offset.get(ValueLayout.JAVA_LONG, 0);
+                        if (at + img.length > data.byteSize()) {
+                            throw new IllegalArgumentException(
+                                    "level " + l + " face " + f + " is too large");
+                        }
+                        MemorySegment.copy(img, 0, data, ValueLayout.JAVA_BYTE, at, img.length);
+                    }
+                }
+                MemorySegment head = tex.asSlice(ktxTexture2.kvDataHead$offset());
+                for (java.util.Map.Entry<String, byte[]> kv : keyValues.entrySet()) {
+                    MemorySegment key = arena.allocateFrom(kv.getKey());
+                    MemorySegment value = arena.allocate(Math.max(1, kv.getValue().length));
+                    MemorySegment.copy(
+                            kv.getValue(),
+                            0,
+                            value,
+                            ValueLayout.JAVA_BYTE,
+                            0,
+                            kv.getValue().length);
+                    check(
+                            ktxHashList_AddKVPair(head, key, kv.getValue().length, value),
+                            "key/value " + kv.getKey());
+                }
+                if (zstdLevel > 0) {
+                    check(ktxTexture2_DeflateZstd(tex, zstdLevel), "zstd");
+                }
+                MemorySegment bytes = arena.allocate(ValueLayout.ADDRESS);
+                MemorySegment size = arena.allocate(ValueLayout.JAVA_LONG);
+                check(ktxTexture2_WriteToMemory(tex, bytes, size), "write");
+                MemorySegment written =
+                        bytes.get(ValueLayout.ADDRESS, 0)
+                                .reinterpret(size.get(ValueLayout.JAVA_LONG, 0));
+                byte[] file = written.toArray(ValueLayout.JAVA_BYTE);
+                ToolNatives.free(written);
+                return file;
+            } finally {
                 ktxTexture2_Destroy(tex);
             }
         }

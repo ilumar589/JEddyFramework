@@ -325,6 +325,19 @@ public final class Ktx2 {
      * Allocates.
      */
     public String keyValue(String key) {
+        byte[] v = keyValueBytes(key);
+        if (v == null) {
+            return null;
+        }
+        int n = v.length > 0 && v[v.length - 1] == 0 ? v.length - 1 : v.length;
+        return new String(v, 0, n, StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Returns the raw value bytes of a key/value entry (binary values such as the cooker's {@code
+     * jeddy.sh9}), or {@code null}. Allocates.
+     */
+    public byte[] keyValueBytes(String key) {
         byte[] wanted = key.getBytes(StandardCharsets.UTF_8);
         long p = kvdOffset;
         long end = kvdOffset + kvdLength;
@@ -347,14 +360,8 @@ public final class Ktx2 {
                     match = file.get(ValueLayout.JAVA_BYTE, start + i) == wanted[i];
                 }
                 if (match) {
-                    long valueEnd = start + len;
-                    if (valueEnd > nul + 1 && file.get(ValueLayout.JAVA_BYTE, valueEnd - 1) == 0) {
-                        valueEnd--;
-                    }
-                    byte[] v =
-                            file.asSlice(nul + 1, valueEnd - nul - 1)
-                                    .toArray(ValueLayout.JAVA_BYTE);
-                    return new String(v, StandardCharsets.UTF_8);
+                    return file.asSlice(nul + 1, start + len - nul - 1)
+                            .toArray(ValueLayout.JAVA_BYTE);
                 }
             }
             p = start + ((len + 3) & ~3L);

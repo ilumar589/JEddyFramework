@@ -1,0 +1,14 @@
+{
+ "baseColor": [
+  1,
+  1,
+  1,
+  1
+ ],
+ "roughness": 0.8,
+ "metallic": 0,
+ "textures": {
+  "baseColor": "../textures/stone.png",
+  "normal": "../textures/stone_n.png"
+ }
+}

@@ -29,15 +29,36 @@ public final class ImageDecoder {
      *     files are always linear
      */
     public static ImageRgba decode(Path file, boolean srgb) throws IOException {
-        byte[] bytes = Files.readAllBytes(file);
-        String name = file.getFileName().toString().toLowerCase(Locale.ROOT);
-        if (name.endsWith(".tga")) {
+        return decode(Files.readAllBytes(file), file.toString(), srgb);
+    }
+
+    /**
+     * Decodes an image from memory; {@code name} (a file name or path) selects TGA and Radiance HDR
+     * by extension, everything else goes to ImageIO.
+     */
+    public static ImageRgba decode(byte[] bytes, String name, boolean srgb) throws IOException {
+        String lower = name.toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".tga")) {
             return decodeTga(bytes, srgb);
         }
-        if (name.endsWith(".hdr")) {
+        if (lower.endsWith(".hdr")
+                || startsWith(bytes, "#?RADIANCE")
+                || startsWith(bytes, "#?RGBE")) {
             return decodeHdr(bytes);
         }
-        return decode(bytes, srgb, file.toString());
+        return decode(bytes, srgb, name);
+    }
+
+    private static boolean startsWith(byte[] bytes, String magic) {
+        if (bytes.length < magic.length()) {
+            return false;
+        }
+        for (int i = 0; i < magic.length(); i++) {
+            if (bytes[i] != magic.charAt(i)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Decodes an ImageIO-supported image from memory. */

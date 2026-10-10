@@ -48,11 +48,31 @@ jobs:
           set -o pipefail
           ./gradlew build 2>&1 | tee -a build.log | grep -E "Configuration cache entry reused|Reusing configuration cache"
 
+      # glslangValidator makes the cook compile every shader permutation (DESIGN §10.3).
+      - name: Install glslang
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -q && sudo apt-get install -y -q glslang-tools
+
+      # The sample's procedural assets through the dev.jeddy.assets plugin: a full cook, then a
+      # rerun that the cooker's cache must serve completely, then paks (TASKS M6-09).
+      - name: Cook and pack the sample assets
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew :iso-demo:cookAssets :iso-demo:packAssets --stacktrace 2>&1 | tee cook.log
+          grep -E "^[0-9]+ cooked, 0 cached, 0 failed" cook.log
+          ./gradlew :iso-demo:cookAssets --rerun 2>&1 | tee -a cook.log | grep -E "^0 cooked, [0-9]+ cached, 0 failed"
+          ls -l samples/iso-demo/build/paks
+          py=python3; $py --version > /dev/null 2>&1 || py=python
+          $py .github/scripts/cook-summary.py samples/iso-demo/build/cook-cache/report/report.json
+
       # Raw logs need a login to read; annotations surface failures in the checks API and PR view.
       - name: Annotate failure
         if: failure()
         shell: bash
-        run: bash .github/scripts/annotate-failure.sh build.log
+        run: |
+          bash .github/scripts/annotate-failure.sh build.log
+          if [ -f cook.log ]; then bash .github/scripts/annotate-failure.sh cook.log; fi
 
       - name: Upload reports
         if: always()

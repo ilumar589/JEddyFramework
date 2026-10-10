@@ -27,6 +27,9 @@ import java.util.stream.Stream;
  *       removed, so both platforms produce identical files.
  *   <li>{@code Arena.ofAuto()} becomes {@code Arena.global()}: the arena only holds string
  *       constants for the lifetime of the class, and engine code never uses automatic arenas.
+ *   <li>Indexed accessors of struct array fields pass the field offset to the element var
+ *       handle. jextract 22 passes {@code 0L}, so {@code s.field(i, v)} wrote at the start of the
+ *       struct instead of inside the array (it clobbered {@code ktxBasisParams.structSize}).
  *   <li>Line endings become {@code \n}.
  * </ul>
  */
@@ -39,6 +42,8 @@ public final class BindingsPostProcessor {
             Pattern.compile(
                     "(?m)^\\s*public static final ValueLayout\\.Of\\w+ C_LONG(_DOUBLE)? = .*\\R");
     private static final Pattern C_LONG_USE = Pattern.compile("\\bC_LONG\\b");
+    private static final Pattern ELEMENT_ACCESS =
+            Pattern.compile("(\\w+)\\$ELEM_HANDLE\\.(get|set)\\(struct, 0L, ");
 
     private BindingsPostProcessor() {}
 
@@ -82,6 +87,7 @@ public final class BindingsPostProcessor {
             String out = text.replace("\r\n", "\n").replace("Arena.ofAuto()", "Arena.global()");
             out = C_LONG_DEFINITION.matcher(out).replaceAll("");
             out = C_LONG_USE.matcher(out).replaceAll("C_LONG_LONG");
+            out = ELEMENT_ACCESS.matcher(out).replaceAll("$1\\$ELEM_HANDLE.$2(struct, $1\\$OFFSET, ");
             if (!out.equals(text)) {
                 Files.writeString(file, out, StandardCharsets.UTF_8);
             }

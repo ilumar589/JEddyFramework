@@ -636,7 +636,7 @@ public class ktxBasisParams {
      * }
      */
     public static byte inputSwizzle(MemorySegment struct, long index0) {
-        return (byte)inputSwizzle$ELEM_HANDLE.get(struct, 0L, index0);
+        return (byte)inputSwizzle$ELEM_HANDLE.get(struct, inputSwizzle$OFFSET, index0);
     }
 
     /**
@@ -646,7 +646,7 @@ public class ktxBasisParams {
      * }
      */
     public static void inputSwizzle(MemorySegment struct, long index0, byte fieldValue) {
-        inputSwizzle$ELEM_HANDLE.set(struct, 0L, index0, fieldValue);
+        inputSwizzle$ELEM_HANDLE.set(struct, inputSwizzle$OFFSET, index0, fieldValue);
     }
 
     private static final OfBoolean normalMap$LAYOUT = (OfBoolean)$LAYOUT.select(groupElement("normalMap"));

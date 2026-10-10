@@ -13,8 +13,17 @@ the subset the engine produces:
   (D8).
 - 2D textures, arrays (`layerCount > 0`) and cube maps (`faceCount = 6`); `levelCount` 0 is read
   as 1.
-- Key/value data is readable (`KTXorientation`, `KTXwriter`); the data format descriptor is not
-  interpreted (the format comes from `vkFormat`).
+- Key/value data is readable as text (`keyValue`: `KTXorientation`, `KTXwriter`) or bytes
+  (`keyValueBytes`); the data format descriptor is not interpreted (the format comes from
+  `vkFormat`).
+- Cooked HDR environments are RGBA16F cube maps (faces in GL order) whose mip `i` is
+  GGX-prefiltered for `roughness = i / (levels - 1)`. Their key `jeddy.sh9` holds 27 little-endian
+  `f32`: the irradiance `E(n) = Σ c_i Y_i(n)` (already convolved with the clamped cosine) for the
+  real SH basis `Y00, Y1-1, Y10, Y11, Y2-2, Y2-1, Y20, Y21, Y22` (constants 0.282095, 0.488603 y,
+  0.488603 z, 0.488603 x, 1.092548 xy, 1.092548 yz, 0.315392 (3z² − 1), 1.092548 xz, 0.546274 (x²
+  − y²)), three floats (RGB) per coefficient. Diffuse lighting is `albedo / π · E(n)`.
+- `engine/brdf_lut.ktx2` is RG16F 128×128: scale and bias of F0 for `N·V` along x and roughness
+  along y (row 0 first), from the split-sum approximation with Smith-GGX `k = α / 2`.
 
 Level `i` (level 0 is the largest) is decoded with `decodeLevel(i, dst, offset, decompressor)`:
 a copy, or a zstd decompression straight into the destination (a staging ring or a mapped GPU

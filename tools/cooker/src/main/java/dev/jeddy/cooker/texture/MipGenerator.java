@@ -89,29 +89,53 @@ public final class MipGenerator {
                 weight[i * taps + k] /= (float) sum;
             }
         }
-        int other = horizontal ? sh : sw;
-        int dw = horizontal ? dstLength : sw;
-        for (int o = 0; o < other; o++) {
-            for (int i = 0; i < dstLength; i++) {
-                float r = 0, g = 0, b = 0, a = 0;
-                for (int k = 0; k < taps; k++) {
-                    float wgt = weight[i * taps + k];
-                    if (wgt == 0) {
-                        continue;
-                    }
-                    int s = index[i * taps + k];
-                    int p = horizontal ? (o * sw + s) * 4 : (s * sw + o) * 4;
-                    r += src[p] * wgt;
-                    g += src[p + 1] * wgt;
-                    b += src[p + 2] * wgt;
-                    a += src[p + 3] * wgt;
-                }
-                int d = horizontal ? (o * dw + i) * 4 : (i * dw + o) * 4;
-                dst[d] = r;
-                dst[d + 1] = g;
-                dst[d + 2] = b;
-                dst[d + 3] = a;
-            }
+        // Rows of the output in parallel for large images. The vertical pass walks source rows
+        // and accumulates whole destination rows, so every inner loop is contiguous.
+        int rows = horizontal ? sh : dstLength;
+        java.util.stream.IntStream range = java.util.stream.IntStream.range(0, rows);
+        if ((long) sw * sh >= 1 << 16) {
+            range = range.parallel();
+        }
+        if (horizontal) {
+            range.forEach(
+                    o -> {
+                        for (int i = 0; i < dstLength; i++) {
+                            float r = 0, g = 0, b = 0, a = 0;
+                            for (int k = 0; k < taps; k++) {
+                                float wgt = weight[i * taps + k];
+                                if (wgt == 0) {
+                                    continue;
+                                }
+                                int p = (o * sw + index[i * taps + k]) * 4;
+                                r += src[p] * wgt;
+                                g += src[p + 1] * wgt;
+                                b += src[p + 2] * wgt;
+                                a += src[p + 3] * wgt;
+                            }
+                            int d = (o * dstLength + i) * 4;
+                            dst[d] = r;
+                            dst[d + 1] = g;
+                            dst[d + 2] = b;
+                            dst[d + 3] = a;
+                        }
+                    });
+        } else {
+            int rowFloats = sw * 4;
+            range.forEach(
+                    i -> {
+                        int d = i * rowFloats;
+                        java.util.Arrays.fill(dst, d, d + rowFloats, 0f);
+                        for (int k = 0; k < taps; k++) {
+                            float wgt = weight[i * taps + k];
+                            if (wgt == 0) {
+                                continue;
+                            }
+                            int s = index[i * taps + k] * rowFloats;
+                            for (int c = 0; c < rowFloats; c++) {
+                                dst[d + c] += src[s + c] * wgt;
+                            }
+                        }
+                    });
         }
     }
 

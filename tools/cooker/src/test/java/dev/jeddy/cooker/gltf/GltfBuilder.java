@@ -16,18 +16,21 @@ import java.util.List;
 import java.util.Map;
 
 /** Writes small glTF files for tests: one binary buffer, accessors and free-form JSON. */
-final class GltfBuilder {
-    final Map<String, Object> root = new LinkedHashMap<>();
+public final class GltfBuilder {
+    /** The top-level JSON object (add extensions, scenes, ...). */
+    public final Map<String, Object> root = new LinkedHashMap<>();
+
     private final ByteArrayOutputStream bin = new ByteArrayOutputStream();
     private final List<Object> views = new ArrayList<>();
     private final List<Object> accessors = new ArrayList<>();
 
-    GltfBuilder() {
+    /** Creates an empty glTF 2.0 document. */
+    public GltfBuilder() {
         root.put("asset", Map.of("version", "2.0"));
     }
 
     /** Appends a float accessor of {@code type} (VEC3, ...). */
-    int floats(float[] data, String type) {
+    public int floats(float[] data, String type) {
         ByteBuffer b = ByteBuffer.allocate(data.length * 4).order(ByteOrder.LITTLE_ENDIAN);
         for (float f : data) {
             b.putFloat(f);
@@ -37,7 +40,7 @@ final class GltfBuilder {
     }
 
     /** Appends an interleaved view of two VEC3 float streams with a byte stride. */
-    int[] interleaved(float[] a, float[] b) {
+    public int[] interleaved(float[] a, float[] b) {
         int n = a.length / 3;
         ByteBuffer buf = ByteBuffer.allocate(n * 24).order(ByteOrder.LITTLE_ENDIAN);
         for (int i = 0; i < n; i++) {
@@ -56,7 +59,7 @@ final class GltfBuilder {
     }
 
     /** Appends unsigned-short (or unsigned-byte, normalized) data. */
-    int shorts(int[] data, String type, int componentType, boolean normalized) {
+    public int shorts(int[] data, String type, int componentType, boolean normalized) {
         int size = componentType == GltfDocument.UNSIGNED_BYTE ? 1 : 2;
         ByteBuffer b =
                 ByteBuffer.allocate((data.length * size + 3) & ~3).order(ByteOrder.LITTLE_ENDIAN);
@@ -72,7 +75,7 @@ final class GltfBuilder {
     }
 
     /** Appends an unsigned-int index accessor. */
-    int indices(int[] data) {
+    public int indices(int[] data) {
         ByteBuffer b = ByteBuffer.allocate(data.length * 4).order(ByteOrder.LITTLE_ENDIAN);
         for (int v : data) {
             b.putInt(v);
@@ -81,7 +84,7 @@ final class GltfBuilder {
     }
 
     /** Adds a sparse substitution to a float accessor. */
-    void sparse(int accessor, int[] targets, float[] values) {
+    public void sparse(int accessor, int[] targets, float[] values) {
         ByteBuffer ib = ByteBuffer.allocate(targets.length * 4).order(ByteOrder.LITTLE_ENDIAN);
         for (int t : targets) {
             ib.putInt(t);
@@ -107,7 +110,7 @@ final class GltfBuilder {
                         "values", Map.of("bufferView", vv)));
     }
 
-    int view(byte[] data, int stride) {
+    public int view(byte[] data, int stride) {
         int offset = bin.size();
         bin.writeBytes(data);
         while (bin.size() % 4 != 0) {
@@ -160,7 +163,7 @@ final class GltfBuilder {
 
     /** Adds {@code value} to the top-level array {@code key}; returns its index. */
     @SuppressWarnings("unchecked")
-    int add(String key, Object value) {
+    public int add(String key, Object value) {
         List<Object> list = (List<Object>) root.computeIfAbsent(key, k -> new ArrayList<>());
         list.add(value);
         return list.size() - 1;
@@ -175,7 +178,7 @@ final class GltfBuilder {
     }
 
     /** Writes a {@code .gltf} with the buffer as a base64 data URI. */
-    Path writeGltf(Path file) throws IOException {
+    public Path writeGltf(Path file) throws IOException {
         byte[] data = bin.toByteArray();
         Map<String, Object> buffer = new LinkedHashMap<>();
         buffer.put("byteLength", data.length);
@@ -187,7 +190,7 @@ final class GltfBuilder {
     }
 
     /** Writes a {@code .gltf} with the buffer in a sibling {@code .bin} file. */
-    Path writeGltfExternal(Path file, String binName) throws IOException {
+    public Path writeGltfExternal(Path file, String binName) throws IOException {
         byte[] data = bin.toByteArray();
         Files.write(file.resolveSibling(binName), data);
         Map<String, Object> buffer = new LinkedHashMap<>();
@@ -198,7 +201,7 @@ final class GltfBuilder {
     }
 
     /** Writes a binary {@code .glb}. */
-    Path writeGlb(Path file) throws IOException {
+    public Path writeGlb(Path file) throws IOException {
         byte[] data = bin.toByteArray();
         byte[] json =
                 Json.write(json(Map.of("byteLength", data.length)))
@@ -218,7 +221,7 @@ final class GltfBuilder {
     }
 
     /** A unit cube with 24 vertices (flat faces), normals and UVs; 36 indices. */
-    static float[][] cube() {
+    public static float[][] cube() {
         float[][] faces = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
         float[] pos = new float[24 * 3];
         float[] nrm = new float[24 * 3];
@@ -254,7 +257,7 @@ final class GltfBuilder {
     }
 
     /** An {@code n × n} grid on the XZ plane with a smooth bump, normals and UVs. */
-    static float[][] bumpyGrid(int n) {
+    public static float[][] bumpyGrid(int n) {
         int verts = (n + 1) * (n + 1);
         float[] pos = new float[verts * 3];
         float[] nrm = new float[verts * 3];
@@ -298,7 +301,7 @@ final class GltfBuilder {
         return new float[][] {pos, nrm, uv, idx};
     }
 
-    static int[] toInts(float[] f) {
+    public static int[] toInts(float[] f) {
         int[] out = new int[f.length];
         for (int i = 0; i < f.length; i++) {
             out[i] = (int) f[i];

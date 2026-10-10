@@ -11,6 +11,7 @@ import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * A cooked material ({@code .jmat}, {@code docs/formats/jmat.md}, TASKS M4-06): shading model,
@@ -69,8 +70,63 @@ public final class MaterialData {
     /** Texture slot: emissive (sRGB BC7). */
     public static final int SLOT_EMISSIVE = 3;
 
+    /**
+     * Texture slot: occlusion on its own (BC4), used when the source's occlusion map reads a
+     * different UV set than its metallic-roughness map and so cannot be packed into ORM.
+     */
+    public static final int SLOT_OCCLUSION = 4;
+
     /** Texture flag: sampled with the second UV set. */
     public static final int TEXTURE_UV1 = 1;
+
+    /** Feature bit: a base color texture. Bits 0..15 are the engine's; the rest are custom. */
+    public static final int FEATURE_BASE_COLOR_MAP = 1;
+
+    /** Feature bit: a normal map. */
+    public static final int FEATURE_NORMAL_MAP = 1 << 1;
+
+    /** Feature bit: an ORM texture. */
+    public static final int FEATURE_ORM_MAP = 1 << 2;
+
+    /** Feature bit: an emissive texture. */
+    public static final int FEATURE_EMISSIVE_MAP = 1 << 3;
+
+    /** Feature bit: a separate occlusion texture ({@link #SLOT_OCCLUSION}). */
+    public static final int FEATURE_OCCLUSION_MAP = 1 << 4;
+
+    /** Feature bit: alpha test. */
+    public static final int FEATURE_ALPHA_MASK = 1 << 5;
+
+    /** Feature bit: alpha blending. */
+    public static final int FEATURE_ALPHA_BLEND = 1 << 6;
+
+    /** Feature bit: double-sided (back faces flip the normal). */
+    public static final int FEATURE_DOUBLE_SIDED = 1 << 7;
+
+    /** Feature bit: a non-identity UV transform. */
+    public static final int FEATURE_UV_TRANSFORM = 1 << 8;
+
+    /** Feature bit: some texture reads the second UV set. */
+    public static final int FEATURE_UV1 = 1 << 9;
+
+    /**
+     * Shader {@code #define} names of the engine feature bits, bit {@code i} at index {@code i}.
+     */
+    public static final List<String> FEATURE_NAMES =
+            List.of(
+                    "BASE_COLOR_MAP",
+                    "NORMAL_MAP",
+                    "ORM_MAP",
+                    "EMISSIVE_MAP",
+                    "OCCLUSION_MAP",
+                    "ALPHA_MASK",
+                    "ALPHA_BLEND",
+                    "DOUBLE_SIDED",
+                    "UV_TRANSFORM",
+                    "UV1");
+
+    /** Mask of the engine-defined feature bits. */
+    public static final int ENGINE_FEATURES = 0xFFFF;
 
     private final int flags;
     private final int shadingModel;
@@ -408,6 +464,45 @@ public final class MaterialData {
             this.textureFlags[textureCount] = textureFlags;
             textureIds[textureCount] = id;
             textureCount++;
+            return this;
+        }
+
+        /**
+         * Sets the engine feature bits ({@link #ENGINE_FEATURES}) from the textures, alpha mode,
+         * flags and UV transform, keeping custom bits.
+         */
+        public Builder deriveFeatures() {
+            int f = 0;
+            for (int i = 0; i < textureCount; i++) {
+                f |=
+                        switch (textureSlots[i]) {
+                            case SLOT_BASE_COLOR -> FEATURE_BASE_COLOR_MAP;
+                            case SLOT_NORMAL -> FEATURE_NORMAL_MAP;
+                            case SLOT_ORM -> FEATURE_ORM_MAP;
+                            case SLOT_EMISSIVE -> FEATURE_EMISSIVE_MAP;
+                            case SLOT_OCCLUSION -> FEATURE_OCCLUSION_MAP;
+                            default -> 0;
+                        };
+                if ((textureFlags[i] & TEXTURE_UV1) != 0) {
+                    f |= FEATURE_UV1;
+                }
+            }
+            if (alphaMode == ALPHA_MASK) {
+                f |= FEATURE_ALPHA_MASK;
+            } else if (alphaMode == ALPHA_BLEND) {
+                f |= FEATURE_ALPHA_BLEND;
+            }
+            if ((flags & FLAG_DOUBLE_SIDED) != 0) {
+                f |= FEATURE_DOUBLE_SIDED;
+            }
+            if (uvTransform[0] != 1
+                    || uvTransform[1] != 1
+                    || uvTransform[2] != 0
+                    || uvTransform[3] != 0
+                    || uvRotation != 0) {
+                f |= FEATURE_UV_TRANSFORM;
+            }
+            featureMask = (featureMask & ~ENGINE_FEATURES) | f;
             return this;
         }
 

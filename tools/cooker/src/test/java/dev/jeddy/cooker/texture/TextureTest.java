@@ -198,4 +198,20 @@ class TextureTest {
                 IOException.class,
                 () -> ImageDecoder.decodeHdr("nope".getBytes(StandardCharsets.US_ASCII)));
     }
+
+    /**
+     * jextract 22 wrote indexed struct array fields at offset 0 (BindingsPostProcessor fixes it).
+     */
+    @Test
+    void structArrayFieldsWriteInsideTheArray() {
+        try (Arena a = Arena.ofConfined()) {
+            MemorySegment p = dev.jeddy.cooker.ktx.ffi.ktxBasisParams.allocate(a);
+            dev.jeddy.cooker.ktx.ffi.ktxBasisParams.structSize(p, 1234);
+            dev.jeddy.cooker.ktx.ffi.ktxBasisParams.inputSwizzle(p, 2, (byte) 'g');
+            assertEquals(1234, dev.jeddy.cooker.ktx.ffi.ktxBasisParams.structSize(p));
+            long at = dev.jeddy.cooker.ktx.ffi.ktxBasisParams.inputSwizzle$offset() + 2;
+            assertEquals((byte) 'g', p.get(ValueLayout.JAVA_BYTE, at));
+            assertEquals((byte) 'g', dev.jeddy.cooker.ktx.ffi.ktxBasisParams.inputSwizzle(p, 2));
+        }
+    }
 }
