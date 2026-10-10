@@ -14,6 +14,9 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.concurrent.atomic.AtomicReference;
 
 class SdlTest {
@@ -133,6 +136,25 @@ class SdlTest {
         } finally {
             SdlThread.clearMainThread();
         }
+    }
+
+    @Test
+    void eventTypeConstantsMatchTheBindings() throws Exception {
+        int checked = 0;
+        for (Field f : SdlEventType.class.getFields()) {
+            if (f.getType() == int.class && Modifier.isStatic(f.getModifiers())) {
+                // The getters are inherited from package-private split classes (SDL3_1, ...).
+                Method getter = SDL3.class.getMethod("SDL_EVENT_" + f.getName());
+                getter.setAccessible(true);
+                Object sdl = getter.invoke(null);
+                assertEquals(sdl, f.getInt(null), f.getName());
+                checked++;
+            }
+        }
+        assertTrue(checked > 40, "checked " + checked);
+        assertTrue(SdlEventType.isWindowEvent(SdlEventType.WINDOW_RESIZED));
+        assertFalse(SdlEventType.isWindowEvent(SdlEventType.KEY_DOWN));
+        assertTrue(SdlEventType.isDisplayEvent(SdlEventType.DISPLAY_ADDED));
     }
 
     @Test

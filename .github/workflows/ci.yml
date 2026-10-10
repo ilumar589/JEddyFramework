@@ -65,6 +65,42 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  gpu:
+    name: GPU tests (Mesa llvmpipe)
+    runs-on: ubuntu-latest
+    needs: build
+    env:
+      # Software GL under Xvfb. llvmpipe implements GL 4.5 plus most of 4.6; the override lets
+      # the 4.6 core context be created so GL code paths run in CI (DESIGN §9.7).
+      SDL_VIDEO_DRIVER: x11
+      SDL_AUDIO_DRIVER: dummy
+      LIBGL_ALWAYS_SOFTWARE: '1'
+      MESA_GL_VERSION_OVERRIDE: '4.6'
+      MESA_GLSL_VERSION_OVERRIDE: '460'
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '27'
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      - name: Install Xvfb and Mesa
+        run: sudo apt-get update -q && sudo apt-get install -y -q xvfb libgl1-mesa-dri libglx-mesa0 libegl-mesa0
+
+      - name: GPU tests
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a -s "-screen 0 1920x1080x24" ./gradlew test -Pjeddy.gpuTests=only --stacktrace 2>&1 | tee gpu.log
+
+      - name: Annotate failure
+        if: failure()
+        shell: bash
+        run: bash .github/scripts/annotate-failure.sh gpu.log
+
   bench:
     name: Benchmarks (smoke)
     runs-on: ubuntu-latest

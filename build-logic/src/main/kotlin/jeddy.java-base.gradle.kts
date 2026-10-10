@@ -63,11 +63,20 @@ dependencies {
     }
 }
 
+val gpuTests = providers.gradleProperty("jeddy.gpuTests").getOrElse("false")
+
 tasks.withType<Test>().configureEach {
+    // Most modules have no GPU tests, which is expected in the gpu-only run.
+    if (gpuTests == "only") {
+        failOnNoDiscoveredTests = false
+    }
     useJUnitPlatform {
-        // GPU tests need a real GL 4.6 driver; run them with -Pjeddy.gpuTests=true.
-        if (!providers.gradleProperty("jeddy.gpuTests").map { it.toBoolean() }.getOrElse(false)) {
-            excludeTags("gpu")
+        // GPU tests need a GL 4.6 driver: -Pjeddy.gpuTests=true adds them, =only runs just them
+        // (the CI gpu job, under Xvfb and Mesa llvmpipe).
+        when (gpuTests) {
+            "true" -> {}
+            "only" -> includeTags("gpu")
+            else -> excludeTags("gpu")
         }
     }
     // Whitebox tests (no module-info in src/test) run on the classpath, so native access is

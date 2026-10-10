@@ -6,6 +6,5 @@ module dev.jeddy.window {
     requires transitive dev.jeddy.core;
     requires dev.jeddy.sdl;
 
-// Exported together with the first public type (javac rejects exporting a package with no types):
-// exports dev.jeddy.window;
+    exports dev.jeddy.window;
 }
