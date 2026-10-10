@@ -1,5 +1,7 @@
 package dev.jeddy.physics.bvh;
 
+import dev.jeddy.physics.debug.DebugSink;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -430,5 +432,26 @@ public final class Bvh {
         int[] ids = new int[tris];
         b.asIntBuffer().get(ids);
         return new Bvh(n, nodes, t, f, ids, tris);
+    }
+
+    /**
+     * Draws the boxes of the tree's top {@code maxDepth} levels (debug view; allocates nothing).
+     */
+    public void debugDraw(DebugSink sink, int thread, int maxDepth, int argb) {
+        if (nodeCount > 0) {
+            debugNode(sink, thread, 0, 0, maxDepth, argb);
+        }
+    }
+
+    private void debugNode(
+            DebugSink sink, int thread, int node, int depth, int maxDepth, int argb) {
+        int o = node * NODE_FLOATS;
+        float[] n = nodes;
+        sink.box(thread, n[o], n[o + 1], n[o + 2], n[o + 4], n[o + 5], n[o + 6], argb);
+        if (depth + 1 >= maxDepth || Float.floatToRawIntBits(n[o + 7]) > 0) {
+            return;
+        }
+        debugNode(sink, thread, node + 1, depth + 1, maxDepth, argb);
+        debugNode(sink, thread, Float.floatToRawIntBits(n[o + 3]), depth + 1, maxDepth, argb);
     }
 }

@@ -4,6 +4,7 @@ import dev.jeddy.core.collections.IntList;
 import dev.jeddy.core.job.JobKernel;
 import dev.jeddy.core.job.JobSystem;
 import dev.jeddy.core.pool.PerWorker;
+import dev.jeddy.physics.debug.DebugSink;
 import dev.jeddy.physics.grid.Bodies;
 import dev.jeddy.physics.grid.UniformGrid;
 import dev.jeddy.physics.nav.NavMesh;
@@ -1106,6 +1107,43 @@ public final class Crowd {
                 } else {
                     request(i);
                 }
+            }
+        }
+    }
+
+    /**
+     * Draws the agents (debug view): body circles colored by state, velocity (green), desired
+     * velocity (yellow) and the corners each steers for (white). Allocates nothing.
+     */
+    public void debugDraw(DebugSink sink, int thread) {
+        for (int i = 0; i < capacity; i++) {
+            if (!active[i]) {
+                continue;
+            }
+            float x = px[i];
+            float y = py[i] + 0.05f;
+            float z = pz[i];
+            int color =
+                    state[i] == STATE_OFFMESH
+                            ? 0xff40c0ff
+                            : targetState[i] == TARGET_FAILED
+                                    ? 0xffff3030
+                                    : targetState[i] == TARGET_ARRIVED ? 0xff80ff80 : 0xffe0e0e0;
+            sink.circle(thread, x, y, z, radius[i], color);
+            sink.line(thread, x, y, z, x + vx[i], y, z + vz[i], 0xff40ff40);
+            sink.line(thread, x, y + 0.02f, z, x + dvx[i], y + 0.02f, z + dvz[i], 0xffffe040);
+            float lx = x;
+            float ly = y;
+            float lz = z;
+            int base = i * MAX_CORNERS * 3;
+            for (int k = 0; k < cornerCount[i]; k++) {
+                float cx = corners[base + k * 3];
+                float cy = corners[base + k * 3 + 1] + 0.05f;
+                float cz = corners[base + k * 3 + 2];
+                sink.line(thread, lx, ly, lz, cx, cy, cz, 0x80ffffff);
+                lx = cx;
+                ly = cy;
+                lz = cz;
             }
         }
     }

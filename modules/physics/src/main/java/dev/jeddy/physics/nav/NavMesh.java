@@ -1,5 +1,7 @@
 package dev.jeddy.physics.nav;
 
+import dev.jeddy.physics.debug.DebugSink;
+
 import java.util.Arrays;
 
 /**
@@ -517,5 +519,145 @@ public final class NavMesh {
     /** Returns the highest tile slot in use plus one (for iterating). */
     int slotLimit() {
         return MAX_TILES;
+    }
+
+    // Debug view ---------------------------------------------------------------------------------
+
+    /** Debug colors: walls, internal edges, linked portals, unlinked portals, links, disabled. */
+    private static final int WALL = 0xffe0e0e0;
+
+    private static final int INNER = 0x6080a0c0;
+    private static final int PORTAL_LINKED = 0xff40c0ff;
+    private static final int PORTAL_OPEN = 0xffff9020;
+    private static final int LINK_TWO_WAY = 0xff40ff60;
+    private static final int LINK_ONE_WAY = 0xffffe040;
+    private static final int DISABLED = 0xffff3030;
+
+    /**
+     * Draws the navmesh (debug view): walls, internal edges, portals (linked or not), off-mesh
+     * links as arcs and crosses on disabled polygons, lifted {@code lift} meters. Allocates
+     * nothing.
+     */
+    public void debugDraw(DebugSink sink, int thread, float lift) {
+        for (int slot = 0; slot < MAX_TILES; slot++) {
+            NavTile t = tiles[slot];
+            if (t == null) {
+                continue;
+            }
+            TileLinks tl = links[slot];
+            float[] v = t.verts;
+            for (int p = 0; p < t.polyCount; p++) {
+                int n = t.polyVertCount[p];
+                if (t.type[p] == NavTile.TYPE_OFFMESH) {
+                    int a = t.vertex(p, 0);
+                    int b = t.vertex(p, 1);
+                    sink.arc(
+                            thread,
+                            v[a],
+                            v[a + 1] + lift,
+                            v[a + 2],
+                            v[b],
+                            v[b + 1] + lift,
+                            v[b + 2],
+                            1f,
+                            t.offMeshBidirectional[p] != 0 ? LINK_TWO_WAY : LINK_ONE_WAY);
+                    continue;
+                }
+                for (int e = 0; e < n; e++) {
+                    int a = t.vertex(p, e);
+                    int b = t.vertex(p, e + 1 < n ? e + 1 : 0);
+                    int nb = t.neighbours[p * NavTile.MAX_VERTS + e];
+                    int color;
+                    if (nb == NavTile.NO_NEIGHBOUR) {
+                        color = WALL;
+                    } else if ((nb & NavTile.PORTAL) == 0) {
+                        if (nb < p) {
+                            continue; // drawn from the other side
+                        }
+                        color = INNER;
+                    } else {
+                        color = PORTAL_OPEN;
+                        for (int l = tl.first[p]; l >= 0; l = tl.next[l]) {
+                            if (tl.edge[l] == e) {
+                                color = PORTAL_LINKED;
+                                break;
+                            }
+                        }
+                    }
+                    sink.line(
+                            thread,
+                            v[a],
+                            v[a + 1] + lift,
+                            v[a + 2],
+                            v[b],
+                            v[b + 1] + lift,
+                            v[b + 2],
+                            color);
+                }
+                if ((t.flags[p] & NavFlags.DISABLED) != 0) {
+                    float cx = 0;
+                    float cy = 0;
+                    float cz = 0;
+                    for (int k = 0; k < n; k++) {
+                        int a = t.vertex(p, k);
+                        cx += v[a] / n;
+                        cy += v[a + 1] / n;
+                        cz += v[a + 2] / n;
+                    }
+                    sink.line(
+                            thread, cx - 0.3f, cy + lift, cz - 0.3f, cx + 0.3f, cy + lift,
+                            cz + 0.3f, DISABLED);
+                    sink.line(
+                            thread, cx - 0.3f, cy + lift, cz + 0.3f, cx + 0.3f, cy + lift,
+                            cz - 0.3f, DISABLED);
+                }
+            }
+        }
+    }
+
+    /** Draws the outlines of polygons {@code refs[0..n)} (movement range, corridors). */
+    public void debugDrawPolygons(
+            DebugSink sink, int thread, int[] refs, int n, float lift, int argb) {
+        for (int i = 0; i < n; i++) {
+            if (!isValid(refs[i])) {
+                continue;
+            }
+            NavTile t = tile(refs[i]);
+            int p = polyOf(refs[i]);
+            int c = t.polyVertCount[p];
+            if (t.type[p] != NavTile.TYPE_GROUND) {
+                continue;
+            }
+            for (int e = 0; e < c; e++) {
+                int a = t.vertex(p, e);
+                int b = t.vertex(p, e + 1 < c ? e + 1 : 0);
+                sink.line(
+                        thread,
+                        t.verts[a],
+                        t.verts[a + 1] + lift,
+                        t.verts[a + 2],
+                        t.verts[b],
+                        t.verts[b + 1] + lift,
+                        t.verts[b + 2],
+                        argb);
+            }
+        }
+    }
+
+    /** Draws a polyline {@code pts[0..n)} (x, y, z each; straight paths) lifted {@code lift}. */
+    public static void debugDrawPath(
+            DebugSink sink, int thread, float[] pts, int n, float lift, int argb) {
+        for (int i = 0; i + 1 < n; i++) {
+            int o = i * 3;
+            sink.line(
+                    thread,
+                    pts[o],
+                    pts[o + 1] + lift,
+                    pts[o + 2],
+                    pts[o + 3],
+                    pts[o + 4] + lift,
+                    pts[o + 5],
+                    argb);
+        }
     }
 }

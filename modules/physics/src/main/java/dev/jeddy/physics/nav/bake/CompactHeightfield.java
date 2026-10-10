@@ -115,6 +115,30 @@ final class CompactHeightfield {
         }
     }
 
+    /**
+     * Copies {@code src} for another build from the same voxels (tile cache rebuilds): the span
+     * layout and links are shared (never modified), areas are copied, regions start empty.
+     */
+    CompactHeightfield(CompactHeightfield src) {
+        width = src.width;
+        height = src.height;
+        spanCount = src.spanCount;
+        minX = src.minX;
+        minY = src.minY;
+        minZ = src.minZ;
+        cs = src.cs;
+        ch = src.ch;
+        walkableHeight = src.walkableHeight;
+        walkableClimb = src.walkableClimb;
+        cellIndex = src.cellIndex;
+        cellCount = src.cellCount;
+        y = src.y;
+        h = src.h;
+        con = src.con;
+        reg = new int[spanCount];
+        area = src.area.clone();
+    }
+
     int getCon(int span, int dir) {
         return con[span] >>> (dir * 6) & 0x3f;
     }

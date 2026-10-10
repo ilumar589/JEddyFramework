@@ -20,8 +20,8 @@ public final class QueryFilter {
     /** Polygons must have at least one of these flags. */
     public int include = 0xffff_ffff;
 
-    /** Polygons must have none of these flags. */
-    public int exclude;
+    /** Polygons must have none of these flags ({@link NavFlags#DISABLED} by default). */
+    public int exclude = NavFlags.DISABLED;
 
     /** Creates a filter that passes every polygon at unit cost. */
     public QueryFilter() {

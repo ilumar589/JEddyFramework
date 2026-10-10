@@ -1,6 +1,7 @@
 package dev.jeddy.physics.grid;
 
 import dev.jeddy.core.collections.IntIntMap;
+import dev.jeddy.physics.debug.DebugSink;
 
 import java.util.Arrays;
 
@@ -233,5 +234,47 @@ public final class Bodies {
     /** Highest y of body {@code i}. */
     public float top(int i) {
         return shape[i] == SPHERE ? y[i] + radius[i] : y[i] + height[i];
+    }
+
+    /** Draws every body's shape (debug view; allocates nothing). */
+    public void debugDraw(DebugSink sink, int thread, int argb) {
+        for (int i = 0; i < count; i++) {
+            switch (shape[i]) {
+                case CYLINDER ->
+                        sink.cylinder(thread, x[i], y[i], z[i], radius[i], height[i], argb);
+                case SPHERE -> {
+                    sink.circle(thread, x[i], y[i], z[i], radius[i], argb);
+                    sink.line(
+                            thread,
+                            x[i],
+                            y[i] - radius[i],
+                            z[i],
+                            x[i],
+                            y[i] + radius[i],
+                            z[i],
+                            argb);
+                }
+                default -> {
+                    float c = (float) Math.cos(yaw[i]);
+                    float s = (float) Math.sin(yaw[i]);
+                    float hx = halfX[i];
+                    float hz = halfZ[i];
+                    for (int k = 0; k < 4; k++) {
+                        float lx0 = (k == 1 || k == 2) ? hx : -hx;
+                        float lz0 = k >= 2 ? hz : -hz;
+                        int k1 = (k + 1) & 3;
+                        float lx1 = (k1 == 1 || k1 == 2) ? hx : -hx;
+                        float lz1 = k1 >= 2 ? hz : -hz;
+                        float ax = x[i] + c * lx0 + s * lz0;
+                        float az = z[i] - s * lx0 + c * lz0;
+                        float bx = x[i] + c * lx1 + s * lz1;
+                        float bz = z[i] - s * lx1 + c * lz1;
+                        sink.line(thread, ax, y[i], az, bx, y[i], bz, argb);
+                        sink.line(thread, ax, y[i] + height[i], az, bx, y[i] + height[i], bz, argb);
+                        sink.line(thread, ax, y[i], az, ax, y[i] + height[i], az, argb);
+                    }
+                }
+            }
+        }
     }
 }

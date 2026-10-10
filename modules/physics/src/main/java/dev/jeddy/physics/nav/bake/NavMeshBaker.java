@@ -64,6 +64,46 @@ public final class NavMeshBaker {
             List<AreaVolume> volumes,
             List<OffMeshLink> links,
             JobSystem jobs) {
+        Layout l = layout(mesh, cfg, jobs);
+        NavTile[] out = new NavTile[l.tilesX * l.tilesZ];
+        forEachTile(
+                l,
+                jobs,
+                (tx, tz, t) ->
+                        out[t] =
+                                bakeTile(
+                                        l.bvh,
+                                        cfg,
+                                        tx,
+                                        tz,
+                                        l.originX,
+                                        l.originZ,
+                                        l.tileCells,
+                                        l.bottom,
+                                        l.top,
+                                        volumes,
+                                        links));
+        return data(l, cfg, out);
+    }
+
+    /** Where the tiles of a bake lie. */
+    record Layout(
+            Bvh bvh,
+            float originX,
+            float originZ,
+            int tileCells,
+            float tileWorld,
+            int tilesX,
+            int tilesZ,
+            float bottom,
+            float top) {}
+
+    @FunctionalInterface
+    interface TileWork {
+        void bake(int tx, int tz, int index);
+    }
+
+    static Layout layout(TriangleMesh mesh, NavBakeConfig cfg, JobSystem jobs) {
         float[] v = mesh.vertices();
         float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE, minZ = Float.MAX_VALUE;
         float maxX = -Float.MAX_VALUE, maxY = -Float.MAX_VALUE, maxZ = -Float.MAX_VALUE;
@@ -84,38 +124,37 @@ public final class NavMeshBaker {
         int tilesX = Math.max(1, (int) Math.ceil((maxX - minX) / tileWorld));
         int tilesZ = Math.max(1, (int) Math.ceil((maxZ - minZ) / tileWorld));
         Bvh bvh = BvhBuilder.build(mesh, jobs);
-        float originX = minX;
-        float originZ = minZ;
-        float bottom = minY - 1;
-        float top = maxY + cfg.agentHeight() + 1;
-        NavTile[] out = new NavTile[tilesX * tilesZ];
-        int tiles = tilesX * tilesZ;
-        Runnable[] work = new Runnable[tiles];
-        for (int t = 0; t < tiles; t++) {
-            int tx = t % tilesX;
-            int tz = t / tilesX;
-            int ti = t;
-            work[t] =
-                    () ->
-                            out[ti] =
-                                    bakeTile(
-                                            bvh, cfg, tx, tz, originX, originZ, tileCells, bottom,
-                                            top, volumes, links);
-        }
+        return new Layout(
+                bvh,
+                minX,
+                minZ,
+                tileCells,
+                tileWorld,
+                tilesX,
+                tilesZ,
+                minY - 1,
+                maxY + cfg.agentHeight() + 1);
+    }
+
+    static void forEachTile(Layout l, JobSystem jobs, TileWork work) {
+        int tiles = l.tilesX * l.tilesZ;
         if (jobs != null && tiles > 1) {
             jobs.parallelFor(
                     (from, to, thread) -> {
                         for (int i = from; i < to; i++) {
-                            work[i].run();
+                            work.bake(i % l.tilesX, i / l.tilesX, i);
                         }
                     },
                     tiles,
                     1);
         } else {
-            for (Runnable r : work) {
-                r.run();
+            for (int i = 0; i < tiles; i++) {
+                work.bake(i % l.tilesX, i / l.tilesX, i);
             }
         }
+    }
+
+    static NavMeshData data(Layout l, NavBakeConfig cfg, NavTile[] out) {
         List<NavTile> list = new ArrayList<>();
         for (NavTile t : out) {
             if (t != null) {
@@ -123,9 +162,9 @@ public final class NavMeshBaker {
             }
         }
         return new NavMeshData(
-                originX,
-                originZ,
-                tileWorld,
+                l.originX,
+                l.originZ,
+                l.tileWorld,
                 cfg.agentRadius(),
                 cfg.agentHeight(),
                 cfg.agentMaxClimb(),
@@ -144,6 +183,26 @@ public final class NavMeshBaker {
             float maxY,
             List<AreaVolume> volumes,
             List<OffMeshLink> links) {
+        CompactHeightfield chf =
+                rasterizeTile(bvh, cfg, tx, tz, originX, originZ, tileCells, minY, maxY);
+        return finishTile(
+                chf, cfg, tx, tz, originX, originZ, tileCells, minY, volumes, links, null, 0);
+    }
+
+    /**
+     * Voxelizes tile {@code (tx, tz)} and filters it into a compact heightfield, before erosion
+     * (what the tile cache keeps); {@code null} when nothing in the tile is walkable.
+     */
+    static CompactHeightfield rasterizeTile(
+            Bvh bvh,
+            NavBakeConfig cfg,
+            int tx,
+            int tz,
+            float originX,
+            float originZ,
+            int tileCells,
+            float minY,
+            float maxY) {
         float cs = cfg.cellSize();
         float ch = cfg.cellHeight();
         int border = cfg.borderSize();
@@ -193,18 +252,103 @@ public final class NavMeshBaker {
         hf.filterLedgeSpans(walkableHeight, climb);
         hf.filterWalkableLowHeightSpans(walkableHeight);
         CompactHeightfield chf = new CompactHeightfield(hf, walkableHeight, climb);
-        if (chf.spanCount == 0) {
+        return chf.spanCount == 0 ? null : chf;
+    }
+
+    /**
+     * Turns a compact heightfield (consumed) into the tile: marks {@code obstacleCount} obstacles
+     * of {@code obstacles} (see {@link TileCache}) as blocked, erodes by the agent radius, applies
+     * area volumes, builds regions, contours and polygons, and adds the off-mesh links starting in
+     * the tile. {@code null} when the tile ends up empty.
+     */
+    static NavTile finishTile(
+            CompactHeightfield chf,
+            NavBakeConfig cfg,
+            int tx,
+            int tz,
+            float originX,
+            float originZ,
+            int tileCells,
+            float minY,
+            List<AreaVolume> volumes,
+            List<OffMeshLink> links,
+            float[] obstacles,
+            int obstacleCount) {
+        float cs = cfg.cellSize();
+        float ch = cfg.cellHeight();
+        float tileMinX = originX + tx * tileCells * cs;
+        float tileMinZ = originZ + tz * tileCells * cs;
+        if (chf == null) {
             return offMeshOnly(tx, tz, tileMinX, tileMinZ, tileCells * cs, links);
+        }
+        for (int o = 0; o < obstacleCount; o++) {
+            markObstacle(chf, obstacles, o * TileCache.OBSTACLE_FLOATS);
         }
         chf.erode(cfg.walkableRadius());
         for (AreaVolume vol : volumes) {
             markVolume(chf, vol);
         }
         chf.buildDistanceField();
-        chf.buildRegions(border, cfg.minRegionArea(), cfg.mergeRegionArea());
+        chf.buildRegions(cfg.borderSize(), cfg.minRegionArea(), cfg.mergeRegionArea());
         Contours contours = new Contours(chf, cfg.maxSimplificationError(), cfg.maxEdgeCells());
         PolyMesh pm = new PolyMesh(contours, cfg.maxVertsPerPoly());
         return toTile(pm, tx, tz, tileMinX, tileMinZ, minY, cs, ch, tileCells * cs, links);
+    }
+
+    /** Blocks the spans an obstacle stands on (cylinder or box; see {@link TileCache}). */
+    private static void markObstacle(CompactHeightfield chf, float[] ob, int o) {
+        boolean box = ob[o] != 0;
+        float minX;
+        float minZ;
+        float maxX;
+        float maxZ;
+        float y0;
+        float y1;
+        if (box) {
+            minX = ob[o + 1];
+            y0 = ob[o + 2];
+            minZ = ob[o + 3];
+            maxX = ob[o + 4];
+            y1 = ob[o + 5];
+            maxZ = ob[o + 6];
+        } else {
+            float r = ob[o + 4];
+            minX = ob[o + 1] - r;
+            maxX = ob[o + 1] + r;
+            minZ = ob[o + 3] - r;
+            maxZ = ob[o + 3] + r;
+            y0 = ob[o + 2];
+            y1 = ob[o + 2] + ob[o + 5];
+        }
+        int x0 = Math.max(0, (int) Math.floor((minX - chf.minX) / chf.cs));
+        int x1 = Math.min(chf.width - 1, (int) Math.floor((maxX - chf.minX) / chf.cs));
+        int z0 = Math.max(0, (int) Math.floor((minZ - chf.minZ) / chf.cs));
+        int z1 = Math.min(chf.height - 1, (int) Math.floor((maxZ - chf.minZ) / chf.cs));
+        // Spans whose floor is within a climb below the obstacle's base up to its top.
+        int ymin = (int) Math.floor((y0 - chf.minY) / chf.ch) - chf.walkableClimb;
+        int ymax = (int) Math.ceil((y1 - chf.minY) / chf.ch);
+        float r2 = box ? 0 : ob[o + 4] * ob[o + 4];
+        for (int z = z0; z <= z1; z++) {
+            for (int x = x0; x <= x1; x++) {
+                float px = chf.minX + (x + 0.5f) * chf.cs;
+                float pz = chf.minZ + (z + 0.5f) * chf.cs;
+                if (!box) {
+                    float dx = px - ob[o + 1];
+                    float dz = pz - ob[o + 3];
+                    if (dx * dx + dz * dz > r2) {
+                        continue;
+                    }
+                } else if (px < minX || px > maxX || pz < minZ || pz > maxZ) {
+                    continue;
+                }
+                int c = x + z * chf.width;
+                for (int i = chf.cellIndex[c], end = i + chf.cellCount[c]; i < end; i++) {
+                    if (chf.y[i] >= ymin && chf.y[i] <= ymax) {
+                        chf.area[i] = Heightfield.NULL_AREA;
+                    }
+                }
+            }
+        }
     }
 
     private static void markVolume(CompactHeightfield chf, AreaVolume vol) {

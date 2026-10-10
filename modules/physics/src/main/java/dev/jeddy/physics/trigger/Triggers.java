@@ -2,6 +2,7 @@ package dev.jeddy.physics.trigger;
 
 import dev.jeddy.core.collections.IntList;
 import dev.jeddy.math.Poly2;
+import dev.jeddy.physics.debug.DebugSink;
 import dev.jeddy.physics.grid.Bodies;
 import dev.jeddy.physics.grid.UniformGrid;
 
@@ -305,5 +306,65 @@ public final class Triggers {
     /** Returns the events: {@code (trigger id, entity, kind)} triples. */
     public int[] events() {
         return events;
+    }
+
+    /** Draws every active trigger's outline (debug view; allocates nothing). */
+    public void debugDraw(DebugSink sink, int thread, int argb) {
+        for (int t = 0; t < count; t++) {
+            if (!active[t]) {
+                continue;
+            }
+            int o = t * 8;
+            switch (shape[t]) {
+                case PRISM -> {
+                    float y0 = params[o];
+                    float y1 = params[o + 1];
+                    int n = polyCount[t];
+                    int base = polyOffset[t];
+                    for (int k = 0, j = n - 1; k < n; j = k++) {
+                        float ax = polygons[base + j * 2];
+                        float az = polygons[base + j * 2 + 1];
+                        float bx = polygons[base + k * 2];
+                        float bz = polygons[base + k * 2 + 1];
+                        sink.line(thread, ax, y0, az, bx, y0, bz, argb);
+                        sink.line(thread, ax, y1, az, bx, y1, bz, argb);
+                        sink.line(thread, bx, y0, bz, bx, y1, bz, argb);
+                    }
+                }
+                case BOX -> {
+                    float x = params[o];
+                    float y = params[o + 1];
+                    float z = params[o + 2];
+                    float hx = params[o + 3];
+                    float hz = params[o + 4];
+                    float h = params[o + 5];
+                    float c = params[o + 6];
+                    float s = params[o + 7];
+                    for (int k = 0; k < 4; k++) {
+                        // Corners in order around the box: (-,-) (+,-) (+,+) (-,+).
+                        float lx0 = (k == 1 || k == 2) ? hx : -hx;
+                        float lz0 = k >= 2 ? hz : -hz;
+                        int k1 = (k + 1) & 3;
+                        float lx1 = (k1 == 1 || k1 == 2) ? hx : -hx;
+                        float lz1 = k1 >= 2 ? hz : -hz;
+                        float ax = x + c * lx0 + s * lz0;
+                        float az = z - s * lx0 + c * lz0;
+                        float bx = x + c * lx1 + s * lz1;
+                        float bz = z - s * lx1 + c * lz1;
+                        sink.line(thread, ax, y, az, bx, y, bz, argb);
+                        sink.line(thread, ax, y + h, az, bx, y + h, bz, argb);
+                        sink.line(thread, ax, y, az, ax, y + h, az, argb);
+                    }
+                }
+                default -> {
+                    float x = params[o];
+                    float y = params[o + 1];
+                    float z = params[o + 2];
+                    float r = params[o + 3];
+                    sink.circle(thread, x, y, z, r, argb);
+                    sink.line(thread, x, y - r, z, x, y + r, z, argb);
+                }
+            }
+        }
     }
 }

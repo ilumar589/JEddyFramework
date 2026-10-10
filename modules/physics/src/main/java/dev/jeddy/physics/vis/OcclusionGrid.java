@@ -2,6 +2,7 @@ package dev.jeddy.physics.vis;
 
 import dev.jeddy.physics.bvh.Bvh;
 import dev.jeddy.physics.bvh.TriFlags;
+import dev.jeddy.physics.debug.DebugSink;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -285,5 +286,34 @@ public final class OcclusionGrid {
     /** Returns whether two grids have the same cells. */
     public boolean sameCells(OcclusionGrid other) {
         return width == other.width && height == other.height && Arrays.equals(bits, other.bits);
+    }
+
+    /**
+     * Draws the blocked cells inside {@code [x0, x1] × [z0, z1]} as squares at height {@code y}
+     * (debug view; allocates nothing).
+     */
+    public void debugDraw(
+            DebugSink sink, int thread, float x0, float z0, float x1, float z1, float y, int argb) {
+        int cx0 = Math.max(0, cellX(x0));
+        int cx1 = Math.min(width() - 1, cellX(x1));
+        int cz0 = Math.max(0, cellZ(z0));
+        int cz1 = Math.min(height() - 1, cellZ(z1));
+        float cs = cellSize();
+        float inset = cs * 0.1f;
+        for (int z = cz0; z <= cz1; z++) {
+            for (int x = cx0; x <= cx1; x++) {
+                if (!blocked(x, z)) {
+                    continue;
+                }
+                float ax = minX() + x * cs + inset;
+                float az = minZ() + z * cs + inset;
+                float bx = ax + cs - inset * 2;
+                float bz = az + cs - inset * 2;
+                sink.line(thread, ax, y, az, bx, y, az, argb);
+                sink.line(thread, bx, y, az, bx, y, bz, argb);
+                sink.line(thread, bx, y, bz, ax, y, bz, argb);
+                sink.line(thread, ax, y, bz, ax, y, az, argb);
+            }
+        }
     }
 }

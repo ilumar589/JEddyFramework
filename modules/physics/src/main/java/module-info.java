@@ -8,6 +8,7 @@ module dev.jeddy.physics {
 
     exports dev.jeddy.physics.bvh;
     exports dev.jeddy.physics.crowd;
+    exports dev.jeddy.physics.debug;
     exports dev.jeddy.physics.grid;
     exports dev.jeddy.physics.nav;
     exports dev.jeddy.physics.nav.bake;
