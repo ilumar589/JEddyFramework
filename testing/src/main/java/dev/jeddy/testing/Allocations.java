@@ -77,4 +77,12 @@ public final class Allocations {
     public static long threadAllocatedBytes() {
         return THREADS.getCurrentThreadAllocatedBytes();
     }
+
+    /**
+     * Returns the bytes another thread has allocated so far. Sampling from a separate monitor
+     * thread keeps the measurement code out of the loop being measured (no JIT effects there).
+     */
+    public static long threadAllocatedBytes(Thread thread) {
+        return THREADS.getThreadAllocatedBytes(thread.threadId());
+    }
 }

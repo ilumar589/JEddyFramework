@@ -14,6 +14,5 @@ module dev.jeddy.app {
     requires transitive dev.jeddy.asset;
     requires dev.jeddy.sdl;
 
-// Exported together with the first public type (javac rejects exporting a package with no types):
-// exports dev.jeddy.app;
+    exports dev.jeddy.app;
 }
