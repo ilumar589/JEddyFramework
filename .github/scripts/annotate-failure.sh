@@ -19,7 +19,8 @@ if [ -n "$what" ]; then
   echo "::error title=Gradle failure::${what}"
 fi
 
-problems=$(grep -E '(error:|warning:|FAILED|Exception|Caused by:|expected:)' "$log" | head -n 60 | encode)
+# javac (error:/warning:), Kotlin (e:/w: file:...), JUnit and Gradle task failures.
+problems=$(grep -E '(error:|warning:|^e: |^w: |FAILED|Exception|Caused by:|expected:)' "$log" | grep -v '^\s*at ' | head -n 60 | encode)
 if [ -n "$problems" ]; then
   echo "::error title=Compiler and test problems::${problems}"
 fi

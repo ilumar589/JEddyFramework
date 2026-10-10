@@ -48,7 +48,7 @@ dependencies {
 tasks.withType<Test>().configureEach {
     useJUnitPlatform {
         // GPU tests need a real GL 4.6 driver; run them with -Pjeddy.gpuTests=true.
-        if (!providers.gradleProperty("jeddy.gpuTests").map(String::toBoolean).getOrElse(false)) {
+        if (!providers.gradleProperty("jeddy.gpuTests").map { it.toBoolean() }.getOrElse(false)) {
             excludeTags("gpu")
         }
     }
