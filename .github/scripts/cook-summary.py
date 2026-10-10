@@ -18,5 +18,6 @@ for item in report["items"]:
     if item.get("warnings"):
         lines.append(f"{item['source']}: warnings {item['warnings']}")
 counts = report["counts"]
-title = f"Sample cook ({os.environ.get('RUNNER_OS', 'local')}): {counts['cooked']} cooked, {counts['cached']} cached, {counts['failed']} failed"
+# Annotation properties are comma-separated, so the title must not contain commas.
+title = f"Sample cook ({os.environ.get('RUNNER_OS', 'local')}): {counts['cooked']} cooked / {counts['cached']} cached / {counts['failed']} failed"
 print(f"::notice title={title}::" + "%0A".join(l.replace("%", "%25") for l in lines))
