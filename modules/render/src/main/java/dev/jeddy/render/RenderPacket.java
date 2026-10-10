@@ -123,7 +123,10 @@ public final class RenderPacket {
     /** Image-based lighting diffuse scale. */
     public float environmentDiffuse = 1;
 
-    /** Exposure multiplier applied before tone mapping. */
+    /**
+     * Exposure compensation: multiplies the automatic exposure (or the fixed exposure of 1) before
+     * tone mapping.
+     */
     public float exposure = 1;
 
     /** Near plane distance (clusters, shadows). */

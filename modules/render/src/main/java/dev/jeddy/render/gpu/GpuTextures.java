@@ -13,8 +13,8 @@ import java.util.Arrays;
 
 /**
  * Textures behind generational handles (TASKS M5-03): immutable storage ({@code glTextureStorage*})
- * for 2D, 2D arrays and cube maps, uploads of BCn blocks or pixels per level, and creation from
- * KTX2 (DESIGN §9.2).
+ * for 2D, 2D arrays, cube maps and 3D textures, uploads of BCn blocks or pixels per level, and
+ * creation from KTX2 (DESIGN §9.2).
  *
  * <p>Thread ownership: the GL context thread (main thread).
  */
@@ -30,6 +30,9 @@ public final class GpuTextures {
 
     /** Kind: cube map array. */
     public static final int KIND_CUBE_ARRAY = 3;
+
+    /** Kind: 3D (volume; the layer count is the depth). */
+    public static final int KIND_3D = 4;
 
     private final GpuDevice device;
     private final HandlePool handles = new HandlePool(64, Handles.MAX_INDEX + 1);
@@ -50,7 +53,7 @@ public final class GpuTextures {
      *
      * @param kind {@link #KIND_2D}, ...
      * @param internalFormat a GL sized or compressed internal format ({@link GpuFormats})
-     * @param layerCount array layers (1 for non-arrays)
+     * @param layerCount array layers (1 for non-arrays), or the depth of a 3D texture
      * @param levelCount mip levels
      */
     public int create(
@@ -71,6 +74,7 @@ public final class GpuTextures {
                     case KIND_2D_ARRAY -> GL_TEXTURE_2D_ARRAY;
                     case KIND_CUBE -> GL_TEXTURE_CUBE_MAP;
                     case KIND_CUBE_ARRAY -> GL_TEXTURE_CUBE_MAP_ARRAY;
+                    case KIND_3D -> GL_TEXTURE_3D;
                     default -> throw new IllegalArgumentException("texture kind " + kind);
                 };
         MemorySegment id = device.scratch();
@@ -79,7 +83,7 @@ public final class GpuTextures {
         switch (kind) {
             case KIND_2D, KIND_CUBE ->
                     glTextureStorage2D(name, levelCount, internalFormat, width, height);
-            case KIND_2D_ARRAY ->
+            case KIND_2D_ARRAY, KIND_3D ->
                     glTextureStorage3D(name, levelCount, internalFormat, width, height, layerCount);
             default ->
                     glTextureStorage3D(
@@ -138,7 +142,12 @@ public final class GpuTextures {
             return;
         }
         int depth =
-                kinds[i] == KIND_2D_ARRAY ? layers[i] : kinds[i] == KIND_CUBE ? 6 : layers[i] * 6;
+                switch (kinds[i]) {
+                    case KIND_2D_ARRAY -> layers[i];
+                    case KIND_CUBE -> 6;
+                    case KIND_3D -> Math.max(1, layers[i] >> level);
+                    default -> layers[i] * 6;
+                };
         if (compressed) {
             glCompressedTextureSubImage3D(name, level, 0, 0, 0, w, hgt, depth, fmt, bytes, address);
         } else {
@@ -234,6 +243,10 @@ public final class GpuTextures {
         if (fmt == 0) {
             throw new UnsupportedOperationException(label + ": vkFormat " + ktx.vkFormat());
         }
+        if (ktx.depth() > 1) {
+            return create(
+                    KIND_3D, fmt, ktx.width(), ktx.height(), ktx.depth(), ktx.levels(), label);
+        }
         int kind =
                 ktx.isCubeMap()
                         ? (ktx.isArray() ? KIND_CUBE_ARRAY : KIND_CUBE)
@@ -244,6 +257,7 @@ public final class GpuTextures {
     /** Deletes the texture. */
     public void destroy(int handle) {
         int i = check(handle);
+        device.state().forgetTexture(names[i]);
         MemorySegment id = device.scratch();
         id.set(ValueLayout.JAVA_INT, 0, names[i]);
         glDeleteTextures(1, id);

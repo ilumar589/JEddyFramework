@@ -1,0 +1,52 @@
+#version 460 core
+// Average luminance from the histogram, ignoring the darkest and brightest fractions, and the
+// exposure that maps it to the key value, approached exponentially (TASKS M7-06). Clears the
+// histogram for the next frame.
+#include "exposure.glsl"
+
+layout(local_size_x = 256) in;
+layout(location = 0) uniform vec2 uRange;  // x min log2 luminance, y 1 / (max - min)
+layout(location = 1) uniform vec4 uParams; // x low fraction, y high fraction, z seconds, w key
+layout(location = 2) uniform vec2 uSpeed;  // x brightening rate, y darkening rate (1 / s)
+
+shared float counts[256];
+
+void main() {
+    uint i = gl_LocalInvocationIndex;
+    counts[i] = float(jHistogram[i]);
+    jHistogram[i] = 0u;
+    barrier();
+    if (i != 0u) {
+        return;
+    }
+    float total = 0.0;
+    for (int b = 1; b < 256; b++) {
+        total += counts[b];
+    }
+    float low = total * uParams.x;
+    float high = total * uParams.y;
+    float below = 0.0;
+    float sum = 0.0;
+    float weight = 0.0;
+    float range = 1.0 / uRange.y;
+    for (int b = 1; b < 256; b++) {
+        float n = counts[b];
+        float w = max(min(below + n, high) - max(below, low), 0.0);
+        sum += w * (uRange.x + (float(b) - 0.5) / 254.0 * range);
+        weight += w;
+        below += n;
+    }
+    float key = uParams.w;
+    float averageLog = weight > 0.0 ? sum / weight : log2(key);
+    float target = key / exp2(averageLog);
+    float current = jExposure;
+    float next = target;
+    if (current > 0.0) {
+        float rate = target > current ? uSpeed.y : uSpeed.x;
+        float k = 1.0 - exp(-uParams.z * rate);
+        next = exp2(mix(log2(current), log2(target), k));
+    }
+    jExposure = next;
+    jAverageLuminance = exp2(averageLog);
+    jTargetExposure = target;
+}

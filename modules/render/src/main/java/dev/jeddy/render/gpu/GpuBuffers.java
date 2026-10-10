@@ -102,6 +102,7 @@ public final class GpuBuffers {
         if (mappings[i].address() != 0) {
             glUnmapNamedBuffer(names[i]);
         }
+        device.state().forgetBuffer(names[i]);
         MemorySegment id = device.scratch();
         id.set(ValueLayout.JAVA_INT, 0, names[i]);
         glDeleteBuffers(1, id);

@@ -114,6 +114,7 @@ public final class GpuFramebuffers {
     /** Deletes the framebuffer (not its textures). */
     public void destroy(int handle) {
         int name = glName(handle);
+        device.state().forgetFramebuffer(name);
         MemorySegment id = device.scratch();
         id.set(ValueLayout.JAVA_INT, 0, name);
         glDeleteFramebuffers(1, id);

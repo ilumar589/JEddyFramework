@@ -1,0 +1,31 @@
+#version 460 core
+// Luminance histogram of the HDR image at quarter density (every second pixel on both axes;
+// TASKS M7-06). Shared-memory bins per workgroup, then one global atomic per bin.
+#include "/engine/color.glsl"
+#include "exposure.glsl"
+
+layout(local_size_x = 16, local_size_y = 16) in;
+layout(binding = 0) uniform sampler2D uHdr;
+layout(location = 0) uniform vec2 uRange; // x min log2 luminance, y 1 / (max - min)
+
+shared uint bins[256];
+
+void main() {
+    uint i = gl_LocalInvocationIndex;
+    bins[i] = 0u;
+    barrier();
+    ivec2 p = ivec2(gl_GlobalInvocationID.xy) * 2;
+    ivec2 size = textureSize(uHdr, 0);
+    if (p.x < size.x && p.y < size.y) {
+        float l = jeddyLuminance(texelFetch(uHdr, p, 0).rgb);
+        uint bin = 0u;
+        if (l > 1e-6) {
+            bin = uint(clamp((log2(l) - uRange.x) * uRange.y, 0.0, 1.0) * 254.0 + 1.0);
+        }
+        atomicAdd(bins[bin], 1u);
+    }
+    barrier();
+    if (bins[i] != 0u) {
+        atomicAdd(jHistogram[i], bins[i]);
+    }
+}

@@ -9,7 +9,6 @@ import dev.jeddy.render.draw.DrawBuilder;
 import dev.jeddy.render.gpu.FrameRing;
 import dev.jeddy.render.gpu.GpuDevice;
 import dev.jeddy.render.gpu.PipelineState;
-import dev.jeddy.render.gpu.SamplerDesc;
 import dev.jeddy.render.gpu.StateCache;
 import dev.jeddy.render.graph.FrameGraph;
 import dev.jeddy.render.graph.PassContext;
@@ -18,6 +17,7 @@ import dev.jeddy.render.light.LightClusters;
 import dev.jeddy.render.material.MaterialSystem;
 import dev.jeddy.render.mesh.MeshRegistry;
 import dev.jeddy.render.post.Gtao;
+import dev.jeddy.render.post.PostProcess;
 import dev.jeddy.render.shader.ProgramCache;
 import dev.jeddy.render.shader.ShaderFeatures;
 import dev.jeddy.render.shadow.LocalShadows;
@@ -29,9 +29,9 @@ import java.lang.foreign.ValueLayout;
 
 /**
  * The forward+ PBR frame (TASKS M7, DESIGN §9.3): culling and draw building for the main view,
- * per-frame constants, clustered light assignment, a depth prepass, the lit opaque pass, the sky
- * and the resolve to the window, wired as {@link FrameGraph} passes. Later passes (shadows, AO,
- * post, decals, outlines, transparency, particles) plug into the same graph.
+ * per-frame constants, clustered light assignment, sun and local shadows, a depth prepass, GTAO,
+ * the lit opaque pass, the sky and the post chain to the window, wired as {@link FrameGraph}
+ * passes. Decals, outlines, transparency and particles plug into the same graph.
  *
  * <p>Thread ownership: the render (main) thread; {@link #render} borrows job workers for culling
  * and draw building.
@@ -51,36 +51,57 @@ public final class SceneRenderer implements AutoCloseable {
      * @param sunShadows cascade settings, or {@code null} for no sun shadows
      * @param localShadows spot and point shadow atlas settings, or {@code null} for none
      * @param ambientOcclusion half-resolution GTAO settings, or {@code null} for none
+     * @param post bloom, exposure, tone mapping, grading and anti-aliasing settings
      */
     public record Config(
             long ringBytesPerFrame,
             int maxMaterials,
             SunShadows.Config sunShadows,
             LocalShadows.Config localShadows,
-            Gtao.Config ambientOcclusion) {
-        /** 32 MiB per frame, 256 materials, default shadows and ambient occlusion. */
+            Gtao.Config ambientOcclusion,
+            PostProcess.Config post) {
+        /** 32 MiB per frame, 256 materials, default shadows, ambient occlusion and post. */
         public static final Config DEFAULT =
                 new Config(
                         32L << 20,
                         256,
                         SunShadows.Config.DEFAULT,
                         LocalShadows.Config.DEFAULT,
-                        Gtao.Config.DEFAULT);
+                        Gtao.Config.DEFAULT,
+                        PostProcess.Config.DEFAULT);
+
+        /** Checks that the post settings are present. */
+        public Config {
+            java.util.Objects.requireNonNull(post, "post");
+        }
 
         /** Returns a copy with other sun shadow settings ({@code null} turns them off). */
         public Config withSunShadows(SunShadows.Config value) {
             return new Config(
-                    ringBytesPerFrame, maxMaterials, value, localShadows, ambientOcclusion);
+                    ringBytesPerFrame, maxMaterials, value, localShadows, ambientOcclusion, post);
         }
 
         /** Returns a copy with other local shadow settings ({@code null} turns them off). */
         public Config withLocalShadows(LocalShadows.Config value) {
-            return new Config(ringBytesPerFrame, maxMaterials, sunShadows, value, ambientOcclusion);
+            return new Config(
+                    ringBytesPerFrame, maxMaterials, sunShadows, value, ambientOcclusion, post);
         }
 
         /** Returns a copy with other ambient occlusion settings ({@code null} turns it off). */
         public Config withAmbientOcclusion(Gtao.Config value) {
-            return new Config(ringBytesPerFrame, maxMaterials, sunShadows, localShadows, value);
+            return new Config(
+                    ringBytesPerFrame, maxMaterials, sunShadows, localShadows, value, post);
+        }
+
+        /** Returns a copy with other post-processing settings. */
+        public Config withPost(PostProcess.Config value) {
+            return new Config(
+                    ringBytesPerFrame,
+                    maxMaterials,
+                    sunShadows,
+                    localShadows,
+                    ambientOcclusion,
+                    value);
         }
     }
 
@@ -93,6 +114,7 @@ public final class SceneRenderer implements AutoCloseable {
     private final SunShadows sunShadows;
     private final LocalShadows localShadows;
     private final Gtao gtao;
+    private final PostProcess post;
     private final FrameRing ring;
     private final Culling culling;
     private final DrawBuilder draws;
@@ -102,8 +124,6 @@ public final class SceneRenderer implements AutoCloseable {
     private final float[] scratch = new float[16];
     private final int emptyVao;
     private final int skyProgram;
-    private final int resolveProgram;
-    private final int linearClamp;
     private final int hdr;
     private final int depth;
     private final int clusterItems;
@@ -115,6 +135,7 @@ public final class SceneRenderer implements AutoCloseable {
     private RenderPacket packet;
     private long frameOffset;
     private long frameNumber;
+    private float lastTime = Float.NaN;
     private int width;
     private int height;
 
@@ -161,13 +182,7 @@ public final class SceneRenderer implements AutoCloseable {
         skyProgram =
                 programs.define(
                         "sky", "engine/fullscreen.vert", "pbr/sky.frag", ShaderFeatures.NONE);
-        resolveProgram =
-                programs.define(
-                        "resolve",
-                        "engine/fullscreen.vert",
-                        "pbr/resolve.frag",
-                        ShaderFeatures.NONE);
-        linearClamp = device.samplers().get(SamplerDesc.LINEAR_CLAMP);
+        post = new PostProcess(device, programs, config.post(), emptyVao);
 
         graph = new FrameGraph(device);
         hdr = graph.texture("hdr", GL_RGBA16F, 1f);
@@ -205,7 +220,7 @@ public final class SceneRenderer implements AutoCloseable {
             opaque.readsTexture(ao);
         }
         graph.addPass("sky", this::sky).color(hdr).depthReadOnly(depth);
-        graph.addPass("resolve", this::resolve).readsTexture(hdr).color(FrameGraph.BACKBUFFER);
+        post.declare(graph, hdr);
     }
 
     /** Returns the material system. */
@@ -241,6 +256,11 @@ public final class SceneRenderer implements AutoCloseable {
     /** Returns the GL name of the blurred half-resolution AO target (0 when disabled). */
     public int aoTexture() {
         return gtao == null ? 0 : graph.glTexture(ao);
+    }
+
+    /** Returns the post-processing chain. */
+    public PostProcess post() {
+        return post;
     }
 
     /** Returns the frame graph (debug views, timings, extra passes). */
@@ -290,6 +310,9 @@ public final class SceneRenderer implements AutoCloseable {
             localShadows.update(p, ring, clusters.lightsOffset(), lod);
         }
         frameOffset = writeFrameConstants(p);
+        float elapsed = Float.isNaN(lastTime) ? 0f : Math.clamp(p.time - lastTime, 0f, 1f);
+        lastTime = p.time;
+        post.prepare(p.exposure, elapsed);
         StateCache state = device.state();
         state.bindUniform(FRAME_BINDING, ring.glName(), frameOffset, FRAME_BYTES);
         materials.invalidateBindings();
@@ -437,25 +460,10 @@ public final class SceneRenderer implements AutoCloseable {
         glDrawArrays(GL_TRIANGLES, 0, 3);
     }
 
-    private void resolve(PassContext ctx) {
-        int program = programs.get(resolveProgram, 0);
-        if (program == 0) {
-            return;
-        }
-        StateCache state = ctx.state();
-        state.apply(PipelineState.FULLSCREEN);
-        state.useProgram(program);
-        state.bindUniform(FRAME_BINDING, ring.glName(), frameOffset, FRAME_BYTES);
-        state.bindTexture(0, ctx.texture(hdr));
-        state.bindSampler(0, linearClamp);
-        state.bindVertexArray(emptyVao);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
-        materials.invalidateBindings();
-    }
-
     @Override
     public void close() {
         graph.close();
+        post.close();
         MemorySegment id = arena.allocate(4);
         id.set(ValueLayout.JAVA_INT, 0, emptyVao);
         glDeleteVertexArrays(1, id);

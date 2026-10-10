@@ -225,6 +225,38 @@ public final class KtxEncoder {
             java.util.Map<String, byte[]> keyValues,
             int zstdLevel)
             throws IOException {
+        return encodeRaw(vkFormat, width, height, 1, faces, levels, keyValues, zstdLevel);
+    }
+
+    /**
+     * Writes one uncompressed level of a 3D texture (grading LUTs) into a KTX2 file with zstd
+     * supercompression.
+     *
+     * @param volume tightly packed slices, {@code depth} of them, the first slice first
+     */
+    public static byte[] encodeVolume(
+            int vkFormat,
+            int width,
+            int height,
+            int depth,
+            byte[] volume,
+            java.util.Map<String, byte[]> keyValues,
+            int zstdLevel)
+            throws IOException {
+        return encodeRaw(
+                vkFormat, width, height, depth, 1, new byte[][][] {{volume}}, keyValues, zstdLevel);
+    }
+
+    private static byte[] encodeRaw(
+            int vkFormat,
+            int width,
+            int height,
+            int depth,
+            int faces,
+            byte[][][] levels,
+            java.util.Map<String, byte[]> keyValues,
+            int zstdLevel)
+            throws IOException {
         ToolNatives.load();
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment info = ktxTextureCreateInfo.allocate(arena);
@@ -232,8 +264,8 @@ public final class KtxEncoder {
             ktxTextureCreateInfo.vkFormat(info, vkFormat);
             ktxTextureCreateInfo.baseWidth(info, width);
             ktxTextureCreateInfo.baseHeight(info, height);
-            ktxTextureCreateInfo.baseDepth(info, 1);
-            ktxTextureCreateInfo.numDimensions(info, 2);
+            ktxTextureCreateInfo.baseDepth(info, depth);
+            ktxTextureCreateInfo.numDimensions(info, depth > 1 ? 3 : 2);
             ktxTextureCreateInfo.numLevels(info, levels.length);
             ktxTextureCreateInfo.numLayers(info, 1);
             ktxTextureCreateInfo.numFaces(info, faces);
