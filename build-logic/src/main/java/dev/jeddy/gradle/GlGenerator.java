@@ -461,13 +461,14 @@ public final class GlGenerator {
             boolean isCritical = critical.contains(name);
             String extension = commandExtension.get(name);
             emitCommand(sb, c, c.paramTypes, name, "", isCritical, extension);
-            // Offset overload: untyped const void* parameters with conventional names.
+            // Offset overload: untyped void* parameters with conventional names (a buffer offset
+            // when a buffer is bound to the matching target, otherwise a raw address).
             List<String> offsetTypes = new ArrayList<>(c.paramTypes);
             boolean anyOffset = false;
             for (int i = 0; i < c.paramNames.size(); i++) {
                 String cDecl = c.paramC.get(i);
                 if (offsetParams.contains(c.paramNames.get(i))
-                        && cDecl.startsWith("const void *")
+                        && (cDecl.startsWith("const void *") || cDecl.startsWith("void *"))
                         && cDecl.indexOf('*') == cDecl.lastIndexOf('*')) {
                     offsetTypes.set(i, "long");
                     anyOffset = true;

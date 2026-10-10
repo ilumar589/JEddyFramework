@@ -9,4 +9,6 @@ dependencies {
     implementation(project(":window"))
     implementation(project(":compress"))
     implementation(project(":asset"))
+    implementation(project(":scene"))
+    implementation(project(":render"))
 }

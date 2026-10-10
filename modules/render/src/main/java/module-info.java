@@ -5,10 +5,16 @@
 module dev.jeddy.render {
     requires transitive dev.jeddy.core;
     requires transitive dev.jeddy.math;
-    requires dev.jeddy.gl;
-    requires dev.jeddy.window;
-    requires dev.jeddy.asset;
+    requires transitive dev.jeddy.gl;
+    requires transitive dev.jeddy.window;
+    requires transitive dev.jeddy.asset;
 
-// Exported together with the first public type (javac rejects exporting a package with no types):
-// exports dev.jeddy.render;
+    exports dev.jeddy.render;
+    exports dev.jeddy.render.camera;
+    exports dev.jeddy.render.debug;
+    exports dev.jeddy.render.draw;
+    exports dev.jeddy.render.gpu;
+    exports dev.jeddy.render.graph;
+    exports dev.jeddy.render.mesh;
+    exports dev.jeddy.render.shader;
 }
