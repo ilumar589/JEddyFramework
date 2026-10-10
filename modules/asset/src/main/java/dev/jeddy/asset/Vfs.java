@@ -95,7 +95,7 @@ public final class Vfs implements AutoCloseable {
     }
 
     /** Files of a loose directory, sorted by id. */
-    private record Listing(long[] ids, String[] paths, long[] sizes) {
+    private record Listing(long[] ids, String[] paths) {
         int find(long id) {
             int i = Arrays.binarySearch(ids, id);
             return i >= 0 ? i : -1;
@@ -208,8 +208,8 @@ public final class Vfs implements AutoCloseable {
     }
 
     /**
-     * Returns the decompressed size of an asset, or -1 if it is not visible. For loose files this
-     * is the size seen by the last scan.
+     * Returns the decompressed size of an asset, or -1 if it is not visible. Loose files are
+     * checked on disk each time (this allocates; development only).
      */
     public long size(long id) {
         Index ix = index;
@@ -224,7 +224,14 @@ public final class Vfs implements AutoCloseable {
         DirectoryMount d = (DirectoryMount) m;
         Listing l = d.listing;
         int i = l.find(id);
-        return i < 0 ? -1 : l.sizes[i];
+        if (i < 0) {
+            return -1;
+        }
+        try {
+            return Files.size(d.root.resolve(l.paths[i])); // the cooker may have rewritten it
+        } catch (IOException e) {
+            return -1;
+        }
     }
 
     /** Returns {@code true} if the visible copy of {@code id} comes from a loose directory. */
@@ -241,7 +248,8 @@ public final class Vfs implements AutoCloseable {
      * @param decompressor the calling thread's context
      * @return the number of bytes written
      * @throws NoSuchFileException if the asset is not visible
-     * @throws IOException if a loose file cannot be read or no longer fits {@code capacity}
+     * @throws FileChangedException if a loose file no longer fits {@code capacity}
+     * @throws IOException if a loose file cannot be read
      */
     public long read(
             long id,
@@ -344,7 +352,7 @@ public final class Vfs implements AutoCloseable {
                 FileChannel.open(d.root.resolve(l.paths[i]), StandardOpenOption.READ)) {
             long size = ch.size();
             if (size > capacity) {
-                throw new IOException(
+                throw new FileChangedException(
                         d.root.resolve(l.paths[i])
                                 + " grew to "
                                 + size
@@ -431,16 +439,10 @@ public final class Vfs implements AutoCloseable {
         Arrays.sort(order, (a, b) -> Long.compare(ids[a], ids[b]));
         long[] sortedIds = new long[n];
         String[] sortedPaths = new String[n];
-        long[] sizes = new long[n];
         for (int i = 0; i < n; i++) {
             int k = order[i];
             sortedIds[i] = ids[k];
             sortedPaths[i] = paths.get(k);
-            try {
-                sizes[i] = Files.size(root.resolve(sortedPaths[i]));
-            } catch (NoSuchFileException e) {
-                sizes[i] = 0; // deleted during the scan; the next rescan drops it
-            }
             if (i > 0 && sortedIds[i] == sortedIds[i - 1]) {
                 throw new IOException(
                         "two files in "
@@ -451,7 +453,7 @@ public final class Vfs implements AutoCloseable {
                                 + sortedPaths[i]);
             }
         }
-        return new Listing(sortedIds, sortedPaths, sizes);
+        return new Listing(sortedIds, sortedPaths);
     }
 
     private static String hex(long id) {

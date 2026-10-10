@@ -9,7 +9,7 @@
 --include-function ZDICT_getErrorName
 --include-function ZDICT_isError
 --include-function ZDICT_trainFromBuffer
---include-struct ZDICT_params_t
+--include-typedef ZDICT_params_t
 
 # zstd.h
 --include-constant ZSTD_BLOCKSIZELOG_MAX
@@ -118,7 +118,7 @@
 --include-function ZSTD_sizeof_DDict
 --include-function ZSTD_versionNumber
 --include-function ZSTD_versionString
---include-struct ZSTD_bounds
+--include-typedef ZSTD_bounds
 --include-struct ZSTD_inBuffer_s
 --include-struct ZSTD_outBuffer_s
 --include-typedef ZSTD_inBuffer
