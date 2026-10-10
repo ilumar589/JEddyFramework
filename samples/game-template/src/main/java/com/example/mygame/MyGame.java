@@ -79,7 +79,8 @@ public final class MyGame implements Game {
     public void update(AppContext ctx, float dt, float alpha) {
         renderer.assets().update();
         if (!spawned && scenes.isReady(level)) {
-            world.instantiate(scenes.get(level), 0, 0, 0, 0, RenderPacket.FLAG_STATIC);
+            int flags = RenderPacket.FLAG_STATIC | RenderPacket.FLAG_CASTS_SHADOW;
+            world.instantiate(scenes.get(level), 0, 0, 0, 0, flags);
             world.updateTransforms(ctx.jobs());
             spawned = true;
         }
@@ -110,6 +111,10 @@ public final class MyGame implements Game {
         p.near = camera.near;
         p.far = camera.distance * 2 + 60;
         p.orthographic = camera.orthographic;
+        // Afternoon sun from the camera's left, so shadows fall into view (unit vector).
+        p.sunDirection[0] = 0.55f;
+        p.sunDirection[1] = -0.7f;
+        p.sunDirection[2] = -0.45f;
         if (spawned) {
             world.extract(p);
         }

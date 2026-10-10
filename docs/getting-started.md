@@ -188,7 +188,8 @@ public void fixedUpdate(AppContext ctx, float dt) {   // 30 Hz simulation tick
 public void update(AppContext ctx, float dt, float alpha) {   // once per frame
     renderer.assets().update();
     if (!spawned && scenes.isReady(level)) {
-        world.instantiate(scenes.get(level), 0, 0, 0, 0, RenderPacket.FLAG_STATIC);
+        int flags = RenderPacket.FLAG_STATIC | RenderPacket.FLAG_CASTS_SHADOW;
+        world.instantiate(scenes.get(level), 0, 0, 0, 0, flags);
         world.updateTransforms(ctx.jobs());
         spawned = true;
     }
@@ -212,6 +213,9 @@ public void extract(AppContext ctx, int index) {   // fill the frame's render pa
     p.near = camera.near;
     p.far = camera.distance * 2 + 60;
     p.orthographic = camera.orthographic;
+    p.sunDirection[0] = 0.55f;   // the sun's direction, color and shadows live in the packet too
+    p.sunDirection[1] = -0.7f;
+    p.sunDirection[2] = -0.45f;
     if (spawned) {
         world.extract(p);
     }
