@@ -9,4 +9,5 @@ module dev.jeddy.asset {
     exports dev.jeddy.asset;
     exports dev.jeddy.asset.format;
     exports dev.jeddy.asset.pak;
+    exports dev.jeddy.asset.shader;
 }

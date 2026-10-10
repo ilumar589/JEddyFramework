@@ -1,11 +1,11 @@
 package dev.jeddy.cooker.texture;
 
-import static dev.jeddy.cooker.ffi.ktx.Ktx.*;
+import static dev.jeddy.cooker.ktx.ffi.Ktx.*;
 
 import dev.jeddy.asset.format.Ktx2;
-import dev.jeddy.cooker.ffi.ktx.ktxBasisParams;
-import dev.jeddy.cooker.ffi.ktx.ktxTexture2;
-import dev.jeddy.cooker.ffi.ktx.ktxTextureCreateInfo;
+import dev.jeddy.cooker.ktx.ffi.ktxBasisParams;
+import dev.jeddy.cooker.ktx.ffi.ktxTexture2;
+import dev.jeddy.cooker.ktx.ffi.ktxTextureCreateInfo;
 import dev.jeddy.cooker.natives.ToolNatives;
 import dev.jeddy.core.memory.CStrings;
 

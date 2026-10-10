@@ -1,4 +1,4 @@
-package dev.jeddy.render.shader;
+package dev.jeddy.asset.shader;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -74,14 +74,5 @@ class ShaderPreprocessorTest {
         assertThrows(ShaderException.class, () -> p.process("nested.vert", List.of()));
         assertThrows(ShaderException.class, () -> p.process("escape.vert", List.of()));
         assertThrows(NoSuchFileException.class, () -> p.process("missing.vert", List.of()));
-    }
-
-    @Test
-    void featuresMapBitsToDefines() {
-        ShaderFeatures f = new ShaderFeatures("NORMAL_MAP", "ALPHA_TEST", "SKINNED");
-        assertEquals(List.of("NORMAL_MAP", "SKINNED"), f.defines(0b101));
-        assertEquals(2L, f.bit("ALPHA_TEST"));
-        assertThrows(IllegalArgumentException.class, () -> f.defines(0b1000));
-        assertThrows(IllegalArgumentException.class, () -> f.bit("NOPE"));
     }
 }

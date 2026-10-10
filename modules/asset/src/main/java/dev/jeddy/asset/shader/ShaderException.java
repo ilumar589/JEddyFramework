@@ -1,4 +1,4 @@
-package dev.jeddy.render.shader;
+package dev.jeddy.asset.shader;
 
 /**
  * A shader failed to preprocess, compile or link; the message holds the driver's log with file

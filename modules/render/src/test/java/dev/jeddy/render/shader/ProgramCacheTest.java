@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.jeddy.asset.shader.ShaderException;
+import dev.jeddy.asset.shader.ShaderSources;
 import dev.jeddy.render.GpuTestContext;
 import dev.jeddy.testing.Allocations;
 
