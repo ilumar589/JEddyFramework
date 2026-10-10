@@ -15,6 +15,8 @@ module dev.jeddy.render {
     exports dev.jeddy.render.draw;
     exports dev.jeddy.render.gpu;
     exports dev.jeddy.render.graph;
+    exports dev.jeddy.render.light;
+    exports dev.jeddy.render.material;
     exports dev.jeddy.render.mesh;
     exports dev.jeddy.render.shader;
 }

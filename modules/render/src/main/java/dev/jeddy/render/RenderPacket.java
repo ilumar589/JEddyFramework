@@ -16,6 +16,9 @@ import java.util.Arrays;
  * publishing it; the main thread reads it after acquiring the read index. Never both at once.
  */
 public final class RenderPacket {
+    /** Material index meaning "each submesh draws with its mesh's own material". */
+    public static final int MESH_MATERIALS = -1;
+
     /** Instance flag: never moves (render may keep its data on the GPU). */
     public static final int FLAG_STATIC = 1;
 
@@ -40,7 +43,7 @@ public final class RenderPacket {
     /** Mesh handle per instance. */
     public int[] mesh;
 
-    /** Material index per instance. */
+    /** Material index per instance, or {@link #MESH_MATERIALS}. */
     public int[] material;
 
     /** {@code FLAG_*} bits per instance. */
@@ -85,6 +88,56 @@ public final class RenderPacket {
     /** Number of debug lines. */
     public int debugLineCount;
 
+    /** Light type: point. */
+    public static final int LIGHT_POINT = 0;
+
+    /** Light type: spot. */
+    public static final int LIGHT_SPOT = 1;
+
+    /** Floats per light in {@link #lights} (the GPU layout of {@code engine/lights.glsl}). */
+    public static final int LIGHT_FLOATS = 16;
+
+    /**
+     * Point and spot lights, {@link #LIGHT_FLOATS} floats each in the GPU layout: position xyz,
+     * range; color × intensity rgb, type (int bits); spot direction xyz, cos(outer); cos(inner),
+     * shadow index (int bits, -1 none), 0, 0. Fill with {@link #addPointLight} and {@link
+     * #addSpotLight}.
+     */
+    public float[] lights = new float[LIGHT_FLOATS * 64];
+
+    /** Number of lights. */
+    public int lightCount;
+
+    /** Direction the sunlight travels (unit, world space). */
+    public final float[] sunDirection = {-0.4f, -0.8f, -0.45f};
+
+    /** Sun color times illuminance (linear RGB); all zero turns the sun off. */
+    public final float[] sunColor = {3f, 2.9f, 2.7f};
+
+    /** Whether the sun casts shadows. */
+    public boolean sunShadows = true;
+
+    /** Image-based lighting scale for specular and diffuse. */
+    public float environmentSpecular = 1;
+
+    /** Image-based lighting diffuse scale. */
+    public float environmentDiffuse = 1;
+
+    /** Exposure multiplier applied before tone mapping. */
+    public float exposure = 1;
+
+    /** Near plane distance (clusters, shadows). */
+    public float near = 0.1f;
+
+    /** Distance up to which lights are clustered and shadows cascade. */
+    public float far = 200f;
+
+    /** Whether {@link #projection} is orthographic. */
+    public boolean orthographic;
+
+    /** Seconds since start (animated effects). */
+    public float time;
+
     /** Creates a packet for {@code capacity} instances (grows on demand). */
     public RenderPacket(int capacity) {
         allocate(Math.max(16, capacity));
@@ -105,6 +158,82 @@ public final class RenderPacket {
     public void reset() {
         count = 0;
         debugLineCount = 0;
+        lightCount = 0;
+    }
+
+    private int nextLight() {
+        if ((lightCount + 1) * LIGHT_FLOATS > lights.length) {
+            lights = Arrays.copyOf(lights, lights.length * 2);
+        }
+        return lightCount++ * LIGHT_FLOATS;
+    }
+
+    /**
+     * Adds a point light.
+     *
+     * @param range distance where the light fades to 0 (0 = unlimited, inverse square only)
+     * @param intensity luminous intensity in candela ({@code KHR_lights_punctual})
+     * @return the light index
+     */
+    public int addPointLight(
+            float x, float y, float z, float range, float r, float g, float b, float intensity) {
+        int o = nextLight();
+        float[] l = lights;
+        l[o] = x;
+        l[o + 1] = y;
+        l[o + 2] = z;
+        l[o + 3] = range;
+        l[o + 4] = r * intensity;
+        l[o + 5] = g * intensity;
+        l[o + 6] = b * intensity;
+        l[o + 7] = Float.intBitsToFloat(LIGHT_POINT);
+        l[o + 8] = 0;
+        l[o + 9] = -1;
+        l[o + 10] = 0;
+        l[o + 11] = -1;
+        l[o + 12] = 1;
+        l[o + 13] = Float.intBitsToFloat(-1);
+        l[o + 14] = 0;
+        l[o + 15] = 0;
+        return o / LIGHT_FLOATS;
+    }
+
+    /**
+     * Adds a spot light pointing along {@code (dx, dy, dz)} (unit).
+     *
+     * @param innerAngle half-angle of full intensity, radians
+     * @param outerAngle half-angle where it reaches 0, radians
+     * @return the light index
+     */
+    public int addSpotLight(
+            float x,
+            float y,
+            float z,
+            float dx,
+            float dy,
+            float dz,
+            float range,
+            float r,
+            float g,
+            float b,
+            float intensity,
+            float innerAngle,
+            float outerAngle) {
+        int i = addPointLight(x, y, z, range, r, g, b, intensity);
+        int o = i * LIGHT_FLOATS;
+        float[] l = lights;
+        l[o + 7] = Float.intBitsToFloat(LIGHT_SPOT);
+        l[o + 8] = dx;
+        l[o + 9] = dy;
+        l[o + 10] = dz;
+        l[o + 11] = (float) Math.cos(outerAngle);
+        l[o + 12] = (float) Math.cos(Math.min(innerAngle, outerAngle - 1e-3f));
+        return i;
+    }
+
+    /** Sets the shadow index of light {@code i} (the renderer assigns atlas tiles; -1 none). */
+    public void setLightShadow(int i, int shadowIndex) {
+        lights[i * LIGHT_FLOATS + 13] = Float.intBitsToFloat(shadowIndex);
     }
 
     /** Sets the debug line count, growing the arrays if needed. */

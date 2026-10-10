@@ -65,6 +65,7 @@ public final class MeshRegistry implements AutoCloseable {
     // Flat tables.
     private int[] submeshBaseVertex = new int[1024]; // absolute
     private int[] submeshMaterial = new int[1024];
+    private int[] submeshMaterialIndex = new int[1024]; // material table index per submesh
     private int[] drawFirstIndex = new int[4096]; // absolute
     private int[] drawIndexCount = new int[4096];
     private float[] lodError = new float[1024];
@@ -166,6 +167,7 @@ public final class MeshRegistry implements AutoCloseable {
         for (int s = 0; s < sc; s++) {
             submeshBaseVertex[sBase + s] = (int) vOff + data.submeshBaseVertex(s);
             submeshMaterial[sBase + s] = data.submeshMaterial(s);
+            submeshMaterialIndex[sBase + s] = 0;
         }
         for (int l = 0; l < lc; l++) {
             lodError[lBase + l] = data.lodError(l);
@@ -218,6 +220,25 @@ public final class MeshRegistry implements AutoCloseable {
     /** Returns a submesh's material slot. */
     public int materialSlot(int mesh, int submesh) {
         return submeshMaterial[submeshBase[Handles.index(mesh)] + submesh];
+    }
+
+    /**
+     * Sets the material (a material table index) that every submesh in material slot {@code slot}
+     * draws with when an instance uses the mesh's own materials ({@code
+     * RenderPacket.MESH_MATERIALS}). Defaults to 0.
+     */
+    public void setSlotMaterial(int mesh, int slot, int materialIndex) {
+        int m = Handles.index(mesh);
+        for (int s = 0; s < submeshCount[m]; s++) {
+            if (submeshMaterial[submeshBase[m] + s] == slot) {
+                submeshMaterialIndex[submeshBase[m] + s] = materialIndex;
+            }
+        }
+    }
+
+    /** Returns the material table index a submesh draws with by default. */
+    public int submeshMaterialIndex(int mesh, int submesh) {
+        return submeshMaterialIndex[submeshBase[Handles.index(mesh)] + submesh];
     }
 
     /** Returns the absolute first index of a submesh at a LOD. */
@@ -325,6 +346,7 @@ public final class MeshRegistry implements AutoCloseable {
                 case 0 -> {
                     submeshBaseVertex = Arrays.copyOf(submeshBaseVertex, c);
                     submeshMaterial = Arrays.copyOf(submeshMaterial, c);
+                    submeshMaterialIndex = Arrays.copyOf(submeshMaterialIndex, c);
                 }
                 case 1 -> {
                     drawFirstIndex = Arrays.copyOf(drawFirstIndex, c);

@@ -157,6 +157,77 @@ public final class GpuTextures {
         }
     }
 
+    /**
+     * Uploads one mip level of one layer of a 2D array texture from {@code address} (a raw address,
+     * or an offset into the bound pixel-unpack buffer). Allocates nothing.
+     */
+    public void uploadLayer(int handle, int level, int layer, long address, int bytes) {
+        int i = check(handle);
+        if (kinds[i] != KIND_2D_ARRAY) {
+            throw new IllegalArgumentException("uploadLayer needs a 2D array texture");
+        }
+        int w = Math.max(1, widths[i] >> level);
+        int hgt = Math.max(1, heights[i] >> level);
+        int fmt = formats[i];
+        if (GpuFormats.isCompressed(fmt)) {
+            glCompressedTextureSubImage3D(
+                    names[i], level, 0, 0, layer, w, hgt, 1, fmt, bytes, address);
+        } else {
+            glTextureSubImage3D(
+                    names[i],
+                    level,
+                    0,
+                    0,
+                    layer,
+                    w,
+                    hgt,
+                    1,
+                    GpuFormats.transferFormat(fmt),
+                    GpuFormats.transferType(fmt),
+                    address);
+        }
+    }
+
+    /**
+     * Copies layers {@code [0, count)} of every level from one 2D array texture into another of the
+     * same format and size (growing an array). Runs on the GPU.
+     */
+    public void copyLayers(int from, int to, int count) {
+        int a = check(from);
+        int b = check(to);
+        int lv = Math.min(levels[a], levels[b]);
+        for (int l = 0; l < lv; l++) {
+            int w = Math.max(1, widths[a] >> l);
+            int h = Math.max(1, heights[a] >> l);
+            glCopyImageSubData(
+                    names[a],
+                    GL_TEXTURE_2D_ARRAY,
+                    l,
+                    0,
+                    0,
+                    0,
+                    names[b],
+                    GL_TEXTURE_2D_ARRAY,
+                    l,
+                    0,
+                    0,
+                    0,
+                    w,
+                    h,
+                    count);
+        }
+    }
+
+    /** Returns the layer count of an array texture (1 otherwise). */
+    public int layers(int handle) {
+        return layers[check(handle)];
+    }
+
+    /** Returns the kind ({@link #KIND_2D}, ...). */
+    public int kind(int handle) {
+        return kinds[check(handle)];
+    }
+
     /** Creates storage matching a KTX2 file (format, size, layers, faces, levels). */
     public int createFor(Ktx2 ktx, String label) {
         int fmt = GpuFormats.internalFormat(ktx.vkFormat());

@@ -1,0 +1,67 @@
+#version 460 core
+// Assigns lights to clusters (TASKS M7-03): one invocation per cluster tests every light's
+// bounding sphere (in view space) against the cluster's bounds and appends the hits to a global
+// index list. The counter at the start of the list buffer is cleared every frame.
+#include "/engine/frame.glsl"
+
+layout(local_size_x = 64) in;
+
+struct JeddyLight {
+    vec4 positionRange;
+    vec4 colorType;
+    vec4 directionOuter;
+    vec4 params;
+};
+
+layout(std430, binding = 2) readonly buffer JeddyLights {
+    JeddyLight jLights[];
+};
+
+layout(std430, binding = 3) writeonly buffer JeddyClusterGrid {
+    uvec2 jClusterRanges[];
+};
+
+layout(std430, binding = 4) buffer JeddyClusterItems {
+    uint jItemCount;
+    uint jItemCapacity;
+    uint jPad0;
+    uint jPad1;
+    uint jClusterLights[];
+};
+
+layout(std430, binding = 7) readonly buffer JeddyClusterBounds {
+    vec4 jBounds[];
+};
+
+const uint MAX_PER_CLUSTER = 128u;
+
+void main() {
+    uint index = gl_GlobalInvocationID.x;
+    uvec3 dims = jClusterDims.xyz;
+    if (index >= dims.x * dims.y * dims.z) {
+        return;
+    }
+    vec3 lo = jBounds[index * 2u].xyz;
+    vec3 hi = jBounds[index * 2u + 1u].xyz;
+    uint hits[MAX_PER_CLUSTER];
+    uint count = 0u;
+    uint lights = jCounts.x;
+    for (uint i = 0u; i < lights && count < MAX_PER_CLUSTER; i++) {
+        vec4 pr = jLights[i].positionRange;
+        vec3 c = (jView * vec4(pr.xyz, 1.0)).xyz;
+        float r = pr.w > 0.0 ? pr.w : 1e30;
+        vec3 closest = clamp(c, lo, hi);
+        vec3 d = c - closest;
+        if (dot(d, d) <= r * r) {
+            hits[count++] = i;
+        }
+    }
+    uint offset = atomicAdd(jItemCount, count);
+    if (offset + count > jItemCapacity) {
+        count = offset < jItemCapacity ? jItemCapacity - offset : 0u;
+    }
+    for (uint k = 0u; k < count; k++) {
+        jClusterLights[offset + k] = hits[k];
+    }
+    jClusterRanges[index] = uvec2(offset + 4u, count);
+}

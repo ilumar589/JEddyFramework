@@ -1,0 +1,55 @@
+#version 460 core
+// View-space bounds of every cluster (TASKS M7-03): screen tiles × depth slices (exponential
+// for perspective, linear for orthographic). Rerun when the projection or the viewport changes.
+#include "/engine/frame.glsl"
+
+layout(local_size_x = 64) in;
+
+layout(std430, binding = 7) writeonly buffer JeddyClusterBounds {
+    vec4 jBounds[]; // min.xyz, max.xyz per cluster (two entries)
+};
+
+// View-space point on the line through a window position at view depth z (> 0).
+vec3 pointAtDepth(vec2 ndc, float z) {
+    vec4 a = jInverseProjection * vec4(ndc, 1.0, 1.0); // near plane (reversed-Z)
+    vec4 b = jInverseProjection * vec4(ndc, 0.5, 1.0);
+    vec3 pa = a.xyz / a.w;
+    vec3 pb = b.xyz / b.w;
+    float t = (-z - pa.z) / (pb.z - pa.z);
+    return pa + t * (pb - pa);
+}
+
+float sliceDepth(uint slice) {
+    float n = jClusterZ.x;
+    float f = jClusterZ.y;
+    float k = float(slice) / float(jClusterDims.z);
+    return jeddyOrthographic() ? mix(n, f, k) : n * pow(f / n, k);
+}
+
+void main() {
+    uint index = gl_GlobalInvocationID.x;
+    uvec3 dims = jClusterDims.xyz;
+    if (index >= dims.x * dims.y * dims.z) {
+        return;
+    }
+    uint x = index % dims.x;
+    uint y = (index / dims.x) % dims.y;
+    uint z = index / (dims.x * dims.y);
+    float tile = float(jClusterDims.w);
+    vec2 minPx = vec2(x, y) * tile;
+    vec2 maxPx = min(vec2(x + 1u, y + 1u) * tile, jViewport.xy);
+    vec2 ndcMin = minPx * jViewport.zw * 2.0 - 1.0;
+    vec2 ndcMax = maxPx * jViewport.zw * 2.0 - 1.0;
+    float zNear = sliceDepth(z);
+    float zFar = sliceDepth(z + 1u);
+    vec3 lo = vec3(1e30);
+    vec3 hi = vec3(-1e30);
+    for (int c = 0; c < 8; c++) {
+        vec2 ndc = vec2((c & 1) == 0 ? ndcMin.x : ndcMax.x, (c & 2) == 0 ? ndcMin.y : ndcMax.y);
+        vec3 p = pointAtDepth(ndc, (c & 4) == 0 ? zNear : zFar);
+        lo = min(lo, p);
+        hi = max(hi, p);
+    }
+    jBounds[index * 2u] = vec4(lo, 0.0);
+    jBounds[index * 2u + 1u] = vec4(hi, 0.0);
+}
