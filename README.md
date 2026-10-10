@@ -42,3 +42,7 @@ Tools: the asset cooker (`tools/cooker`, also the `dev.jeddy.assets` Gradle plug
 Pre-alpha. Milestones M0–M11 are implemented: the runtime modules, the cooker, the iso demo with its
 performance capture, packaging, publishing and the docs. The CPU-side budgets pass in CI; the GPU
 and main-thread budgets still need a run on the reference hardware (docs/perf/m10.md, O1–O2).
+
+## License
+MIT ([LICENSE](LICENSE)). Bundled native libraries and demo content keep their own licenses: see
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
