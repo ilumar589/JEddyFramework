@@ -2,7 +2,7 @@
 // Forward+ PBR (TASKS M7-01, M7-02, M7-03; DESIGN §9.3): glTF metallic-roughness with GGX,
 // height-correlated Smith and Schlick terms, multiple-scattering energy compensation, the sun,
 // clustered point and spot lights, image-based lighting from a prefiltered cube and SH9, and
-// clustered decals (M7-07).
+// clustered decals (M7-07), camera fade and fog of war (M7-10).
 #include "/engine/frame.glsl"
 #include "/engine/brdf.glsl"
 #include "/engine/material.glsl"
@@ -10,6 +10,7 @@
 #include "/engine/environment.glsl"
 #include "/engine/shadows.glsl"
 #include "/engine/effects.glsl"
+#include "/engine/camera_fade.glsl"
 #if defined(DECALS) && !defined(ALPHA_BLEND)
 #include "/engine/decals.glsl"
 #endif
@@ -20,6 +21,7 @@ layout(location = 2) in vec4 vTangent;
 layout(location = 3) in vec4 vUv;
 layout(location = 4) flat in uint vMaterial;
 layout(location = 5) flat in uint vFlags;
+layout(location = 6) flat in float vFade;
 
 layout(location = 0) out vec4 outColor;
 
@@ -27,6 +29,9 @@ void main() {
     // Derivatives first, in uniform control flow (decals sample with explicit gradients).
     vec3 dpdx = dFdx(vWorld);
     vec3 dpdy = dFdy(vWorld);
+    if (jeddyFadeDiscard(gl_FragCoord.xy, jeddyCameraFade(vWorld, vFlags, vFade))) {
+        discard;
+    }
     float viewDepth = jeddyViewDepth(vWorld);
     uvec2 range = jClusterRanges[jeddyClusterIndex(gl_FragCoord.xy, viewDepth)];
     JeddyMaterial m = jMaterials[vMaterial];

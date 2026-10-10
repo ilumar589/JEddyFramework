@@ -81,7 +81,10 @@ public final class LocalShadows implements AutoCloseable {
     private final MemorySegment matrix = arena.allocate(64, 16);
     private final MemorySegment clearDepth = arena.allocate(16, 16);
     private final MaterialSystem.DepthUniforms uniforms =
-            program -> glProgramUniformMatrix4fv(program, 0, 1, false, matrix);
+            program -> {
+                glProgramUniformMatrix4fv(program, 0, 1, false, matrix);
+                glProgramUniform1i(program, 1, 0); // no camera fade in shadow maps
+            };
 
     // Slots.
     private final int[] slotKey;

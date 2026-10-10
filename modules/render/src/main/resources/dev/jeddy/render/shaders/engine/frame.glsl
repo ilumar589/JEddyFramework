@@ -16,6 +16,9 @@ layout(std140, binding = 0) uniform JeddyFrame {
     vec4 jSunColor;     // rgb linear color times illuminance, w 1 when the sun is on
     vec4 jEnvironment;  // x specular scale, y diffuse scale, z prefiltered mip count, w exposure
     uvec4 jCounts;      // x lights, y decals, z frame number, w flags (bit 0 orthographic)
+    vec4 jReveal[4];    // camera-fade reveal points: xyz world position, w radius (m)
+    vec4 jFogBounds;    // fog-of-war grid: min x, min z, 1 / size x, 1 / size z
+    vec4 jFogParams;    // x explored brightness, y explored saturation, z on, w reveal count
 };
 
 const float J_PI = 3.14159265358979;

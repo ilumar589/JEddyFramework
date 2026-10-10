@@ -1,12 +1,13 @@
 // Instance records written by DrawBuilder (DESIGN §9.2): three rows of the interpolated world
-// transform (row-major 3x4) and (material, flags, entity, 0). Vertex shaders only.
+// transform (row-major 3x4) and (material, flags, entity, camera fade as float bits). Vertex
+// shaders only.
 #pragma once
 
 struct JeddyInstance {
     vec4 row0;
     vec4 row1;
     vec4 row2;
-    uvec4 data; // x material, y flags, z entity
+    uvec4 data; // x material, y flags, z entity, w camera fade (float bits)
 };
 
 layout(std430, binding = 0) readonly buffer JeddyInstances {

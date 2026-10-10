@@ -7,6 +7,7 @@ import dev.jeddy.math.Mat4Ops;
 import dev.jeddy.render.decal.DecalTextures;
 import dev.jeddy.render.draw.Culling;
 import dev.jeddy.render.draw.DrawBuilder;
+import dev.jeddy.render.fog.FogOfWar;
 import dev.jeddy.render.gpu.FrameRing;
 import dev.jeddy.render.gpu.GpuDevice;
 import dev.jeddy.render.gpu.PipelineState;
@@ -44,7 +45,7 @@ public final class SceneRenderer implements AutoCloseable {
     public static final int FRAME_BINDING = 0;
 
     /** Bytes of the frame constants block ({@code engine/frame.glsl}). */
-    public static final int FRAME_BYTES = 448;
+    public static final int FRAME_BYTES = 544;
 
     /**
      * Settings.
@@ -57,6 +58,7 @@ public final class SceneRenderer implements AutoCloseable {
      * @param decalTextureSize layer size of the decal texture array, or 0 for no decals
      * @param outlines whether highlighted instances get outlines
      * @param particleCapacity GPU particle pool size, or 0 for no particles
+     * @param fogOfWar whether the lit pass applies the packet's fog-of-war grid
      * @param post bloom, exposure, tone mapping, grading and anti-aliasing settings
      */
     public record Config(
@@ -68,10 +70,11 @@ public final class SceneRenderer implements AutoCloseable {
             int decalTextureSize,
             boolean outlines,
             int particleCapacity,
+            boolean fogOfWar,
             PostProcess.Config post) {
         /**
          * 32 MiB per frame, 256 materials, shadows, AO, 256² decal textures, outlines, 64k
-         * particles, default post.
+         * particles, fog of war, default post.
          */
         public static final Config DEFAULT =
                 new Config(
@@ -83,6 +86,7 @@ public final class SceneRenderer implements AutoCloseable {
                         256,
                         true,
                         1 << 16,
+                        true,
                         PostProcess.Config.DEFAULT);
 
         /** Checks that the post settings are present. */
@@ -101,6 +105,7 @@ public final class SceneRenderer implements AutoCloseable {
                     decalTextureSize,
                     outlines,
                     particleCapacity,
+                    fogOfWar,
                     post);
         }
 
@@ -115,6 +120,7 @@ public final class SceneRenderer implements AutoCloseable {
                     decalTextureSize,
                     outlines,
                     particleCapacity,
+                    fogOfWar,
                     post);
         }
 
@@ -129,6 +135,7 @@ public final class SceneRenderer implements AutoCloseable {
                     decalTextureSize,
                     outlines,
                     particleCapacity,
+                    fogOfWar,
                     post);
         }
 
@@ -143,6 +150,7 @@ public final class SceneRenderer implements AutoCloseable {
                     value,
                     outlines,
                     particleCapacity,
+                    fogOfWar,
                     post);
         }
 
@@ -157,6 +165,7 @@ public final class SceneRenderer implements AutoCloseable {
                     decalTextureSize,
                     value,
                     particleCapacity,
+                    fogOfWar,
                     post);
         }
 
@@ -170,6 +179,22 @@ public final class SceneRenderer implements AutoCloseable {
                     ambientOcclusion,
                     decalTextureSize,
                     outlines,
+                    value,
+                    fogOfWar,
+                    post);
+        }
+
+        /** Returns a copy with fog of war on or off. */
+        public Config withFogOfWar(boolean value) {
+            return new Config(
+                    ringBytesPerFrame,
+                    maxMaterials,
+                    sunShadows,
+                    localShadows,
+                    ambientOcclusion,
+                    decalTextureSize,
+                    outlines,
+                    particleCapacity,
                     value,
                     post);
         }
@@ -185,6 +210,7 @@ public final class SceneRenderer implements AutoCloseable {
                     decalTextureSize,
                     outlines,
                     particleCapacity,
+                    fogOfWar,
                     value);
         }
     }
@@ -202,6 +228,7 @@ public final class SceneRenderer implements AutoCloseable {
     private final DecalTextures decalTextures;
     private final Outlines outlines;
     private final GpuParticles particles;
+    private final FogOfWar fogOfWar;
     private final FrameRing ring;
     private final Culling culling;
     private final DrawBuilder draws;
@@ -281,6 +308,10 @@ public final class SceneRenderer implements AutoCloseable {
                 config.outlines()
                         ? new Outlines(device, programs, meshes, materials, jobs, emptyVao)
                         : null;
+        fogOfWar = config.fogOfWar() ? new FogOfWar(device) : null;
+        if (fogOfWar != null) {
+            materials.setGlobalFeatures(materials.globalFeatures() | MaterialSystem.FOG_OF_WAR);
+        }
         particles =
                 config.particleCapacity() <= 0
                         ? null
@@ -389,6 +420,11 @@ public final class SceneRenderer implements AutoCloseable {
         return particles;
     }
 
+    /** Returns the fog of war, or {@code null} when off. */
+    public FogOfWar fogOfWar() {
+        return fogOfWar;
+    }
+
     /** Returns the post-processing chain. */
     public PostProcess post() {
         return post;
@@ -444,6 +480,9 @@ public final class SceneRenderer implements AutoCloseable {
             sunShadows.update(p, ring, lod);
         }
         materials.flush();
+        if (fogOfWar != null) {
+            fogOfWar.update(p);
+        }
         clusters.upload(p, ring);
         if (localShadows != null) {
             localShadows.update(p, ring, clusters.lightsOffset(), lod);
@@ -508,6 +547,24 @@ public final class SceneRenderer implements AutoCloseable {
         m.set(ValueLayout.JAVA_INT, o + 436, clusters.frameDecalCount());
         m.set(ValueLayout.JAVA_INT, o + 440, (int) frameNumber);
         m.set(ValueLayout.JAVA_INT, o + 444, p.orthographic ? 1 : 0);
+        int reveals = Math.min(4, p.revealCount);
+        for (int i = 0; i < 4; i++) {
+            if (i < reveals) {
+                MemorySegment.copy(
+                        p.reveal, i * 4, m, ValueLayout.JAVA_FLOAT, o + 448 + i * 16L, 4);
+            } else {
+                putVec4(m, o + 448 + i * 16L, 0, 0, 0, 1);
+            }
+        }
+        boolean fog = fogOfWar != null && fogOfWar.active();
+        putVec4(
+                m,
+                o + 512,
+                p.fogMinX,
+                p.fogMinZ,
+                p.fogSizeX > 0 ? 1 / p.fogSizeX : 0,
+                p.fogSizeZ > 0 ? 1 / p.fogSizeZ : 0);
+        putVec4(m, o + 528, p.fogExploredBrightness, p.fogExploredSaturation, fog ? 1 : 0, reveals);
         return o;
     }
 
@@ -543,9 +600,13 @@ public final class SceneRenderer implements AutoCloseable {
     }
 
     private final MaterialSystem.DepthUniforms mainViewProjection =
-            program -> glProgramUniformMatrix4fv(program, 0, 1, false, matrix);
+            program -> {
+                glProgramUniformMatrix4fv(program, 0, 1, false, matrix);
+                glProgramUniform1i(program, 1, 1); // camera fade, like the lit pass
+            };
 
     private void depthPrepass(PassContext ctx) {
+        ctx.state().bindUniform(FRAME_BINDING, ring.glName(), frameOffset, FRAME_BYTES);
         MemorySegment.copy(packet.viewProjection, 0, matrix, ValueLayout.JAVA_FLOAT, 0, 16);
         materials.configureDepth(mainViewProjection, 0);
         draws.submit(ctx.state(), ring, materials.depthOnly);
@@ -583,6 +644,9 @@ public final class SceneRenderer implements AutoCloseable {
         if (decalTextures != null) {
             decalTextures.bind(state);
         }
+        if (fogOfWar != null) {
+            fogOfWar.bind(state);
+        }
         environment.bind(state);
         clusters.bind(state, ring);
         if (sunShadows != null) {
@@ -619,6 +683,9 @@ public final class SceneRenderer implements AutoCloseable {
         }
         if (particles != null) {
             particles.close();
+        }
+        if (fogOfWar != null) {
+            fogOfWar.close();
         }
         if (decalTextures != null) {
             decalTextures.close();

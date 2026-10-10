@@ -419,7 +419,7 @@ public final class DrawBuilder {
             m.set(I32, o + 48, itemMaterial[item]);
             m.set(I32, o + 52, p.flags[instance]);
             m.set(I32, o + 56, p.entity[instance]);
-            m.set(I32, o + 60, 0);
+            m.set(F32, o + 60, p.fade[instance]);
         }
     }
 

@@ -34,6 +34,12 @@ public final class RenderPacket {
     /** Instance flag: decals do not project onto it (characters, props standing in AoE areas). */
     public static final int FLAG_NO_DECALS = 16;
 
+    /**
+     * Instance flag: dissolves where it stands between the camera and a reveal point ({@link
+     * #addReveal}): walls, roofs, trees.
+     */
+    public static final int FLAG_FADE_OCCLUDER = 32;
+
     /** First bit of the instance's highlight style in {@link #flags} (4 bits, 0 = none). */
     public static final int HIGHLIGHT_SHIFT = 8;
 
@@ -72,6 +78,12 @@ public final class RenderPacket {
 
     /** Bounding sphere per instance in world space: x, y, z, radius (4 floats). */
     public float[] bounds;
+
+    /**
+     * Camera fade per instance, 0 (solid) to 1 (gone), drawn as a screen-door dither: roofs while
+     * the party is inside, objects the game wants out of the way.
+     */
+    public float[] fade;
 
     /** Interpolation factor between {@link #prevWorld} and {@link #currWorld}, in [0, 1]. */
     public float alpha;
@@ -173,6 +185,7 @@ public final class RenderPacket {
         flags = flags == null ? new int[cap] : Arrays.copyOf(flags, cap);
         entity = entity == null ? new int[cap] : Arrays.copyOf(entity, cap);
         bounds = bounds == null ? new float[cap * 4] : Arrays.copyOf(bounds, cap * 4);
+        fade = fade == null ? new float[cap] : Arrays.copyOf(fade, cap);
     }
 
     /** Empties the packet before the game thread fills it. */
@@ -182,6 +195,7 @@ public final class RenderPacket {
         lightCount = 0;
         decalCount = 0;
         emitterCount = 0;
+        revealCount = 0;
     }
 
     private int nextLight() {
@@ -578,6 +592,98 @@ public final class RenderPacket {
         emitters[o + 23] = drag;
     }
 
+    /** Reveal points for camera fade: x, y, z, radius per point (at most 4 are used). */
+    public final float[] reveal = new float[16];
+
+    /** Number of reveal points. */
+    public int revealCount;
+
+    /**
+     * Adds a reveal point (a party member): surfaces flagged {@link #FLAG_FADE_OCCLUDER} in front
+     * of it dissolve within {@code radius} meters of the line of sight. At most 4; extra ones are
+     * ignored.
+     */
+    public void addReveal(float x, float y, float z, float radius) {
+        if (revealCount == 4) {
+            return;
+        }
+        int o = revealCount++ * 4;
+        reveal[o] = x;
+        reveal[o + 1] = y;
+        reveal[o + 2] = z;
+        reveal[o + 3] = radius;
+    }
+
+    /**
+     * Fog-of-war visibility grid, {@link #fogWidth}×{@link #fogHeight} cells row by row from {@code
+     * (fogMinX, fogMinZ)}: 0 unexplored, 128 explored, 255 visible ({@link #setFogOfWar}). {@code
+     * null}: no fog.
+     */
+    public byte[] fogOfWar;
+
+    /** Fog grid width in cells. */
+    public int fogWidth;
+
+    /** Fog grid height in cells. */
+    public int fogHeight;
+
+    /** Fog grid world bounds: minimum x. */
+    public float fogMinX;
+
+    /** Fog grid world bounds: minimum z. */
+    public float fogMinZ;
+
+    /** Fog grid world extent along x. */
+    public float fogSizeX;
+
+    /** Fog grid world extent along z. */
+    public float fogSizeZ;
+
+    /**
+     * Changes whenever the grid's content changes (a counter the game keeps across packets), so the
+     * renderer uploads only new grids.
+     */
+    public int fogVersion;
+
+    /** Brightness of explored cells out of sight. */
+    public float fogExploredBrightness = 0.4f;
+
+    /** Saturation of explored cells out of sight (0 grey, 1 full color). */
+    public float fogExploredSaturation = 0.3f;
+
+    /**
+     * Copies a fog-of-war grid into this packet (growing its array if needed) covering {@code
+     * sizeX}×{@code sizeZ} meters from {@code (minX, minZ)}; {@code version} is the game's counter
+     * for the grid's content.
+     */
+    public void setFogOfWar(
+            byte[] cells,
+            int width,
+            int height,
+            float minX,
+            float minZ,
+            float sizeX,
+            float sizeZ,
+            int version) {
+        int n = width * height;
+        if (fogOfWar == null || fogOfWar.length < n) {
+            fogOfWar = new byte[n];
+        }
+        System.arraycopy(cells, 0, fogOfWar, 0, n);
+        fogWidth = width;
+        fogHeight = height;
+        fogMinX = minX;
+        fogMinZ = minZ;
+        fogSizeX = sizeX;
+        fogSizeZ = sizeZ;
+        fogVersion = version;
+    }
+
+    /** Sets the camera fade of instance {@code i} (0 solid .. 1 gone). */
+    public void setFade(int i, float value) {
+        fade[i] = value;
+    }
+
     /** Bumped by the game whenever static geometry changes (invalidates cached shadow maps). */
     public int staticVersion;
 
@@ -636,6 +742,7 @@ public final class RenderPacket {
         material[i] = materialIndex;
         flags[i] = instanceFlags;
         entity[i] = entityHandle;
+        fade[i] = 0;
         return i;
     }
 

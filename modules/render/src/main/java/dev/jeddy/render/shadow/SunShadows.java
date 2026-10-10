@@ -93,7 +93,10 @@ public final class SunShadows implements AutoCloseable {
     private int cascadeCount;
     private long blockOffset = -1;
     private final MaterialSystem.DepthUniforms uniforms =
-            program -> glProgramUniformMatrix4fv(program, 0, 1, false, matrix);
+            program -> {
+                glProgramUniformMatrix4fv(program, 0, 1, false, matrix);
+                glProgramUniform1i(program, 1, 0); // no camera fade in shadow maps
+            };
 
     /** Creates the cascade array and its framebuffers. */
     public SunShadows(
