@@ -62,7 +62,7 @@ public class SDL_JoyHatEvent {
         return type$LAYOUT;
     }
 
-    private static final long type$OFFSET = $LAYOUT.byteOffset(groupElement("type"));
+    private static final long type$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -106,7 +106,7 @@ public class SDL_JoyHatEvent {
         return reserved$LAYOUT;
     }
 
-    private static final long reserved$OFFSET = $LAYOUT.byteOffset(groupElement("reserved"));
+    private static final long reserved$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -150,7 +150,7 @@ public class SDL_JoyHatEvent {
         return timestamp$LAYOUT;
     }
 
-    private static final long timestamp$OFFSET = $LAYOUT.byteOffset(groupElement("timestamp"));
+    private static final long timestamp$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -194,7 +194,7 @@ public class SDL_JoyHatEvent {
         return which$LAYOUT;
     }
 
-    private static final long which$OFFSET = $LAYOUT.byteOffset(groupElement("which"));
+    private static final long which$OFFSET = 16;
 
     /**
      * Offset for field:
@@ -238,7 +238,7 @@ public class SDL_JoyHatEvent {
         return hat$LAYOUT;
     }
 
-    private static final long hat$OFFSET = $LAYOUT.byteOffset(groupElement("hat"));
+    private static final long hat$OFFSET = 20;
 
     /**
      * Offset for field:
@@ -270,7 +270,7 @@ public class SDL_JoyHatEvent {
         struct.set(hat$LAYOUT, hat$OFFSET, fieldValue);
     }
 
-    private static final OfByte value_$LAYOUT = (OfByte)$LAYOUT.select(groupElement("value"));
+    private static final OfByte value$LAYOUT = (OfByte)$LAYOUT.select(groupElement("value"));
 
     /**
      * Layout for field:
@@ -278,11 +278,11 @@ public class SDL_JoyHatEvent {
      * Uint8 value
      * }
      */
-    public static final OfByte value_$layout() {
-        return value_$LAYOUT;
+    public static final OfByte value$layout() {
+        return value$LAYOUT;
     }
 
-    private static final long value_$OFFSET = $LAYOUT.byteOffset(groupElement("value"));
+    private static final long value$OFFSET = 21;
 
     /**
      * Offset for field:
@@ -290,8 +290,8 @@ public class SDL_JoyHatEvent {
      * Uint8 value
      * }
      */
-    public static final long value_$offset() {
-        return value_$OFFSET;
+    public static final long value$offset() {
+        return value$OFFSET;
     }
 
     /**
@@ -300,8 +300,8 @@ public class SDL_JoyHatEvent {
      * Uint8 value
      * }
      */
-    public static byte value_(MemorySegment struct) {
-        return struct.get(value_$LAYOUT, value_$OFFSET);
+    public static byte value(MemorySegment struct) {
+        return struct.get(value$LAYOUT, value$OFFSET);
     }
 
     /**
@@ -310,8 +310,8 @@ public class SDL_JoyHatEvent {
      * Uint8 value
      * }
      */
-    public static void value_(MemorySegment struct, byte fieldValue) {
-        struct.set(value_$LAYOUT, value_$OFFSET, fieldValue);
+    public static void value(MemorySegment struct, byte fieldValue) {
+        struct.set(value$LAYOUT, value$OFFSET, fieldValue);
     }
 
     private static final OfByte padding1$LAYOUT = (OfByte)$LAYOUT.select(groupElement("padding1"));
@@ -326,7 +326,7 @@ public class SDL_JoyHatEvent {
         return padding1$LAYOUT;
     }
 
-    private static final long padding1$OFFSET = $LAYOUT.byteOffset(groupElement("padding1"));
+    private static final long padding1$OFFSET = 22;
 
     /**
      * Offset for field:
@@ -370,7 +370,7 @@ public class SDL_JoyHatEvent {
         return padding2$LAYOUT;
     }
 
-    private static final long padding2$OFFSET = $LAYOUT.byteOffset(groupElement("padding2"));
+    private static final long padding2$OFFSET = 23;
 
     /**
      * Offset for field:

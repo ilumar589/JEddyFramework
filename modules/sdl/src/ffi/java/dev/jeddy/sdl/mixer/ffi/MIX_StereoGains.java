@@ -50,7 +50,7 @@ public class MIX_StereoGains {
         return left$LAYOUT;
     }
 
-    private static final long left$OFFSET = $LAYOUT.byteOffset(groupElement("left"));
+    private static final long left$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -94,7 +94,7 @@ public class MIX_StereoGains {
         return right$LAYOUT;
     }
 
-    private static final long right$OFFSET = $LAYOUT.byteOffset(groupElement("right"));
+    private static final long right$OFFSET = 4;
 
     /**
      * Offset for field:

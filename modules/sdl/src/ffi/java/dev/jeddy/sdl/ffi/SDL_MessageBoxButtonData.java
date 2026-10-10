@@ -52,7 +52,7 @@ public class SDL_MessageBoxButtonData {
         return flags$LAYOUT;
     }
 
-    private static final long flags$OFFSET = $LAYOUT.byteOffset(groupElement("flags"));
+    private static final long flags$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -96,7 +96,7 @@ public class SDL_MessageBoxButtonData {
         return buttonID$LAYOUT;
     }
 
-    private static final long buttonID$OFFSET = $LAYOUT.byteOffset(groupElement("buttonID"));
+    private static final long buttonID$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -140,7 +140,7 @@ public class SDL_MessageBoxButtonData {
         return text$LAYOUT;
     }
 
-    private static final long text$OFFSET = $LAYOUT.byteOffset(groupElement("text"));
+    private static final long text$OFFSET = 8;
 
     /**
      * Offset for field:

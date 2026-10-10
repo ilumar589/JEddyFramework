@@ -48,7 +48,7 @@ public class SDL_GUID {
         return data$LAYOUT;
     }
 
-    private static final long data$OFFSET = $LAYOUT.byteOffset(groupElement("data"));
+    private static final long data$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -100,7 +100,7 @@ public class SDL_GUID {
      * }
      */
     public static byte data(MemorySegment struct, long index0) {
-        return (byte)data$ELEM_HANDLE.get(struct, data$OFFSET, index0);
+        return (byte)data$ELEM_HANDLE.get(struct, 0L, index0);
     }
 
     /**
@@ -110,7 +110,7 @@ public class SDL_GUID {
      * }
      */
     public static void data(MemorySegment struct, long index0, byte fieldValue) {
-        data$ELEM_HANDLE.set(struct, data$OFFSET, index0, fieldValue);
+        data$ELEM_HANDLE.set(struct, 0L, index0, fieldValue);
     }
 
     /**

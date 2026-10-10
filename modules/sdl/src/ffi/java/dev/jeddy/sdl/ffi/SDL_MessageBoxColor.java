@@ -52,7 +52,7 @@ public class SDL_MessageBoxColor {
         return r$LAYOUT;
     }
 
-    private static final long r$OFFSET = $LAYOUT.byteOffset(groupElement("r"));
+    private static final long r$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -96,7 +96,7 @@ public class SDL_MessageBoxColor {
         return g$LAYOUT;
     }
 
-    private static final long g$OFFSET = $LAYOUT.byteOffset(groupElement("g"));
+    private static final long g$OFFSET = 1;
 
     /**
      * Offset for field:
@@ -140,7 +140,7 @@ public class SDL_MessageBoxColor {
         return b$LAYOUT;
     }
 
-    private static final long b$OFFSET = $LAYOUT.byteOffset(groupElement("b"));
+    private static final long b$OFFSET = 2;
 
     /**
      * Offset for field:

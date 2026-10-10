@@ -67,7 +67,7 @@ public class SDL_JoyBallEvent {
         return type$LAYOUT;
     }
 
-    private static final long type$OFFSET = $LAYOUT.byteOffset(groupElement("type"));
+    private static final long type$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -111,7 +111,7 @@ public class SDL_JoyBallEvent {
         return reserved$LAYOUT;
     }
 
-    private static final long reserved$OFFSET = $LAYOUT.byteOffset(groupElement("reserved"));
+    private static final long reserved$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -155,7 +155,7 @@ public class SDL_JoyBallEvent {
         return timestamp$LAYOUT;
     }
 
-    private static final long timestamp$OFFSET = $LAYOUT.byteOffset(groupElement("timestamp"));
+    private static final long timestamp$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -199,7 +199,7 @@ public class SDL_JoyBallEvent {
         return which$LAYOUT;
     }
 
-    private static final long which$OFFSET = $LAYOUT.byteOffset(groupElement("which"));
+    private static final long which$OFFSET = 16;
 
     /**
      * Offset for field:
@@ -243,7 +243,7 @@ public class SDL_JoyBallEvent {
         return ball$LAYOUT;
     }
 
-    private static final long ball$OFFSET = $LAYOUT.byteOffset(groupElement("ball"));
+    private static final long ball$OFFSET = 20;
 
     /**
      * Offset for field:
@@ -287,7 +287,7 @@ public class SDL_JoyBallEvent {
         return padding1$LAYOUT;
     }
 
-    private static final long padding1$OFFSET = $LAYOUT.byteOffset(groupElement("padding1"));
+    private static final long padding1$OFFSET = 21;
 
     /**
      * Offset for field:
@@ -331,7 +331,7 @@ public class SDL_JoyBallEvent {
         return padding2$LAYOUT;
     }
 
-    private static final long padding2$OFFSET = $LAYOUT.byteOffset(groupElement("padding2"));
+    private static final long padding2$OFFSET = 22;
 
     /**
      * Offset for field:
@@ -375,7 +375,7 @@ public class SDL_JoyBallEvent {
         return padding3$LAYOUT;
     }
 
-    private static final long padding3$OFFSET = $LAYOUT.byteOffset(groupElement("padding3"));
+    private static final long padding3$OFFSET = 23;
 
     /**
      * Offset for field:
@@ -419,7 +419,7 @@ public class SDL_JoyBallEvent {
         return xrel$LAYOUT;
     }
 
-    private static final long xrel$OFFSET = $LAYOUT.byteOffset(groupElement("xrel"));
+    private static final long xrel$OFFSET = 24;
 
     /**
      * Offset for field:
@@ -463,7 +463,7 @@ public class SDL_JoyBallEvent {
         return yrel$LAYOUT;
     }
 
-    private static final long yrel$OFFSET = $LAYOUT.byteOffset(groupElement("yrel"));
+    private static final long yrel$OFFSET = 26;
 
     /**
      * Offset for field:

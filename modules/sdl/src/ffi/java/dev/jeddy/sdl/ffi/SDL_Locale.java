@@ -50,7 +50,7 @@ public class SDL_Locale {
         return language$LAYOUT;
     }
 
-    private static final long language$OFFSET = $LAYOUT.byteOffset(groupElement("language"));
+    private static final long language$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -94,7 +94,7 @@ public class SDL_Locale {
         return country$LAYOUT;
     }
 
-    private static final long country$OFFSET = $LAYOUT.byteOffset(groupElement("country"));
+    private static final long country$OFFSET = 8;
 
     /**
      * Offset for field:

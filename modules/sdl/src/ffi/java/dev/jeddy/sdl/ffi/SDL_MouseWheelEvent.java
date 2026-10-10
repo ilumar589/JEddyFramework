@@ -71,7 +71,7 @@ public class SDL_MouseWheelEvent {
         return type$LAYOUT;
     }
 
-    private static final long type$OFFSET = $LAYOUT.byteOffset(groupElement("type"));
+    private static final long type$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -115,7 +115,7 @@ public class SDL_MouseWheelEvent {
         return reserved$LAYOUT;
     }
 
-    private static final long reserved$OFFSET = $LAYOUT.byteOffset(groupElement("reserved"));
+    private static final long reserved$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -159,7 +159,7 @@ public class SDL_MouseWheelEvent {
         return timestamp$LAYOUT;
     }
 
-    private static final long timestamp$OFFSET = $LAYOUT.byteOffset(groupElement("timestamp"));
+    private static final long timestamp$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -203,7 +203,7 @@ public class SDL_MouseWheelEvent {
         return windowID$LAYOUT;
     }
 
-    private static final long windowID$OFFSET = $LAYOUT.byteOffset(groupElement("windowID"));
+    private static final long windowID$OFFSET = 16;
 
     /**
      * Offset for field:
@@ -247,7 +247,7 @@ public class SDL_MouseWheelEvent {
         return which$LAYOUT;
     }
 
-    private static final long which$OFFSET = $LAYOUT.byteOffset(groupElement("which"));
+    private static final long which$OFFSET = 20;
 
     /**
      * Offset for field:
@@ -291,7 +291,7 @@ public class SDL_MouseWheelEvent {
         return x$LAYOUT;
     }
 
-    private static final long x$OFFSET = $LAYOUT.byteOffset(groupElement("x"));
+    private static final long x$OFFSET = 24;
 
     /**
      * Offset for field:
@@ -335,7 +335,7 @@ public class SDL_MouseWheelEvent {
         return y$LAYOUT;
     }
 
-    private static final long y$OFFSET = $LAYOUT.byteOffset(groupElement("y"));
+    private static final long y$OFFSET = 28;
 
     /**
      * Offset for field:
@@ -379,7 +379,7 @@ public class SDL_MouseWheelEvent {
         return direction$LAYOUT;
     }
 
-    private static final long direction$OFFSET = $LAYOUT.byteOffset(groupElement("direction"));
+    private static final long direction$OFFSET = 32;
 
     /**
      * Offset for field:
@@ -423,7 +423,7 @@ public class SDL_MouseWheelEvent {
         return mouse_x$LAYOUT;
     }
 
-    private static final long mouse_x$OFFSET = $LAYOUT.byteOffset(groupElement("mouse_x"));
+    private static final long mouse_x$OFFSET = 36;
 
     /**
      * Offset for field:
@@ -467,7 +467,7 @@ public class SDL_MouseWheelEvent {
         return mouse_y$LAYOUT;
     }
 
-    private static final long mouse_y$OFFSET = $LAYOUT.byteOffset(groupElement("mouse_y"));
+    private static final long mouse_y$OFFSET = 40;
 
     /**
      * Offset for field:
@@ -511,7 +511,7 @@ public class SDL_MouseWheelEvent {
         return integer_x$LAYOUT;
     }
 
-    private static final long integer_x$OFFSET = $LAYOUT.byteOffset(groupElement("integer_x"));
+    private static final long integer_x$OFFSET = 44;
 
     /**
      * Offset for field:
@@ -555,7 +555,7 @@ public class SDL_MouseWheelEvent {
         return integer_y$LAYOUT;
     }
 
-    private static final long integer_y$OFFSET = $LAYOUT.byteOffset(groupElement("integer_y"));
+    private static final long integer_y$OFFSET = 48;
 
     /**
      * Offset for field:

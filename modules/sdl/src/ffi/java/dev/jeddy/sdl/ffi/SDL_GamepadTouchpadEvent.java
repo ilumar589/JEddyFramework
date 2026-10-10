@@ -64,7 +64,7 @@ public class SDL_GamepadTouchpadEvent {
         return type$LAYOUT;
     }
 
-    private static final long type$OFFSET = $LAYOUT.byteOffset(groupElement("type"));
+    private static final long type$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -108,7 +108,7 @@ public class SDL_GamepadTouchpadEvent {
         return reserved$LAYOUT;
     }
 
-    private static final long reserved$OFFSET = $LAYOUT.byteOffset(groupElement("reserved"));
+    private static final long reserved$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -152,7 +152,7 @@ public class SDL_GamepadTouchpadEvent {
         return timestamp$LAYOUT;
     }
 
-    private static final long timestamp$OFFSET = $LAYOUT.byteOffset(groupElement("timestamp"));
+    private static final long timestamp$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -196,7 +196,7 @@ public class SDL_GamepadTouchpadEvent {
         return which$LAYOUT;
     }
 
-    private static final long which$OFFSET = $LAYOUT.byteOffset(groupElement("which"));
+    private static final long which$OFFSET = 16;
 
     /**
      * Offset for field:
@@ -240,7 +240,7 @@ public class SDL_GamepadTouchpadEvent {
         return touchpad$LAYOUT;
     }
 
-    private static final long touchpad$OFFSET = $LAYOUT.byteOffset(groupElement("touchpad"));
+    private static final long touchpad$OFFSET = 20;
 
     /**
      * Offset for field:
@@ -284,7 +284,7 @@ public class SDL_GamepadTouchpadEvent {
         return finger$LAYOUT;
     }
 
-    private static final long finger$OFFSET = $LAYOUT.byteOffset(groupElement("finger"));
+    private static final long finger$OFFSET = 24;
 
     /**
      * Offset for field:
@@ -328,7 +328,7 @@ public class SDL_GamepadTouchpadEvent {
         return x$LAYOUT;
     }
 
-    private static final long x$OFFSET = $LAYOUT.byteOffset(groupElement("x"));
+    private static final long x$OFFSET = 28;
 
     /**
      * Offset for field:
@@ -372,7 +372,7 @@ public class SDL_GamepadTouchpadEvent {
         return y$LAYOUT;
     }
 
-    private static final long y$OFFSET = $LAYOUT.byteOffset(groupElement("y"));
+    private static final long y$OFFSET = 32;
 
     /**
      * Offset for field:
@@ -416,7 +416,7 @@ public class SDL_GamepadTouchpadEvent {
         return pressure$LAYOUT;
     }
 
-    private static final long pressure$OFFSET = $LAYOUT.byteOffset(groupElement("pressure"));
+    private static final long pressure$OFFSET = 36;
 
     /**
      * Offset for field:

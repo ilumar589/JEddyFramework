@@ -59,7 +59,7 @@ public class SDL_SensorEvent {
         return type$LAYOUT;
     }
 
-    private static final long type$OFFSET = $LAYOUT.byteOffset(groupElement("type"));
+    private static final long type$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -103,7 +103,7 @@ public class SDL_SensorEvent {
         return reserved$LAYOUT;
     }
 
-    private static final long reserved$OFFSET = $LAYOUT.byteOffset(groupElement("reserved"));
+    private static final long reserved$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -147,7 +147,7 @@ public class SDL_SensorEvent {
         return timestamp$LAYOUT;
     }
 
-    private static final long timestamp$OFFSET = $LAYOUT.byteOffset(groupElement("timestamp"));
+    private static final long timestamp$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -191,7 +191,7 @@ public class SDL_SensorEvent {
         return which$LAYOUT;
     }
 
-    private static final long which$OFFSET = $LAYOUT.byteOffset(groupElement("which"));
+    private static final long which$OFFSET = 16;
 
     /**
      * Offset for field:
@@ -235,7 +235,7 @@ public class SDL_SensorEvent {
         return data$LAYOUT;
     }
 
-    private static final long data$OFFSET = $LAYOUT.byteOffset(groupElement("data"));
+    private static final long data$OFFSET = 20;
 
     /**
      * Offset for field:
@@ -287,7 +287,7 @@ public class SDL_SensorEvent {
      * }
      */
     public static float data(MemorySegment struct, long index0) {
-        return (float)data$ELEM_HANDLE.get(struct, data$OFFSET, index0);
+        return (float)data$ELEM_HANDLE.get(struct, 0L, index0);
     }
 
     /**
@@ -297,7 +297,7 @@ public class SDL_SensorEvent {
      * }
      */
     public static void data(MemorySegment struct, long index0, float fieldValue) {
-        data$ELEM_HANDLE.set(struct, data$OFFSET, index0, fieldValue);
+        data$ELEM_HANDLE.set(struct, 0L, index0, fieldValue);
     }
 
     private static final OfLong sensor_timestamp$LAYOUT = (OfLong)$LAYOUT.select(groupElement("sensor_timestamp"));
@@ -312,7 +312,7 @@ public class SDL_SensorEvent {
         return sensor_timestamp$LAYOUT;
     }
 
-    private static final long sensor_timestamp$OFFSET = $LAYOUT.byteOffset(groupElement("sensor_timestamp"));
+    private static final long sensor_timestamp$OFFSET = 48;
 
     /**
      * Offset for field:

@@ -68,7 +68,7 @@ public class SDL_PenAxisEvent {
         return type$LAYOUT;
     }
 
-    private static final long type$OFFSET = $LAYOUT.byteOffset(groupElement("type"));
+    private static final long type$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -112,7 +112,7 @@ public class SDL_PenAxisEvent {
         return reserved$LAYOUT;
     }
 
-    private static final long reserved$OFFSET = $LAYOUT.byteOffset(groupElement("reserved"));
+    private static final long reserved$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -156,7 +156,7 @@ public class SDL_PenAxisEvent {
         return timestamp$LAYOUT;
     }
 
-    private static final long timestamp$OFFSET = $LAYOUT.byteOffset(groupElement("timestamp"));
+    private static final long timestamp$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -200,7 +200,7 @@ public class SDL_PenAxisEvent {
         return windowID$LAYOUT;
     }
 
-    private static final long windowID$OFFSET = $LAYOUT.byteOffset(groupElement("windowID"));
+    private static final long windowID$OFFSET = 16;
 
     /**
      * Offset for field:
@@ -244,7 +244,7 @@ public class SDL_PenAxisEvent {
         return which$LAYOUT;
     }
 
-    private static final long which$OFFSET = $LAYOUT.byteOffset(groupElement("which"));
+    private static final long which$OFFSET = 20;
 
     /**
      * Offset for field:
@@ -288,7 +288,7 @@ public class SDL_PenAxisEvent {
         return pen_state$LAYOUT;
     }
 
-    private static final long pen_state$OFFSET = $LAYOUT.byteOffset(groupElement("pen_state"));
+    private static final long pen_state$OFFSET = 24;
 
     /**
      * Offset for field:
@@ -332,7 +332,7 @@ public class SDL_PenAxisEvent {
         return x$LAYOUT;
     }
 
-    private static final long x$OFFSET = $LAYOUT.byteOffset(groupElement("x"));
+    private static final long x$OFFSET = 28;
 
     /**
      * Offset for field:
@@ -376,7 +376,7 @@ public class SDL_PenAxisEvent {
         return y$LAYOUT;
     }
 
-    private static final long y$OFFSET = $LAYOUT.byteOffset(groupElement("y"));
+    private static final long y$OFFSET = 32;
 
     /**
      * Offset for field:
@@ -420,7 +420,7 @@ public class SDL_PenAxisEvent {
         return axis$LAYOUT;
     }
 
-    private static final long axis$OFFSET = $LAYOUT.byteOffset(groupElement("axis"));
+    private static final long axis$OFFSET = 36;
 
     /**
      * Offset for field:
@@ -452,7 +452,7 @@ public class SDL_PenAxisEvent {
         struct.set(axis$LAYOUT, axis$OFFSET, fieldValue);
     }
 
-    private static final OfFloat value_$LAYOUT = (OfFloat)$LAYOUT.select(groupElement("value"));
+    private static final OfFloat value$LAYOUT = (OfFloat)$LAYOUT.select(groupElement("value"));
 
     /**
      * Layout for field:
@@ -460,11 +460,11 @@ public class SDL_PenAxisEvent {
      * float value
      * }
      */
-    public static final OfFloat value_$layout() {
-        return value_$LAYOUT;
+    public static final OfFloat value$layout() {
+        return value$LAYOUT;
     }
 
-    private static final long value_$OFFSET = $LAYOUT.byteOffset(groupElement("value"));
+    private static final long value$OFFSET = 40;
 
     /**
      * Offset for field:
@@ -472,8 +472,8 @@ public class SDL_PenAxisEvent {
      * float value
      * }
      */
-    public static final long value_$offset() {
-        return value_$OFFSET;
+    public static final long value$offset() {
+        return value$OFFSET;
     }
 
     /**
@@ -482,8 +482,8 @@ public class SDL_PenAxisEvent {
      * float value
      * }
      */
-    public static float value_(MemorySegment struct) {
-        return struct.get(value_$LAYOUT, value_$OFFSET);
+    public static float value(MemorySegment struct) {
+        return struct.get(value$LAYOUT, value$OFFSET);
     }
 
     /**
@@ -492,8 +492,8 @@ public class SDL_PenAxisEvent {
      * float value
      * }
      */
-    public static void value_(MemorySegment struct, float fieldValue) {
-        struct.set(value_$LAYOUT, value_$OFFSET, fieldValue);
+    public static void value(MemorySegment struct, float fieldValue) {
+        struct.set(value$LAYOUT, value$OFFSET, fieldValue);
     }
 
     private static final OfInt device_type$LAYOUT = (OfInt)$LAYOUT.select(groupElement("device_type"));
@@ -508,7 +508,7 @@ public class SDL_PenAxisEvent {
         return device_type$LAYOUT;
     }
 
-    private static final long device_type$OFFSET = $LAYOUT.byteOffset(groupElement("device_type"));
+    private static final long device_type$OFFSET = 44;
 
     /**
      * Offset for field:

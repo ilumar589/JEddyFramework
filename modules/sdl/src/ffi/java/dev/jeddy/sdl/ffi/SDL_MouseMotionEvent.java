@@ -67,7 +67,7 @@ public class SDL_MouseMotionEvent {
         return type$LAYOUT;
     }
 
-    private static final long type$OFFSET = $LAYOUT.byteOffset(groupElement("type"));
+    private static final long type$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -111,7 +111,7 @@ public class SDL_MouseMotionEvent {
         return reserved$LAYOUT;
     }
 
-    private static final long reserved$OFFSET = $LAYOUT.byteOffset(groupElement("reserved"));
+    private static final long reserved$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -155,7 +155,7 @@ public class SDL_MouseMotionEvent {
         return timestamp$LAYOUT;
     }
 
-    private static final long timestamp$OFFSET = $LAYOUT.byteOffset(groupElement("timestamp"));
+    private static final long timestamp$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -199,7 +199,7 @@ public class SDL_MouseMotionEvent {
         return windowID$LAYOUT;
     }
 
-    private static final long windowID$OFFSET = $LAYOUT.byteOffset(groupElement("windowID"));
+    private static final long windowID$OFFSET = 16;
 
     /**
      * Offset for field:
@@ -243,7 +243,7 @@ public class SDL_MouseMotionEvent {
         return which$LAYOUT;
     }
 
-    private static final long which$OFFSET = $LAYOUT.byteOffset(groupElement("which"));
+    private static final long which$OFFSET = 20;
 
     /**
      * Offset for field:
@@ -287,7 +287,7 @@ public class SDL_MouseMotionEvent {
         return state$LAYOUT;
     }
 
-    private static final long state$OFFSET = $LAYOUT.byteOffset(groupElement("state"));
+    private static final long state$OFFSET = 24;
 
     /**
      * Offset for field:
@@ -331,7 +331,7 @@ public class SDL_MouseMotionEvent {
         return x$LAYOUT;
     }
 
-    private static final long x$OFFSET = $LAYOUT.byteOffset(groupElement("x"));
+    private static final long x$OFFSET = 28;
 
     /**
      * Offset for field:
@@ -375,7 +375,7 @@ public class SDL_MouseMotionEvent {
         return y$LAYOUT;
     }
 
-    private static final long y$OFFSET = $LAYOUT.byteOffset(groupElement("y"));
+    private static final long y$OFFSET = 32;
 
     /**
      * Offset for field:
@@ -419,7 +419,7 @@ public class SDL_MouseMotionEvent {
         return xrel$LAYOUT;
     }
 
-    private static final long xrel$OFFSET = $LAYOUT.byteOffset(groupElement("xrel"));
+    private static final long xrel$OFFSET = 36;
 
     /**
      * Offset for field:
@@ -463,7 +463,7 @@ public class SDL_MouseMotionEvent {
         return yrel$LAYOUT;
     }
 
-    private static final long yrel$OFFSET = $LAYOUT.byteOffset(groupElement("yrel"));
+    private static final long yrel$OFFSET = 40;
 
     /**
      * Offset for field:

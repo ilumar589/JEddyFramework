@@ -64,7 +64,7 @@ public class SDL_Surface {
         return flags$LAYOUT;
     }
 
-    private static final long flags$OFFSET = $LAYOUT.byteOffset(groupElement("flags"));
+    private static final long flags$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -108,7 +108,7 @@ public class SDL_Surface {
         return format$LAYOUT;
     }
 
-    private static final long format$OFFSET = $LAYOUT.byteOffset(groupElement("format"));
+    private static final long format$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -152,7 +152,7 @@ public class SDL_Surface {
         return w$LAYOUT;
     }
 
-    private static final long w$OFFSET = $LAYOUT.byteOffset(groupElement("w"));
+    private static final long w$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -196,7 +196,7 @@ public class SDL_Surface {
         return h$LAYOUT;
     }
 
-    private static final long h$OFFSET = $LAYOUT.byteOffset(groupElement("h"));
+    private static final long h$OFFSET = 12;
 
     /**
      * Offset for field:
@@ -240,7 +240,7 @@ public class SDL_Surface {
         return pitch$LAYOUT;
     }
 
-    private static final long pitch$OFFSET = $LAYOUT.byteOffset(groupElement("pitch"));
+    private static final long pitch$OFFSET = 16;
 
     /**
      * Offset for field:
@@ -284,7 +284,7 @@ public class SDL_Surface {
         return pixels$LAYOUT;
     }
 
-    private static final long pixels$OFFSET = $LAYOUT.byteOffset(groupElement("pixels"));
+    private static final long pixels$OFFSET = 24;
 
     /**
      * Offset for field:
@@ -328,7 +328,7 @@ public class SDL_Surface {
         return refcount$LAYOUT;
     }
 
-    private static final long refcount$OFFSET = $LAYOUT.byteOffset(groupElement("refcount"));
+    private static final long refcount$OFFSET = 32;
 
     /**
      * Offset for field:
@@ -372,7 +372,7 @@ public class SDL_Surface {
         return reserved$LAYOUT;
     }
 
-    private static final long reserved$OFFSET = $LAYOUT.byteOffset(groupElement("reserved"));
+    private static final long reserved$OFFSET = 40;
 
     /**
      * Offset for field:

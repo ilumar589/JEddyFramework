@@ -48,7 +48,7 @@ public class SDL_MessageBoxColorScheme {
         return colors$LAYOUT;
     }
 
-    private static final long colors$OFFSET = $LAYOUT.byteOffset(groupElement("colors"));
+    private static final long colors$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -101,9 +101,7 @@ public class SDL_MessageBoxColorScheme {
      */
     public static MemorySegment colors(MemorySegment struct, long index0) {
         try {
-            return (MemorySegment)colors$ELEM_HANDLE.invokeExact(struct, colors$OFFSET, index0);
-        } catch (Error | RuntimeException ex) {
-            throw ex;
+            return (MemorySegment)colors$ELEM_HANDLE.invokeExact(struct, 0L, index0);
         } catch (Throwable ex$) {
             throw new AssertionError("should not reach here", ex$);
         }

@@ -70,7 +70,7 @@ public class SDL_TextEditingCandidatesEvent {
         return type$LAYOUT;
     }
 
-    private static final long type$OFFSET = $LAYOUT.byteOffset(groupElement("type"));
+    private static final long type$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -114,7 +114,7 @@ public class SDL_TextEditingCandidatesEvent {
         return reserved$LAYOUT;
     }
 
-    private static final long reserved$OFFSET = $LAYOUT.byteOffset(groupElement("reserved"));
+    private static final long reserved$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -158,7 +158,7 @@ public class SDL_TextEditingCandidatesEvent {
         return timestamp$LAYOUT;
     }
 
-    private static final long timestamp$OFFSET = $LAYOUT.byteOffset(groupElement("timestamp"));
+    private static final long timestamp$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -202,7 +202,7 @@ public class SDL_TextEditingCandidatesEvent {
         return windowID$LAYOUT;
     }
 
-    private static final long windowID$OFFSET = $LAYOUT.byteOffset(groupElement("windowID"));
+    private static final long windowID$OFFSET = 16;
 
     /**
      * Offset for field:
@@ -246,7 +246,7 @@ public class SDL_TextEditingCandidatesEvent {
         return candidates$LAYOUT;
     }
 
-    private static final long candidates$OFFSET = $LAYOUT.byteOffset(groupElement("candidates"));
+    private static final long candidates$OFFSET = 24;
 
     /**
      * Offset for field:
@@ -290,7 +290,7 @@ public class SDL_TextEditingCandidatesEvent {
         return num_candidates$LAYOUT;
     }
 
-    private static final long num_candidates$OFFSET = $LAYOUT.byteOffset(groupElement("num_candidates"));
+    private static final long num_candidates$OFFSET = 32;
 
     /**
      * Offset for field:
@@ -334,7 +334,7 @@ public class SDL_TextEditingCandidatesEvent {
         return selected_candidate$LAYOUT;
     }
 
-    private static final long selected_candidate$OFFSET = $LAYOUT.byteOffset(groupElement("selected_candidate"));
+    private static final long selected_candidate$OFFSET = 36;
 
     /**
      * Offset for field:
@@ -378,7 +378,7 @@ public class SDL_TextEditingCandidatesEvent {
         return horizontal$LAYOUT;
     }
 
-    private static final long horizontal$OFFSET = $LAYOUT.byteOffset(groupElement("horizontal"));
+    private static final long horizontal$OFFSET = 40;
 
     /**
      * Offset for field:
@@ -422,7 +422,7 @@ public class SDL_TextEditingCandidatesEvent {
         return padding1$LAYOUT;
     }
 
-    private static final long padding1$OFFSET = $LAYOUT.byteOffset(groupElement("padding1"));
+    private static final long padding1$OFFSET = 41;
 
     /**
      * Offset for field:
@@ -466,7 +466,7 @@ public class SDL_TextEditingCandidatesEvent {
         return padding2$LAYOUT;
     }
 
-    private static final long padding2$OFFSET = $LAYOUT.byteOffset(groupElement("padding2"));
+    private static final long padding2$OFFSET = 42;
 
     /**
      * Offset for field:
@@ -510,7 +510,7 @@ public class SDL_TextEditingCandidatesEvent {
         return padding3$LAYOUT;
     }
 
-    private static final long padding3$OFFSET = $LAYOUT.byteOffset(groupElement("padding3"));
+    private static final long padding3$OFFSET = 43;
 
     /**
      * Offset for field:

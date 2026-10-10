@@ -61,7 +61,7 @@ public class SDL_TextEditingEvent {
         return type$LAYOUT;
     }
 
-    private static final long type$OFFSET = $LAYOUT.byteOffset(groupElement("type"));
+    private static final long type$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -105,7 +105,7 @@ public class SDL_TextEditingEvent {
         return reserved$LAYOUT;
     }
 
-    private static final long reserved$OFFSET = $LAYOUT.byteOffset(groupElement("reserved"));
+    private static final long reserved$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -149,7 +149,7 @@ public class SDL_TextEditingEvent {
         return timestamp$LAYOUT;
     }
 
-    private static final long timestamp$OFFSET = $LAYOUT.byteOffset(groupElement("timestamp"));
+    private static final long timestamp$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -193,7 +193,7 @@ public class SDL_TextEditingEvent {
         return windowID$LAYOUT;
     }
 
-    private static final long windowID$OFFSET = $LAYOUT.byteOffset(groupElement("windowID"));
+    private static final long windowID$OFFSET = 16;
 
     /**
      * Offset for field:
@@ -237,7 +237,7 @@ public class SDL_TextEditingEvent {
         return text$LAYOUT;
     }
 
-    private static final long text$OFFSET = $LAYOUT.byteOffset(groupElement("text"));
+    private static final long text$OFFSET = 24;
 
     /**
      * Offset for field:
@@ -281,7 +281,7 @@ public class SDL_TextEditingEvent {
         return start$LAYOUT;
     }
 
-    private static final long start$OFFSET = $LAYOUT.byteOffset(groupElement("start"));
+    private static final long start$OFFSET = 32;
 
     /**
      * Offset for field:
@@ -325,7 +325,7 @@ public class SDL_TextEditingEvent {
         return length$LAYOUT;
     }
 
-    private static final long length$OFFSET = $LAYOUT.byteOffset(groupElement("length"));
+    private static final long length$OFFSET = 36;
 
     /**
      * Offset for field:

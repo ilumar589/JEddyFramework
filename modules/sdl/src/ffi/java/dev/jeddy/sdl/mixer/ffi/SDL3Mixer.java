@@ -12,17 +12,61 @@ import java.util.stream.*;
 import static java.lang.foreign.ValueLayout.*;
 import static java.lang.foreign.MemoryLayout.PathElement.*;
 
-public class SDL3Mixer extends SDL3Mixer$shared {
+public class SDL3Mixer {
 
     SDL3Mixer() {
         // Should not be called directly
     }
 
     static final Arena LIBRARY_ARENA = Arena.global();
+    static final boolean TRACE_DOWNCALLS = Boolean.getBoolean("jextract.trace.downcalls");
+
+    static void traceDowncall(String name, Object... args) {
+         String traceArgs = Arrays.stream(args)
+                       .map(Object::toString)
+                       .collect(Collectors.joining(", "));
+         System.out.printf("%s(%s)\n", name, traceArgs);
+    }
+
+    static MemorySegment findOrThrow(String symbol) {
+        return SYMBOL_LOOKUP.find(symbol)
+            .orElseThrow(() -> new UnsatisfiedLinkError("unresolved symbol: " + symbol));
+    }
+
+    static MethodHandle upcallHandle(Class<?> fi, String name, FunctionDescriptor fdesc) {
+        try {
+            return MethodHandles.lookup().findVirtual(fi, name, fdesc.toMethodType());
+        } catch (ReflectiveOperationException ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
+    static MemoryLayout align(MemoryLayout layout, long align) {
+        return switch (layout) {
+            case PaddingLayout p -> p;
+            case ValueLayout v -> v.withByteAlignment(align);
+            case GroupLayout g -> {
+                MemoryLayout[] alignedMembers = g.memberLayouts().stream()
+                        .map(m -> align(m, align)).toArray(MemoryLayout[]::new);
+                yield g instanceof StructLayout ?
+                        MemoryLayout.structLayout(alignedMembers) : MemoryLayout.unionLayout(alignedMembers);
+            }
+            case SequenceLayout s -> MemoryLayout.sequenceLayout(s.elementCount(), align(s.elementLayout(), align));
+        };
+    }
 
     static final SymbolLookup SYMBOL_LOOKUP = SymbolLookup.loaderLookup()
             .or(Linker.nativeLinker().defaultLookup());
 
+    public static final ValueLayout.OfBoolean C_BOOL = ValueLayout.JAVA_BOOLEAN;
+    public static final ValueLayout.OfByte C_CHAR = ValueLayout.JAVA_BYTE;
+    public static final ValueLayout.OfShort C_SHORT = ValueLayout.JAVA_SHORT;
+    public static final ValueLayout.OfInt C_INT = ValueLayout.JAVA_INT;
+    public static final ValueLayout.OfLong C_LONG_LONG = ValueLayout.JAVA_LONG;
+    public static final ValueLayout.OfFloat C_FLOAT = ValueLayout.JAVA_FLOAT;
+    public static final ValueLayout.OfDouble C_DOUBLE = ValueLayout.JAVA_DOUBLE;
+    public static final AddressLayout C_POINTER = ValueLayout.ADDRESS
+            .withTargetLayout(MemoryLayout.sequenceLayout(java.lang.Long.MAX_VALUE, JAVA_BYTE));
     private static final int SDL_MIXER_MAJOR_VERSION = (int)3L;
     /**
      * {@snippet lang=c :
@@ -55,7 +99,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3Mixer.C_INT    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_Version");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_Version");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -63,7 +107,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern int MIX_Version(void)
+     * extern int MIX_Version()
      * }
      */
     public static FunctionDescriptor MIX_Version$descriptor() {
@@ -73,7 +117,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern int MIX_Version(void)
+     * extern int MIX_Version()
      * }
      */
     public static MethodHandle MIX_Version$handle() {
@@ -83,7 +127,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern int MIX_Version(void)
+     * extern int MIX_Version()
      * }
      */
     public static MemorySegment MIX_Version$address() {
@@ -92,7 +136,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
 
     /**
      * {@snippet lang=c :
-     * extern int MIX_Version(void)
+     * extern int MIX_Version()
      * }
      */
     public static int MIX_Version() {
@@ -102,8 +146,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_Version");
             }
             return (int)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -113,7 +155,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3Mixer.C_BOOL    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_Init");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_Init");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -121,7 +163,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern bool MIX_Init(void)
+     * extern bool MIX_Init()
      * }
      */
     public static FunctionDescriptor MIX_Init$descriptor() {
@@ -131,7 +173,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern bool MIX_Init(void)
+     * extern bool MIX_Init()
      * }
      */
     public static MethodHandle MIX_Init$handle() {
@@ -141,7 +183,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern bool MIX_Init(void)
+     * extern bool MIX_Init()
      * }
      */
     public static MemorySegment MIX_Init$address() {
@@ -150,7 +192,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
 
     /**
      * {@snippet lang=c :
-     * extern bool MIX_Init(void)
+     * extern bool MIX_Init()
      * }
      */
     public static boolean MIX_Init() {
@@ -160,8 +202,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_Init");
             }
             return (boolean)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -170,7 +210,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
     private static class MIX_Quit {
         public static final FunctionDescriptor DESC = FunctionDescriptor.ofVoid(    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_Quit");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_Quit");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -178,7 +218,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern void MIX_Quit(void)
+     * extern void MIX_Quit()
      * }
      */
     public static FunctionDescriptor MIX_Quit$descriptor() {
@@ -188,7 +228,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern void MIX_Quit(void)
+     * extern void MIX_Quit()
      * }
      */
     public static MethodHandle MIX_Quit$handle() {
@@ -198,7 +238,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern void MIX_Quit(void)
+     * extern void MIX_Quit()
      * }
      */
     public static MemorySegment MIX_Quit$address() {
@@ -207,7 +247,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
 
     /**
      * {@snippet lang=c :
-     * extern void MIX_Quit(void)
+     * extern void MIX_Quit()
      * }
      */
     public static void MIX_Quit() {
@@ -217,8 +257,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_Quit");
             }
             mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -228,7 +266,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
             SDL3Mixer.C_INT    );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_GetNumAudioDecoders");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_GetNumAudioDecoders");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -236,7 +274,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
     /**
      * Function descriptor for:
      * {@snippet lang=c :
-     * extern int MIX_GetNumAudioDecoders(void)
+     * extern int MIX_GetNumAudioDecoders()
      * }
      */
     public static FunctionDescriptor MIX_GetNumAudioDecoders$descriptor() {
@@ -246,7 +284,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
     /**
      * Downcall method handle for:
      * {@snippet lang=c :
-     * extern int MIX_GetNumAudioDecoders(void)
+     * extern int MIX_GetNumAudioDecoders()
      * }
      */
     public static MethodHandle MIX_GetNumAudioDecoders$handle() {
@@ -256,7 +294,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
     /**
      * Address for:
      * {@snippet lang=c :
-     * extern int MIX_GetNumAudioDecoders(void)
+     * extern int MIX_GetNumAudioDecoders()
      * }
      */
     public static MemorySegment MIX_GetNumAudioDecoders$address() {
@@ -265,7 +303,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
 
     /**
      * {@snippet lang=c :
-     * extern int MIX_GetNumAudioDecoders(void)
+     * extern int MIX_GetNumAudioDecoders()
      * }
      */
     public static int MIX_GetNumAudioDecoders() {
@@ -275,8 +313,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_GetNumAudioDecoders");
             }
             return (int)mh$.invokeExact();
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -288,7 +324,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_GetAudioDecoder");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_GetAudioDecoder");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -335,8 +371,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_GetAudioDecoder", index);
             }
             return (MemorySegment)mh$.invokeExact(index);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -349,7 +383,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_CreateMixerDevice");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_CreateMixerDevice");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -396,8 +430,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_CreateMixerDevice", devid, spec);
             }
             return (MemorySegment)mh$.invokeExact(devid, spec);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -409,7 +441,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_CreateMixer");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_CreateMixer");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -456,8 +488,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_CreateMixer", spec);
             }
             return (MemorySegment)mh$.invokeExact(spec);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -468,7 +498,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_DestroyMixer");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_DestroyMixer");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -515,8 +545,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_DestroyMixer", mixer);
             }
             mh$.invokeExact(mixer);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -528,7 +556,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_GetMixerProperties");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_GetMixerProperties");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -575,8 +603,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_GetMixerProperties", mixer);
             }
             return (int)mh$.invokeExact(mixer);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -589,7 +615,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_GetMixerFormat");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_GetMixerFormat");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -636,8 +662,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_GetMixerFormat", mixer, spec);
             }
             return (boolean)mh$.invokeExact(mixer, spec);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -648,7 +672,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_LockMixer");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_LockMixer");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -695,8 +719,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_LockMixer", mixer);
             }
             mh$.invokeExact(mixer);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -707,7 +729,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_UnlockMixer");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_UnlockMixer");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -754,8 +776,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_UnlockMixer", mixer);
             }
             mh$.invokeExact(mixer);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -770,7 +790,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_BOOL
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_LoadAudio_IO");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_LoadAudio_IO");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -817,8 +837,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_LoadAudio_IO", mixer, io, predecode, closeio);
             }
             return (MemorySegment)mh$.invokeExact(mixer, io, predecode, closeio);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -832,7 +850,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_BOOL
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_LoadAudio");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_LoadAudio");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -879,8 +897,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_LoadAudio", mixer, path, predecode);
             }
             return (MemorySegment)mh$.invokeExact(mixer, path, predecode);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -895,7 +911,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_BOOL
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_LoadAudioNoCopy");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_LoadAudioNoCopy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -942,8 +958,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_LoadAudioNoCopy", mixer, data, datalen, free_when_done);
             }
             return (MemorySegment)mh$.invokeExact(mixer, data, datalen, free_when_done);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -955,7 +969,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_LoadAudioWithProperties");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_LoadAudioWithProperties");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1002,8 +1016,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_LoadAudioWithProperties", props);
             }
             return (MemorySegment)mh$.invokeExact(props);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1018,7 +1030,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_BOOL
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_LoadRawAudio_IO");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_LoadRawAudio_IO");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1065,8 +1077,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_LoadRawAudio_IO", mixer, io, spec, closeio);
             }
             return (MemorySegment)mh$.invokeExact(mixer, io, spec, closeio);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1081,7 +1091,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_LoadRawAudio");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_LoadRawAudio");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1128,8 +1138,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_LoadRawAudio", mixer, data, datalen, spec);
             }
             return (MemorySegment)mh$.invokeExact(mixer, data, datalen, spec);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1145,7 +1153,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_BOOL
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_LoadRawAudioNoCopy");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_LoadRawAudioNoCopy");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1192,8 +1200,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_LoadRawAudioNoCopy", mixer, data, datalen, spec, free_when_done);
             }
             return (MemorySegment)mh$.invokeExact(mixer, data, datalen, spec, free_when_done);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1208,7 +1214,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_CreateSineWaveAudio");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_CreateSineWaveAudio");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1255,8 +1261,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_CreateSineWaveAudio", mixer, hz, amplitude, ms);
             }
             return (MemorySegment)mh$.invokeExact(mixer, hz, amplitude, ms);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1268,7 +1272,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_GetAudioProperties");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_GetAudioProperties");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1315,8 +1319,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_GetAudioProperties", audio);
             }
             return (int)mh$.invokeExact(audio);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1328,7 +1330,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_GetAudioDuration");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_GetAudioDuration");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1375,8 +1377,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_GetAudioDuration", audio);
             }
             return (long)mh$.invokeExact(audio);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1389,7 +1389,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_GetAudioFormat");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_GetAudioFormat");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1436,8 +1436,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_GetAudioFormat", audio, spec);
             }
             return (boolean)mh$.invokeExact(audio, spec);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1448,7 +1446,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_DestroyAudio");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_DestroyAudio");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1495,8 +1493,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_DestroyAudio", audio);
             }
             mh$.invokeExact(audio);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1508,7 +1504,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_CreateTrack");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_CreateTrack");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1555,8 +1551,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_CreateTrack", mixer);
             }
             return (MemorySegment)mh$.invokeExact(mixer);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1567,7 +1561,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_DestroyTrack");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_DestroyTrack");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1614,8 +1608,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_DestroyTrack", track);
             }
             mh$.invokeExact(track);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1627,7 +1619,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_GetTrackProperties");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_GetTrackProperties");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1674,8 +1666,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_GetTrackProperties", track);
             }
             return (int)mh$.invokeExact(track);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1687,7 +1677,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_GetTrackMixer");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_GetTrackMixer");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1734,8 +1724,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_GetTrackMixer", track);
             }
             return (MemorySegment)mh$.invokeExact(track);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1748,7 +1736,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_SetTrackAudio");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_SetTrackAudio");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1795,8 +1783,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_SetTrackAudio", track, audio);
             }
             return (boolean)mh$.invokeExact(track, audio);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1809,7 +1795,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_SetTrackAudioStream");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_SetTrackAudioStream");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1856,8 +1842,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_SetTrackAudioStream", track, stream);
             }
             return (boolean)mh$.invokeExact(track, stream);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1871,7 +1855,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_BOOL
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_SetTrackIOStream");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_SetTrackIOStream");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1918,8 +1902,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_SetTrackIOStream", track, io, closeio);
             }
             return (boolean)mh$.invokeExact(track, io, closeio);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1934,7 +1916,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_BOOL
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_SetTrackRawIOStream");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_SetTrackRawIOStream");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -1981,8 +1963,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_SetTrackRawIOStream", track, io, spec, closeio);
             }
             return (boolean)mh$.invokeExact(track, io, spec, closeio);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -1995,7 +1975,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_TagTrack");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_TagTrack");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2042,8 +2022,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_TagTrack", track, tag);
             }
             return (boolean)mh$.invokeExact(track, tag);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2055,7 +2033,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_UntagTrack");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_UntagTrack");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2102,8 +2080,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_UntagTrack", track, tag);
             }
             mh$.invokeExact(track, tag);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2116,7 +2092,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_GetTrackTags");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_GetTrackTags");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2163,8 +2139,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_GetTrackTags", track, count);
             }
             return (MemorySegment)mh$.invokeExact(track, count);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2178,7 +2152,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_GetTaggedTracks");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_GetTaggedTracks");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2225,8 +2199,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_GetTaggedTracks", mixer, tag, count);
             }
             return (MemorySegment)mh$.invokeExact(mixer, tag, count);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2239,7 +2211,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_SetTrackPlaybackPosition");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_SetTrackPlaybackPosition");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2286,8 +2258,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_SetTrackPlaybackPosition", track, frames);
             }
             return (boolean)mh$.invokeExact(track, frames);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2299,7 +2269,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_GetTrackPlaybackPosition");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_GetTrackPlaybackPosition");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2346,8 +2316,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_GetTrackPlaybackPosition", track);
             }
             return (long)mh$.invokeExact(track);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2359,7 +2327,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_GetTrackFadeFrames");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_GetTrackFadeFrames");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2406,8 +2374,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_GetTrackFadeFrames", track);
             }
             return (long)mh$.invokeExact(track);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2419,7 +2385,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_GetTrackLoops");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_GetTrackLoops");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2466,8 +2432,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_GetTrackLoops", track);
             }
             return (int)mh$.invokeExact(track);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2480,7 +2444,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_SetTrackLoops");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_SetTrackLoops");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2527,8 +2491,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_SetTrackLoops", track, num_loops);
             }
             return (boolean)mh$.invokeExact(track, num_loops);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2540,7 +2502,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_GetTrackAudio");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_GetTrackAudio");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2587,8 +2549,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_GetTrackAudio", track);
             }
             return (MemorySegment)mh$.invokeExact(track);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2600,7 +2560,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_GetTrackAudioStream");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_GetTrackAudioStream");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2647,8 +2607,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_GetTrackAudioStream", track);
             }
             return (MemorySegment)mh$.invokeExact(track);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2660,7 +2618,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_GetTrackRemaining");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_GetTrackRemaining");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2707,8 +2665,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_GetTrackRemaining", track);
             }
             return (long)mh$.invokeExact(track);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2721,7 +2677,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_TrackMSToFrames");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_TrackMSToFrames");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2768,8 +2724,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_TrackMSToFrames", track, ms);
             }
             return (long)mh$.invokeExact(track, ms);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2782,7 +2736,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_TrackFramesToMS");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_TrackFramesToMS");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2829,8 +2783,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_TrackFramesToMS", track, frames);
             }
             return (long)mh$.invokeExact(track, frames);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2843,7 +2795,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_AudioMSToFrames");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_AudioMSToFrames");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2890,8 +2842,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_AudioMSToFrames", audio, ms);
             }
             return (long)mh$.invokeExact(audio, ms);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2904,7 +2854,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_AudioFramesToMS");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_AudioFramesToMS");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -2951,8 +2901,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_AudioFramesToMS", audio, frames);
             }
             return (long)mh$.invokeExact(audio, frames);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -2965,7 +2913,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_MSToFrames");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_MSToFrames");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3012,8 +2960,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_MSToFrames", sample_rate, ms);
             }
             return (long)mh$.invokeExact(sample_rate, ms);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3026,7 +2972,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_FramesToMS");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_FramesToMS");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3073,8 +3019,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_FramesToMS", sample_rate, frames);
             }
             return (long)mh$.invokeExact(sample_rate, frames);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3087,7 +3031,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_PlayTrack");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_PlayTrack");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3134,8 +3078,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_PlayTrack", track, options);
             }
             return (boolean)mh$.invokeExact(track, options);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3149,7 +3091,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_PlayTag");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_PlayTag");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3196,8 +3138,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_PlayTag", mixer, tag, options);
             }
             return (boolean)mh$.invokeExact(mixer, tag, options);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3210,7 +3150,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_PlayAudio");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_PlayAudio");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3257,8 +3197,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_PlayAudio", mixer, audio);
             }
             return (boolean)mh$.invokeExact(mixer, audio);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3271,7 +3209,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_StopTrack");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_StopTrack");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3318,8 +3256,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_StopTrack", track, fade_out_frames);
             }
             return (boolean)mh$.invokeExact(track, fade_out_frames);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3332,7 +3268,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_StopAllTracks");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_StopAllTracks");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3379,8 +3315,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_StopAllTracks", mixer, fade_out_ms);
             }
             return (boolean)mh$.invokeExact(mixer, fade_out_ms);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3394,7 +3328,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_LONG_LONG
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_StopTag");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_StopTag");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3441,8 +3375,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_StopTag", mixer, tag, fade_out_ms);
             }
             return (boolean)mh$.invokeExact(mixer, tag, fade_out_ms);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3454,7 +3386,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_PauseTrack");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_PauseTrack");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3501,8 +3433,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_PauseTrack", track);
             }
             return (boolean)mh$.invokeExact(track);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3514,7 +3444,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_PauseAllTracks");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_PauseAllTracks");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3561,8 +3491,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_PauseAllTracks", mixer);
             }
             return (boolean)mh$.invokeExact(mixer);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3575,7 +3503,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_PauseTag");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_PauseTag");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3622,8 +3550,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_PauseTag", mixer, tag);
             }
             return (boolean)mh$.invokeExact(mixer, tag);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3635,7 +3561,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_ResumeTrack");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_ResumeTrack");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3682,8 +3608,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_ResumeTrack", track);
             }
             return (boolean)mh$.invokeExact(track);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3695,7 +3619,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_ResumeAllTracks");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_ResumeAllTracks");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3742,8 +3666,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_ResumeAllTracks", mixer);
             }
             return (boolean)mh$.invokeExact(mixer);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3756,7 +3678,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_ResumeTag");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_ResumeTag");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3803,8 +3725,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_ResumeTag", mixer, tag);
             }
             return (boolean)mh$.invokeExact(mixer, tag);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3816,7 +3736,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_TrackPlaying");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_TrackPlaying");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3863,8 +3783,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_TrackPlaying", track);
             }
             return (boolean)mh$.invokeExact(track);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3876,7 +3794,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_TrackPaused");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_TrackPaused");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3923,8 +3841,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_TrackPaused", track);
             }
             return (boolean)mh$.invokeExact(track);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3937,7 +3853,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_FLOAT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_SetMixerGain");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_SetMixerGain");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -3984,8 +3900,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_SetMixerGain", mixer, gain);
             }
             return (boolean)mh$.invokeExact(mixer, gain);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -3997,7 +3911,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_GetMixerGain");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_GetMixerGain");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4044,8 +3958,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_GetMixerGain", mixer);
             }
             return (float)mh$.invokeExact(mixer);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4058,7 +3970,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_FLOAT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_SetTrackGain");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_SetTrackGain");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4105,8 +4017,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_SetTrackGain", track, gain);
             }
             return (boolean)mh$.invokeExact(track, gain);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4118,7 +4028,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_GetTrackGain");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_GetTrackGain");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4165,8 +4075,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_GetTrackGain", track);
             }
             return (float)mh$.invokeExact(track);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4180,7 +4088,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_FLOAT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_SetTagGain");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_SetTagGain");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4227,8 +4135,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_SetTagGain", mixer, tag, gain);
             }
             return (boolean)mh$.invokeExact(mixer, tag, gain);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4241,7 +4147,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_FLOAT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_SetMixerFrequencyRatio");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_SetMixerFrequencyRatio");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4288,8 +4194,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_SetMixerFrequencyRatio", mixer, ratio);
             }
             return (boolean)mh$.invokeExact(mixer, ratio);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4301,7 +4205,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_GetMixerFrequencyRatio");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_GetMixerFrequencyRatio");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4348,8 +4252,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_GetMixerFrequencyRatio", mixer);
             }
             return (float)mh$.invokeExact(mixer);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4362,7 +4264,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_FLOAT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_SetTrackFrequencyRatio");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_SetTrackFrequencyRatio");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4409,8 +4311,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_SetTrackFrequencyRatio", track, ratio);
             }
             return (boolean)mh$.invokeExact(track, ratio);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4422,7 +4322,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_GetTrackFrequencyRatio");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_GetTrackFrequencyRatio");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4469,8 +4369,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_GetTrackFrequencyRatio", track);
             }
             return (float)mh$.invokeExact(track);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4484,7 +4382,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_SetTrackOutputChannelMap");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_SetTrackOutputChannelMap");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4531,8 +4429,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_SetTrackOutputChannelMap", track, chmap, count);
             }
             return (boolean)mh$.invokeExact(track, chmap, count);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4545,7 +4441,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_SetTrackStereo");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_SetTrackStereo");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4592,8 +4488,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_SetTrackStereo", track, gains);
             }
             return (boolean)mh$.invokeExact(track, gains);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4606,7 +4500,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_SetTrack3DPosition");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_SetTrack3DPosition");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4653,8 +4547,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_SetTrack3DPosition", track, position);
             }
             return (boolean)mh$.invokeExact(track, position);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4667,7 +4559,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_GetTrack3DPosition");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_GetTrack3DPosition");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4714,8 +4606,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_GetTrack3DPosition", track, position);
             }
             return (boolean)mh$.invokeExact(track, position);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4727,7 +4617,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_CreateGroup");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_CreateGroup");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4774,8 +4664,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_CreateGroup", mixer);
             }
             return (MemorySegment)mh$.invokeExact(mixer);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4786,7 +4674,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_DestroyGroup");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_DestroyGroup");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4833,8 +4721,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_DestroyGroup", group);
             }
             mh$.invokeExact(group);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4846,7 +4732,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_GetGroupProperties");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_GetGroupProperties");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4893,8 +4779,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_GetGroupProperties", group);
             }
             return (int)mh$.invokeExact(group);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4906,7 +4790,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_GetGroupMixer");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_GetGroupMixer");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -4953,8 +4837,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_GetGroupMixer", group);
             }
             return (MemorySegment)mh$.invokeExact(group);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -4967,7 +4849,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_SetTrackGroup");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_SetTrackGroup");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5014,8 +4896,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_SetTrackGroup", track, group);
             }
             return (boolean)mh$.invokeExact(track, group);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5029,7 +4909,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_Generate");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_Generate");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5076,8 +4956,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_Generate", mixer, buffer, buflen);
             }
             return (int)mh$.invokeExact(mixer, buffer, buflen);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5090,7 +4968,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_CreateAudioDecoder");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_CreateAudioDecoder");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5137,8 +5015,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_CreateAudioDecoder", path, props);
             }
             return (MemorySegment)mh$.invokeExact(path, props);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5152,7 +5028,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_INT
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_CreateAudioDecoder_IO");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_CreateAudioDecoder_IO");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5199,8 +5075,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_CreateAudioDecoder_IO", io, closeio, props);
             }
             return (MemorySegment)mh$.invokeExact(io, closeio, props);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5211,7 +5085,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_DestroyAudioDecoder");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_DestroyAudioDecoder");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5258,8 +5132,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_DestroyAudioDecoder", audiodecoder);
             }
             mh$.invokeExact(audiodecoder);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5271,7 +5143,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_GetAudioDecoderProperties");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_GetAudioDecoderProperties");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5318,8 +5190,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_GetAudioDecoderProperties", audiodecoder);
             }
             return (int)mh$.invokeExact(audiodecoder);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5332,7 +5202,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_GetAudioDecoderFormat");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_GetAudioDecoderFormat");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5379,8 +5249,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_GetAudioDecoderFormat", audiodecoder, spec);
             }
             return (boolean)mh$.invokeExact(audiodecoder, spec);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }
@@ -5395,7 +5263,7 @@ public class SDL3Mixer extends SDL3Mixer$shared {
             SDL3Mixer.C_POINTER
         );
 
-        public static final MemorySegment ADDR = SYMBOL_LOOKUP.findOrThrow("MIX_DecodeAudio");
+        public static final MemorySegment ADDR = SDL3Mixer.findOrThrow("MIX_DecodeAudio");
 
         public static final MethodHandle HANDLE = Linker.nativeLinker().downcallHandle(ADDR, DESC);
     }
@@ -5442,8 +5310,6 @@ public class SDL3Mixer extends SDL3Mixer$shared {
                 traceDowncall("MIX_DecodeAudio", audiodecoder, buffer, buflen, spec);
             }
             return (int)mh$.invokeExact(audiodecoder, buffer, buflen, spec);
-        } catch (Error | RuntimeException ex) {
-           throw ex;
         } catch (Throwable ex$) {
            throw new AssertionError("should not reach here", ex$);
         }

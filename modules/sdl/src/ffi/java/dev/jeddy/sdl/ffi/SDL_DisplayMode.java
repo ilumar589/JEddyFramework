@@ -64,7 +64,7 @@ public class SDL_DisplayMode {
         return displayID$LAYOUT;
     }
 
-    private static final long displayID$OFFSET = $LAYOUT.byteOffset(groupElement("displayID"));
+    private static final long displayID$OFFSET = 0;
 
     /**
      * Offset for field:
@@ -108,7 +108,7 @@ public class SDL_DisplayMode {
         return format$LAYOUT;
     }
 
-    private static final long format$OFFSET = $LAYOUT.byteOffset(groupElement("format"));
+    private static final long format$OFFSET = 4;
 
     /**
      * Offset for field:
@@ -152,7 +152,7 @@ public class SDL_DisplayMode {
         return w$LAYOUT;
     }
 
-    private static final long w$OFFSET = $LAYOUT.byteOffset(groupElement("w"));
+    private static final long w$OFFSET = 8;
 
     /**
      * Offset for field:
@@ -196,7 +196,7 @@ public class SDL_DisplayMode {
         return h$LAYOUT;
     }
 
-    private static final long h$OFFSET = $LAYOUT.byteOffset(groupElement("h"));
+    private static final long h$OFFSET = 12;
 
     /**
      * Offset for field:
@@ -240,7 +240,7 @@ public class SDL_DisplayMode {
         return pixel_density$LAYOUT;
     }
 
-    private static final long pixel_density$OFFSET = $LAYOUT.byteOffset(groupElement("pixel_density"));
+    private static final long pixel_density$OFFSET = 16;
 
     /**
      * Offset for field:
@@ -284,7 +284,7 @@ public class SDL_DisplayMode {
         return refresh_rate$LAYOUT;
     }
 
-    private static final long refresh_rate$OFFSET = $LAYOUT.byteOffset(groupElement("refresh_rate"));
+    private static final long refresh_rate$OFFSET = 20;
 
     /**
      * Offset for field:
@@ -328,7 +328,7 @@ public class SDL_DisplayMode {
         return refresh_rate_numerator$LAYOUT;
     }
 
-    private static final long refresh_rate_numerator$OFFSET = $LAYOUT.byteOffset(groupElement("refresh_rate_numerator"));
+    private static final long refresh_rate_numerator$OFFSET = 24;
 
     /**
      * Offset for field:
@@ -372,7 +372,7 @@ public class SDL_DisplayMode {
         return refresh_rate_denominator$LAYOUT;
     }
 
-    private static final long refresh_rate_denominator$OFFSET = $LAYOUT.byteOffset(groupElement("refresh_rate_denominator"));
+    private static final long refresh_rate_denominator$OFFSET = 28;
 
     /**
      * Offset for field:
@@ -416,7 +416,7 @@ public class SDL_DisplayMode {
         return internal$LAYOUT;
     }
 
-    private static final long internal$OFFSET = $LAYOUT.byteOffset(groupElement("internal"));
+    private static final long internal$OFFSET = 32;
 
     /**
      * Offset for field:
