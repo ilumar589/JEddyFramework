@@ -152,7 +152,7 @@ public final class Input {
                 mouseY = Float.intBitsToFloat(b);
                 deltaX += Float.intBitsToFloat(c);
                 deltaY += Float.intBitsToFloat(d);
-                buttons = e;
+                // Button state comes from button events only, so edges stay consistent.
                 lastDevice = DEVICE_KEYBOARD_MOUSE;
             }
             case InputRecord.MOUSE_BUTTON -> onMouseButton(a, b != 0, c, d, e);

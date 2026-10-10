@@ -413,6 +413,33 @@ public final class EventPump implements MainThreadQueue.Handler, AutoCloseable {
         return true;
     }
 
+    /**
+     * Requests rumble on the pad in {@code slot} (game thread; executed on the main thread).
+     *
+     * @param low low-frequency (left) motor strength, 0 to 1
+     * @param high high-frequency (right) motor strength, 0 to 1
+     * @param millis duration
+     */
+    public static boolean postRumble(
+            MainThreadQueue queue, int slot, float low, float high, int millis) {
+        return queue.post(OP_RUMBLE, slot, motor(low), motor(high), millis, 0);
+    }
+
+    /** Requests trigger rumble (Xbox impulse triggers), strengths 0 to 1. */
+    public static boolean postTriggerRumble(
+            MainThreadQueue queue, int slot, float left, float right, int millis) {
+        return queue.post(OP_RUMBLE_TRIGGERS, slot, motor(left), motor(right), millis, 0);
+    }
+
+    /** Requests a light-bar color ({@code 0xRRGGBB}) on pads that have one. */
+    public static boolean postLed(MainThreadQueue queue, int slot, int rgb) {
+        return queue.post(OP_SET_LED, slot, rgb, 0, 0, 0);
+    }
+
+    private static int motor(float strength) {
+        return Math.round(Math.max(0f, Math.min(1f, strength)) * 0xFFFF);
+    }
+
     /** Returns {@code true} once SDL reported a quit request. */
     public boolean isQuitRequested() {
         return quitRequested;

@@ -72,9 +72,9 @@ The tracks are *mostly* independent. Dotted edges are the few late cross-track d
 - [x] **M2-03** `window`: `Platform.init` on the main thread, window creation, GL 4.6 core context attributes, displays/DPI, windowed/borderless/exclusive modes, VSync modes, frame limiter (`SDL_DelayPrecise`), minimize handling · L · Deps: M2-02 · AC: works on Windows, X11 and Wayland, and handles resize, fullscreen toggles and DPI changes
 - [x] **M2-04** Event pump: one preallocated `SDL_Event` segment, `static final` field offsets, 8-int encoded records into an `SpscIntRing` · M · Deps: M2-03, M1-06 · AC: 0 B/frame while moving the mouse and typing
 - [x] **M2-05** `input` device state: keyboard/mouse with frame-stamp edges, text input mode · M · Deps: M2-04
-- [ ] **M2-06** Action mapping: actions, bindings, chords, axes, context stack, rebinding and persistence · L · Deps: M2-05
-- [ ] **M2-07** CRPG gestures: click vs drag, double-click, box select, edge scroll, camera rotate/zoom/pan inputs. Cursor manager (custom color cursors) in `window`, switched through the main-thread command queue · M · Deps: M2-06, M2-10
-- [ ] **M2-08** Gamepads: hotplug, mapping DB, virtual cursor, rumble · M · Deps: M2-05
+- [x] **M2-06** Action mapping: actions, bindings, chords, axes, context stack, rebinding and persistence · L · Deps: M2-05
+- [x] **M2-07** CRPG gestures: click vs drag, double-click, box select, edge scroll, camera rotate/zoom/pan inputs. Cursor manager (custom color cursors) in `window`, switched through the main-thread command queue · M · Deps: M2-06, M2-10
+- [x] **M2-08** Gamepads: hotplug, mapping DB, virtual cursor, rumble · M · Deps: M2-05
 - [ ] **M2-09** `app` v0: main thread and game thread split, fixed-step loop, clean shutdown, crash message box · M · Deps: M2-03, M1-07 · AC: an empty app runs 10 minutes at 0 B/frame on both threads
 - [ ] **M2-10** Main-thread command queue (game → main): encoded commands for cursor, text input start/stop, window mode and relative mouse. Assertions that main-thread-only SDL calls never run elsewhere (§5) · S · Deps: M2-09
 
