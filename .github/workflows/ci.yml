@@ -96,6 +96,14 @@ jobs:
           set -o pipefail
           xvfb-run -a -s "-screen 0 1920x1080x24" ./gradlew test -Pjeddy.gpuTests=only --stacktrace 2>&1 | tee gpu.log
 
+      - name: Hello triangle smoke run (module path, 3 s)
+        shell: bash
+        env:
+          JEDDY_SAMPLE_QUIT_AFTER: '3'
+        run: |
+          set -o pipefail
+          xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew :hello-triangle:run --stacktrace 2>&1 | tee -a gpu.log
+
       - name: Annotate failure
         if: failure()
         shell: bash
@@ -115,9 +123,18 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v5
 
+      # GlBench needs a GL 4.6 context: Xvfb with Mesa llvmpipe, as in the gpu job.
+      - name: Install Xvfb and Mesa
+        run: sudo apt-get update -q && sudo apt-get install -y -q xvfb libgl1-mesa-dri libglx-mesa0
+
       # Short runs: numbers are indicative only (shared runner, 1 fork, few iterations).
       - name: Run JMH
-        run: ./gradlew :bench:jmh "-Pjmh.args=-f 1 -wi 2 -i 3 -w 500ms -r 500ms"
+        env:
+          SDL_VIDEO_DRIVER: x11
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          MESA_GL_VERSION_OVERRIDE: '4.6'
+          MESA_GLSL_VERSION_OVERRIDE: '460'
+        run: xvfb-run -a ./gradlew :bench:jmh "-Pjmh.args=-f 1 -wi 2 -i 3 -w 500ms -r 500ms"
 
       - name: Report
         if: always()

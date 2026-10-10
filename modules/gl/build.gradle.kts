@@ -1,7 +1,8 @@
 plugins {
-    id("jeddy.native-library")
+    id("jeddy.gl-bindings")
 }
 
 dependencies {
     api(project(":core"))
+    testImplementation(project(":window"))
 }

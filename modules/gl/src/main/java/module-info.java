@@ -5,6 +5,9 @@
 module dev.jeddy.gl {
     requires transitive dev.jeddy.core;
 
-// Exported together with the first public type (javac rejects exporting a package with no types):
-// exports dev.jeddy.gl;
+    exports dev.jeddy.gl;
+    exports dev.jeddy.gl.ffi to
+            dev.jeddy.render,
+            dev.jeddy.app,
+            dev.jeddy.samples.triangle;
 }

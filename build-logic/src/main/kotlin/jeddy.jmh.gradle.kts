@@ -16,6 +16,8 @@ val catalog = extensions.getByType<VersionCatalogsExtension>().named("libs")
 dependencies {
     "implementation"(catalog.findLibrary("jmh-core").get())
     "annotationProcessor"(catalog.findLibrary("jmh-annprocess").get())
+    // FFM and GL benchmarks load the native libraries of the platform running the build.
+    "runtimeOnly"(project(":natives-" + dev.jeddy.gradle.JeddyPlatforms.current()))
 }
 
 // JMH-generated sources are not ours to keep warning-free.

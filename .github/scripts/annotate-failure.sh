@@ -25,5 +25,13 @@ if [ -n "$problems" ]; then
   echo "::error title=Compiler and test problems::${problems}"
 fi
 
+# Test stdout/stderr only reaches the JUnit XML files, not the console.
+dir=$(dirname "$0")
+if command -v python3 > /dev/null 2>&1 && python3 --version > /dev/null 2>&1; then
+  python3 "$dir/annotate-tests.py" .
+elif command -v python > /dev/null 2>&1; then
+  python "$dir/annotate-tests.py" .
+fi
+
 tail_lines=$(tail -n 40 "$log" | encode)
 echo "::error title=Log tail::${tail_lines}"
