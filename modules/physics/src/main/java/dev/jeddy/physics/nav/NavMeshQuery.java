@@ -713,10 +713,42 @@ public final class NavMeshQuery {
             return failSliced();
         }
         int status = SUCCESS | (qOutOfNodes ? OUT_OF_NODES : 0);
-        if (nodes.ref[qLastBest] != qEndRef) {
+        int end = qLastBest;
+        if (nodes.ref[end] != qEndRef) {
             status |= PARTIAL;
+            end = nearestReachedNode();
         }
-        return writeChain(qLastBest, path, status);
+        return writeChain(end, path, status);
+    }
+
+    /**
+     * Returns the searched node whose polygon comes closest to the goal (the heuristic's best node
+     * only compares portal midpoints), so unreachable goals lead as near as possible.
+     */
+    private int nearestReachedNode() {
+        int best = qLastBest;
+        float bestD = Float.MAX_VALUE;
+        for (int n = 0, count = nodes.count(); n < count; n++) {
+            if (nodes.flags[n] == 0) {
+                continue;
+            }
+            int ref = nodes.ref[n];
+            NavTile t = mesh.tile(ref);
+            int p = mesh.poly(ref);
+            if (t.type[p] != NavTile.TYPE_GROUND) {
+                continue;
+            }
+            NavGeometry.closestPointOnPoly(t, p, qex, qey, qez, p3);
+            float dx = p3[0] - qex;
+            float dy = p3[1] - qey;
+            float dz = p3[2] - qez;
+            float d = dx * dx + dy * dy + dz * dz;
+            if (d < bestD - 1e-6f || (d < bestD + 1e-6f && nodes.cost[n] < nodes.cost[best])) {
+                bestD = d;
+                best = n;
+            }
+        }
+        return best;
     }
 
     /**

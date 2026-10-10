@@ -24,6 +24,7 @@ public final class NavPathBatch {
     private final PerWorker<Worker> workers;
     private final JobKernel kernel = this::runRange;
     private QueryFilter filter;
+    private QueryFilter[] filterSet;
     private int count;
 
     /** Request endpoints: start x, y, z, end x, y, z. */
@@ -34,6 +35,9 @@ public final class NavPathBatch {
 
     /** Request polygons (0: the nearest within {@link #searchExtents}). */
     public int[] endRefs;
+
+    /** Request filters: indices into the array given to {@link #run(QueryFilter[], JobSystem)}. */
+    public int[] filterIndex;
 
     /** Output: {@link NavMeshQuery} status. */
     public int[] status;
@@ -94,6 +98,7 @@ public final class NavPathBatch {
         points = points == null ? new float[cap * 6] : Arrays.copyOf(points, cap * 6);
         startRefs = startRefs == null ? new int[cap] : Arrays.copyOf(startRefs, cap);
         endRefs = endRefs == null ? new int[cap] : Arrays.copyOf(endRefs, cap);
+        filterIndex = filterIndex == null ? new int[cap] : Arrays.copyOf(filterIndex, cap);
         status = status == null ? new int[cap] : Arrays.copyOf(status, cap);
         polys = polys == null ? new int[cap * maxPath] : Arrays.copyOf(polys, cap * maxPath);
         polyCount = polyCount == null ? new int[cap] : Arrays.copyOf(polyCount, cap);
@@ -147,28 +152,45 @@ public final class NavPathBatch {
         points[o + 5] = ez;
         startRefs[i] = startRef;
         endRefs[i] = endRef;
+        filterIndex[i] = 0;
         return i;
     }
 
     /** Runs every request with {@code f}; {@code jobs} may be {@code null}. Allocates nothing. */
     public void run(QueryFilter f, JobSystem jobs) {
         filter = f;
+        dispatch(jobs);
+        filter = null;
+    }
+
+    /**
+     * Runs every request with its filter {@code filters[filterIndex[i]]}; {@code jobs} may be
+     * {@code null}. Allocates nothing.
+     */
+    public void run(QueryFilter[] filters, JobSystem jobs) {
+        filterSet = filters;
+        dispatch(jobs);
+        filterSet = null;
+    }
+
+    private void dispatch(JobSystem jobs) {
         if (jobs != null && count > GRAIN) {
             jobs.parallelFor(kernel, count, GRAIN);
         } else {
             runRange(0, count, 0);
         }
-        filter = null;
     }
 
     private void runRange(int from, int to, int thread) {
         Worker w = workers.get(thread);
         NavMeshQuery q = w.query;
-        QueryFilter f = filter;
+        QueryFilter single = filter;
+        QueryFilter[] set = filterSet;
         float hx = searchExtents[0];
         float hy = searchExtents[1];
         float hz = searchExtents[2];
         for (int i = from; i < to; i++) {
+            QueryFilter f = single != null ? single : set[filterIndex[i]];
             int o = i * 6;
             float sx = points[o];
             float sy = points[o + 1];

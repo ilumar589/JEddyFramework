@@ -7,6 +7,7 @@ module dev.jeddy.physics {
     requires transitive dev.jeddy.math;
 
     exports dev.jeddy.physics.bvh;
+    exports dev.jeddy.physics.crowd;
     exports dev.jeddy.physics.grid;
     exports dev.jeddy.physics.nav;
     exports dev.jeddy.physics.nav.bake;
