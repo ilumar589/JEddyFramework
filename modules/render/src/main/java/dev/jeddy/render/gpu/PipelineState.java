@@ -96,6 +96,11 @@ public final class PipelineState {
                 | ((long) function << DEPTH_FUNC_SHIFT);
     }
 
+    /** Returns {@code state} with depth writes on or off, test and function unchanged. */
+    public static long withDepthWrite(long state, boolean write) {
+        return write ? state | DEPTH_WRITE : state & ~DEPTH_WRITE;
+    }
+
     /** Returns {@code state} with the color write mask (bit 0 red .. bit 3 alpha). */
     public static long withColorMask(long state, int rgba) {
         return (state & ~(0xFL << COLOR_MASK_SHIFT)) | ((long) (rgba & 0xF) << COLOR_MASK_SHIFT);

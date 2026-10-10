@@ -57,6 +57,17 @@ public final class GpuDevice implements AutoCloseable {
         return state;
     }
 
+    /**
+     * Switches clip space to depth [0, 1] with a lower-left origin ({@code glClipControl}), which
+     * the reversed-Z projections need (DESIGN §8.2): clear depth to 0 and test {@code GL_GEQUAL}
+     * ({@link PipelineState#OPAQUE} does). Call once after creating the context.
+     */
+    public void useReversedZ() {
+        dev.jeddy.gl.ffi.GL46.glClipControl(
+                dev.jeddy.gl.ffi.GL46.GL_LOWER_LEFT, dev.jeddy.gl.ffi.GL46.GL_ZERO_TO_ONE);
+        dev.jeddy.gl.ffi.GL46.glClearDepthf(0f);
+    }
+
     /** 256 bytes of scratch for GL out-parameters (names); main thread only. */
     MemorySegment scratch() {
         return scratch;

@@ -76,6 +76,15 @@ public final class RenderPacket {
     /** The game frame that produced this packet. */
     public long frame;
 
+    /** Debug lines: x0 y0 z0 x1 y1 z1 per line ({@code DebugDraw.collect} fills them). */
+    public float[] debugLines = new float[6 * 256];
+
+    /** Debug line colors, {@code 0xAARRGGBB}. */
+    public int[] debugColors = new int[256];
+
+    /** Number of debug lines. */
+    public int debugLineCount;
+
     /** Creates a packet for {@code capacity} instances (grows on demand). */
     public RenderPacket(int capacity) {
         allocate(Math.max(16, capacity));
@@ -95,6 +104,17 @@ public final class RenderPacket {
     /** Empties the packet before the game thread fills it. */
     public void reset() {
         count = 0;
+        debugLineCount = 0;
+    }
+
+    /** Sets the debug line count, growing the arrays if needed. */
+    public void resizeDebugLines(int n) {
+        if (n > debugColors.length) {
+            int cap = Math.max(n, debugColors.length * 2);
+            debugLines = Arrays.copyOf(debugLines, cap * 6);
+            debugColors = Arrays.copyOf(debugColors, cap);
+        }
+        debugLineCount = n;
     }
 
     /** Returns the number of instances. */

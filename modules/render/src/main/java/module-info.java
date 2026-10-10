@@ -10,8 +10,11 @@ module dev.jeddy.render {
     requires transitive dev.jeddy.asset;
 
     exports dev.jeddy.render;
+    exports dev.jeddy.render.camera;
+    exports dev.jeddy.render.debug;
     exports dev.jeddy.render.draw;
     exports dev.jeddy.render.gpu;
+    exports dev.jeddy.render.graph;
     exports dev.jeddy.render.mesh;
     exports dev.jeddy.render.shader;
 }
