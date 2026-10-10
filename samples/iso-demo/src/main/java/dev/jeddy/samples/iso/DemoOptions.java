@@ -1,5 +1,7 @@
 package dev.jeddy.samples.iso;
 
+import dev.jeddy.asset.Vfs;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -26,6 +28,7 @@ import java.nio.file.Path;
  *                         with SDL_VIDEO_DRIVER=dummy)
  *   --warmup-frames N     perf: also wait this many frames before measuring (default 600)
  *   --alloc-probe         perf: attribute game-thread allocation to systems in the report
+ *   --quit-after-first-frame  prints the time from JVM start to the first frame, then quits
  *   --fail-on KEYS        perf: exit with code 4 if these budgets fail (comma separated: game,
  *                         main, gpu, alloc, gc, load)
  * </pre>
@@ -52,6 +55,7 @@ final class DemoOptions {
     boolean headless;
     int warmupFrames = 600;
     boolean allocProbe;
+    boolean quitAfterFirstFrame;
     java.util.List<String> failOn = java.util.List.of();
 
     boolean perf() {
@@ -104,6 +108,7 @@ final class DemoOptions {
                 case "--profiler" -> o.profiler = true;
                 case "--headless" -> o.headless = true;
                 case "--alloc-probe" -> o.allocProbe = true;
+                case "--quit-after-first-frame" -> o.quitAfterFirstFrame = true;
                 case "--warmup-frames" -> o.warmupFrames = Integer.parseInt(value(args, ++i, a));
                 case "--fail-on" -> o.failOn = java.util.List.of(value(args, ++i, a).split(","));
                 case "--help", "-h" -> {
@@ -130,8 +135,16 @@ final class DemoOptions {
         return args[i];
     }
 
-    /** Looks for packed, then loose cooked assets from the sample or the repository root. */
+    /**
+     * Looks for {@code -Djeddy.assets.dir}, then the paks of an installed image ({@code
+     * -Djeddy.app.dir}, set by the packaged launchers; {@link Vfs#contentDirectory}), then packed
+     * and loose cooked assets of the sample or the repository root.
+     */
     private static Path findAssets() {
+        Path content = Vfs.contentDirectory(null);
+        if (content != null) {
+            return content;
+        }
         for (String base : new String[] {"build", "samples/iso-demo/build"}) {
             Path paks = Path.of(base, "paks");
             if (Files.isDirectory(paks)) {

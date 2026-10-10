@@ -29,7 +29,7 @@ abstract class SpscLongPad2 extends SpscLongProducer {
 
 /**
  * Lock-free single-producer, single-consumer ring of {@code long}s (DESIGN §4.5). Moves fixed-size
- * records atomically: {@link #offer(int[], int, int)} publishes all {@code n} values or none, so
+ * records atomically: {@link #offer(long[], int, int)} publishes all {@code n} values or none, so
  * the consumer never sees half a record. Used for profiler records and timestamps.
  *
  * <p>Thread ownership: exactly one producer thread calls {@code offer}; exactly one consumer thread

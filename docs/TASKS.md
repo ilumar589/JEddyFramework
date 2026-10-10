@@ -161,14 +161,14 @@ The tracks are *mostly* independent. Dotted edges are the few late cross-track d
 - [x] **M10-03** Gameplay slice: 6-member party, click-to-move with formations, box select, camera controls, pause (RTwP) · L · Deps: M10-02, M8-09
 - [x] **M10-04** Combat slice: 64 enemies pathing and avoiding, AoE targeting decal + overlap query, spell lights, fog of war, turn-based movement-range overlay · L · Deps: M10-03, M7-07, M7-10, M8-12 · *Fireball with particles and positional sound; torches with shadows*
 - [x] **M10-05** Perf scene and automated capture (10-minute run): frame times, GC logs, allocation, GPU timings checked against the §14 budgets. Write a fix list · M · Deps: M10-04 · *`--perf` / `PerfCapture`, `--headless`; CI `perf` job; results and fix list in docs/perf/m10.md*
-- [ ] **M10-06** Fix-list burn-down until all budgets pass · L · Deps: M10-05 · *In progress: F1–F9 fixed; the CPU budgets pass (game thread p99 4.6 ms with 300 agents, 0 B steady state, no GC in 10 minutes, area load 0.46 s). Main-thread and GPU budgets need a run on the reference hardware (docs/perf/m10.md, O1–O2)*
+- [ ] **M10-06** Fix-list burn-down until all budgets pass · L · Deps: M10-05 · *In progress: F1–F10 fixed; the CPU budgets pass (game thread p99 4.6 ms with 300 agents, 0 B steady state, no GC in 10 minutes, area load 0.46 s). Main-thread and GPU budgets need a run on the reference hardware (docs/perf/m10.md, O1–O2)*
 
 ## M11: Hardening and distribution
-- [ ] **M11-01** `jlink` runtime image plus `jpackage` (Windows installer and Linux package) · M
-- [ ] **M11-02** AOT cache training run in packaging (`-XX:AOTCacheOutput`). Check compatibility with the chosen GC and measure cold start · M · AC: ≤ 1.5 s to first frame
-- [ ] **M11-03** Nightly JMH with regression thresholds, allocation test sweep · M
-- [ ] **M11-04** Javadoc site, module READMEs, a getting-started guide for game projects · M
-- [ ] **M11-05** Versioning and publishing (Maven local, then GitHub Packages or Central) · S
+- [x] **M11-01** `jlink` runtime image plus `jpackage` (Windows installer and Linux package) · M · *`jlinkRuntime` → `distImage` (runtime with natives in `lib/jeddy/natives`, launchers, paks) → `distImageZip` / `jpackage` (app image, `deb`, `msi`/`exe` with WiX); CI `package` job on both OSes (D71)*
+- [x] **M11-02** AOT cache training run in packaging (`-XX:AOTCacheOutput`). Check compatibility with the chosen GC and measure cold start · M · AC: ≤ 1.5 s to first frame · *Trained by a headless run of the image with the launchers' flags, works with ZGC; first frame 0.45 s with the cache vs 0.75–0.95 s without (headless), 1.2 s vs 1.67 s on llvmpipe; CI measures both on each OS. GL program binaries cached per user (D72, D73). The reference-PC number stays open with docs/perf/m10.md O1*
+- [x] **M11-03** Nightly JMH with regression thresholds, allocation test sweep · M · *`nightly.yml`: full JMH with `-prof gc` checked by `jmh-check.py` against `bench/baseline/<platform>.json` (25%, 16 B/op for hot paths) and the 10-minute perf capture; the baseline is written by a manual run (D77)*
+- [x] **M11-04** Javadoc site, module READMEs, a getting-started guide for game projects · M · *`:site:javadocSite` and `docs.yml` (Pages when enabled), READMEs for the 13 runtime modules, docs/getting-started.md with `samples/game-template` and the `dev.jeddy.game` plugin, built and run by CI as a composite build (D75, D76)*
+- [x] **M11-05** Versioning and publishing (Maven local, then GitHub Packages or Central) · S · *`jeddy.version` in gradle.properties; `dev.jeddy:jeddy-*` with sources and Javadoc jars, plus the Gradle plugins; `publishToMavenLocal`, GitHub Packages from `release.yml` on `v*` tags (D74). Central needs a license and the namespace*
 
 ---
 

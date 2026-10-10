@@ -181,7 +181,7 @@ Keep `ValueLayout` and `VarHandle` constants in `static final` fields.
 - Launcher defaults: `-XX:+UseZGC` (generational), `-Xms = -Xmx` (fixed heap), `-XX:+AlwaysPreTouch`, `-Djava.lang.invoke.MethodHandle.CUSTOMIZE_THRESHOLD=-1` (D69). G1 (the JDK 27 default) is the supported alternative. Compact object headers are on by default in 27.
 - JIT-friendly code: `final` classes, small hot methods (stay under the inlining thresholds), no megamorphic interface calls in inner loops (switch on an `int` kind instead), `Float.floatToFloat16` intrinsics. Avoid `Math.fma` in kernels: without hardware FMA it falls back to a very slow software path.
 - Determinism: all Java floating point is strict (JDK 17+). Gameplay code that needs bit-exact results across machines uses `StrictMath` for transcendentals.
-- **Startup:** an AOT cache (JEP 483/514/515: `-XX:AOTCacheOutput` training run during packaging; JEP 516 in JDK 26 made the AOT object cache work with any GC, ZGC included), a `jlink` runtime image and lazy class init of binding holders.
+- **Startup:** an AOT cache (JEP 483/514/515: `-XX:AOTCacheOutput` training run during packaging; JEP 516 in JDK 26 made the AOT object cache work with any GC, ZGC included), a `jlink` runtime image and lazy class init of binding holders. Measured on a 2-vCPU container (D72): the iso demo reaches its first frame in about 0.45 s with the cache and 0.75–0.95 s without (headless), and 1.2 s against 1.67 s on Mesa llvmpipe; the reference PC is still to measure. GL program binaries are cached per user (D73).
 
 ### 4.7 Measuring (no optimization without numbers)
 - `bench/` holds JMH benchmarks for collections, math kernels, FFM call overhead, the job system, culling, sort, pathfinding, BVH queries and zstd.
@@ -528,25 +528,38 @@ JeddyFramework/
 │     ├─ jeddy.native-library.gradle.kts # java-library with javac's `restricted` lint off, for FFM modules and modules whose tests load natives (app)
 │     ├─ jeddy.ffm-bindings.gradle.kts   # regenerate<Lib>Bindings tasks (jextract), src/ffi/java source set
 │     ├─ jeddy.gl-bindings.gradle.kts    # GenerateGlBindings task wired into sourceSets (M3-01)
-│     ├─ jeddy.application.gradle.kts    # launcher JVM flags (ZGC, native access; AOT cache in M11)
+│     ├─ jeddy.application.gradle.kts    # programs in this repo: launcher flags, natives, packaging (jlink, image, AOT, jpackage)
+│     ├─ jeddy.publishing.gradle.kts     # maven-publish as dev.jeddy:jeddy-<name>; GitHub Packages with credentials
+│     ├─ jeddy.site.gradle.kts           # aggregated Javadoc site (tools/site)
 │     ├─ jeddy.jmh.gradle.kts            # hand-wired JMH `jmh` task
-│     └─ dev/jeddy/gradle/*.kt           # task and extension classes
+│     ├─ dev.jeddy.assets.gradle.kts     # game projects: cookAssets, packAssets
+│     ├─ dev.jeddy.game.gradle.kts       # game projects: application + assets + launcher flags + packaging
+│     └─ dev/jeddy/gradle/*.kt           # task and extension classes (Applications.kt, Packaging.kt, ...)
 ├─ bindings/                      # *.includes for jextract, gl/gl.xml, gl/gl.properties
 ├─ natives/                       # CMake superbuild + natives-windows-x64, natives-linux-x64 packaging
 ├─ modules/
 │  ├─ core/  math/  compress/  sdl/  gl/  window/  input/
 │  ├─ render/  asset/  audio/  physics/  scene/  app/
-├─ tools/cooker/
-├─ bench/
-├─ samples/iso-demo/
-└─ docs/  DESIGN.md  TASKS.md  adr/
+├─ tools/cooker/  tools/site/
+├─ bench/  bench/baseline/          # JMH and the nightly baseline
+├─ samples/iso-demo/  samples/hello-triangle/
+├─ samples/game-template/         # a standalone game build (composite), docs/getting-started.md
+└─ docs/  DESIGN.md  TASKS.md  getting-started.md  adr/  perf/
 ```
 
 - `settings.gradle.kts` maps **short project paths** to the nested folders (`include(":core")` with `project(":core").projectDir = file("modules/core")`). Tasks are therefore `:core:test`, `:sdl:regenerateBindings`, `:cooker:run` and `:bench:jmh`.
 - Each module script has **one line that applies a convention plugin**, plus its `dependencies {}` block. Artifacts are named `jeddy-<name>`.
 - `gradle.properties`: `org.gradle.configuration-cache=true`, `org.gradle.caching=true`, `org.gradle.parallel=true`.
-- **CI**: GitHub Actions on [github.com/ilumar589/JEddyFramework](https://github.com/ilumar589/JEddyFramework), with a matrix of `windows-latest` and `ubuntu-latest`. It runs build, unit tests, allocation tests and headless SDL tests (`SDL_VIDEO_DRIVER=dummy`). GPU tests run on a self-hosted runner or locally. JMH smoke runs on PRs, and a full JMH run is nightly with regression thresholds.
-- Formatting: Spotless with google-java-format or palantir-java-format, plus `.editorconfig`.
+- **CI**: GitHub Actions on [github.com/ilumar589/JEddyFramework](https://github.com/ilumar589/JEddyFramework). `ci.yml` on every push and PR: build and tests on `windows-latest` and `ubuntu-latest` (headless SDL, allocation tests, the asset cook), GPU tests and demo smoke runs on Mesa llvmpipe under Xvfb, the two-minute perf capture (§13.3), packaging on both OSes with a cold-start measurement, the game template as a separate composite build, and JMH smoke runs. `nightly.yml`: full JMH with `-prof gc` against the committed baseline (D77) and the ten-minute perf capture. `docs.yml`: the Javadoc site (D76). `release.yml`: tags `v*` publish and attach the demo images (D74). GPU budgets need real hardware (docs/perf/m10.md, O1).
+- Formatting: Spotless with google-java-format (AOSP style), plus `.editorconfig`.
+
+### Packaging, publishing and game projects (M11)
+- **Image** (`distImage`, D71): `jlinkRuntime` links the application's modules into a trimmed runtime (`--strip-debug --no-header-files --no-man-pages --compress zip-6`) and extracts the platform's natives into `runtime/lib/jeddy/natives`, where `NativeLoader` looks when `jeddy.natives.dir` is unset. The image adds launchers (`bin/<name>` and `bin/<name>.bat` with the launcher flags and `-Djeddy.app.dir`), the content directories (paks) and `aot/<name>.aot`. `distImageZip` zips it as `<name>-<version>-<platform>.zip`.
+- **AOT cache** (D72): `distImage` runs the image once with `-XX:AOTCacheOutput` and the launchers' exact flags, configured by `jeddyPackaging { trainingArguments; trainingJvmArguments; trainingEnvironment }`; `-Pjeddy.aot=false` skips it. The iso demo trains headless, so build machines need no GPU.
+- **Installers**: `jpackage` wraps the same image (`--runtime-image`, `--app-content`; `$APPDIR` in the Java options): an app image by default, `-Pjeddy.package.type=deb|rpm|msi|exe`.
+- **Publishing** (D74): libraries, the cooker, the natives jars (`jeddy-natives-<platform>`) and the Gradle plugins (`jeddy-gradle-plugins` plus plugin markers) publish as `dev.jeddy:jeddy-<name>` at `jeddy.version` with sources and Javadoc jars: `publishToMavenLocal` for local games, GitHub Packages from the release workflow. Applications keep their natives in a `jeddyNatives` configuration outside published metadata.
+- **Game projects** (D75): the `dev.jeddy.game` plugin applies `application` and `dev.jeddy.assets`, compiles for 27, adds the natives and cooker at the plugin's own version, runs with the launcher flags (`run` packs first and sets `jeddy.app.dir=build`) and registers the packaging tasks. `Vfs.contentDirectory` and `Vfs.mountContent` find and mount a game's paks the same way under `run` and in an image. `samples/game-template` is such a project, built by CI as a composite build of the checkout; `docs/getting-started.md` walks through it.
+- **Docs** (D76): every library's Javadoc (`-Xdoclint:all,-missing`) feeds `:site:javadocSite` (`tools/site/build/site`) with an index page; module READMEs give the key types and threading of each module.
 
 ### Perf budgets (to calibrate in M10; reference PC: 8-core desktop CPU, GTX 1660 / RX 6600 class, 1080p, 60 FPS)
 | Budget | Target |
@@ -655,3 +668,10 @@ JeddyFramework/
 | 2026-10-10 | D68 | Demo content is KayKit (CC0) fetched at pinned commits and assembled by a script into one level glTF (4 m grid, node-name prefixes drive collision, navmesh, fading and shadows) plus one glTF per character with animations stripped (no animation module yet; characters show their bind pose). The generated files are committed so builds need no network |
 | 2026-10-10 | D69 | Launchers disable method-handle customization (`java.lang.invoke.MethodHandle.CUSTOMIZE_THRESHOLD=-1`): the JDK compiles a hidden class for a handle at its 127th call from interpreted or C1 code, and for natives called a few times a second (audio 3D positions) that came minutes into the perf run as 40–150 KB of garbage. Our downcall handles are `static final`, so C2 inlines them either way; an unknown property is ignored, so a JDK that drops it costs nothing |
 | 2026-10-10 | D70 | The perf capture logs the JIT's compilations (`jcmd VM.log` through the DiagnosticCommand MBean) and reports a second-half allocating frame within 500 ms of a C2 compile as JIT warm-up, not as a failure. A thread that requests a C2 compile resolves every string literal of the method's class on the spot (HotSpot `CompileBroker::compile_method`), so the first C2 compile of a class allocates its unresolved literals (hundreds of bytes to a few KB, once) on whichever thread triggered it. Methods called once per frame reach C2 after about 5000 calls, 80–90 s into a 60 fps run, and rarely called classes minutes later, so no fixed warm-up avoids it; an AOT cache did not either (module-path classes). Any other allocation still fails |
+| 2026-10-10 | D71 | One image layout for every distribution: a `jlink` runtime with the natives extracted into `runtime/lib/jeddy/natives` (`NativeLoader` falls back to `${java.home}/lib/jeddy/natives`, so no temp-dir extraction and no `jeddy.natives.dir` in launchers), generated `sh`/`bat` launchers, content directories and the AOT cache. `jpackage` wraps that image with `--runtime-image` and `--app-content` instead of linking its own runtime |
+| 2026-10-10 | D72 | The AOT cache is trained at packaging time by one run of the finished image with the launchers' exact JVM flags; the `--enable-native-access` list is filtered to the modules in the runtime (from its `release` file), because a cache trained with different flags is rejected. The iso demo trains headless (`--headless --quit-after 4 --no-audio`), so any build machine can produce it. CI measures cold start with and without the cache on both OSes |
+| 2026-10-10 | D73 | `WorldRenderer` caches linked GL program binaries by default under the per-user cache directory (`-Djeddy.shader.cache`, else `%LOCALAPPDATA%\Jeddy\shaders`, `$XDG_CACHE_HOME/jeddy/shaders` or `~/.cache/jeddy/shaders`), keyed by driver identity and preprocessed source. An empty `-Djeddy.shader.cache=` turns it off; drivers without binary formats (Mesa llvmpipe) skip it |
+| 2026-10-10 | D74 | Publishing: `dev.jeddy:jeddy-<name>` at `jeddy.version` for libraries, the cooker, natives jars and the Gradle plugins, with sources and Javadoc jars; `publishToMavenLocal` for local work and GitHub Packages on `v*` tags (the release writes the tag's version into `gradle.properties`, which the plugins bake in). Maven Central waits for a license and the `dev.jeddy` namespace. Applications put their natives in a `jeddyNatives` configuration that published metadata does not see, so the cooker's POM never names one platform's natives |
+| 2026-10-10 | D75 | Game projects get one plugin, `dev.jeddy.game` (application, asset cooking, launcher flags, natives and cooker at the plugin's version, packaging), shared with the repository's own programs through `configureJeddyApplication`. Until releases are published they build against a checkout as a composite build (`includeBuild` of the framework and of `build-logic`); the template substitutes the framework's projects for `dev.jeddy:jeddy-<name>` (Gradle matches included builds by project name, which lacks the `jeddy-` prefix). CI builds, packages and runs `samples/game-template` that way. `-Djeddy.app.quitAfterFrames` (`AppConfig.quitAfterFrames`) lets CI run a packaged game for a few frames |
+| 2026-10-10 | D76 | The Javadoc site is aggregated from the libraries' own `javadoc` outputs through a consumable configuration (usage `jeddy-javadoc-site`), not one combined javadoc run, so each module keeps its JPMS view; doclint runs with `all,-missing` (prose documents behaviour, a `@param` per argument would mostly repeat names). `docs.yml` deploys to GitHub Pages only when the repository variable `PAGES_ENABLED` is `true` |
+| 2026-10-10 | D77 | Nightly JMH compares every score against a committed baseline per platform (`bench/baseline/linux-x64.json`, written by a manual run with `write-baseline`) with a 25% threshold, wide because shared runners are noisy, and sweeps `-prof gc`: benchmarks of hot paths must stay under 16 B/op (JMH's own noise). The ten-minute perf capture runs nightly with `--fail-on alloc,game` |

@@ -8,10 +8,7 @@ import dev.jeddy.window.VSync;
 import dev.jeddy.window.WindowConfig;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
-import java.util.stream.Stream;
 
 /**
  * Isometric integration demo and performance scene (TASKS M10): a six-member party in a KayKit
@@ -88,17 +85,7 @@ public final class IsoDemo {
     /** Mounts every pak in {@code dir}, or the directory itself as a loose cooked tree. */
     private static Vfs mount(Path dir) throws IOException {
         Vfs vfs = new Vfs();
-        List<Path> paks;
-        try (Stream<Path> s = Files.list(dir)) {
-            paks = s.filter(p -> p.getFileName().toString().endsWith(".jpak")).sorted().toList();
-        }
-        if (paks.isEmpty()) {
-            vfs.mountDirectory(dir);
-        } else {
-            for (Path p : paks) {
-                vfs.mountPak(p);
-            }
-        }
+        vfs.mountContent(dir);
         return vfs;
     }
 }

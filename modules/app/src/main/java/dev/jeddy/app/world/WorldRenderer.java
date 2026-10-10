@@ -25,6 +25,8 @@ import dev.jeddy.render.mesh.MeshRegistry;
 import dev.jeddy.render.shader.EngineShaders;
 import dev.jeddy.render.shader.ProgramCache;
 
+import java.nio.file.Path;
+
 /**
  * The main-thread half of a game built on {@link World} (TASKS M10-02): creates the GL device, mega
  * buffers, shader cache and {@link SceneRenderer} once the window exists, opens the asset manager
@@ -52,6 +54,7 @@ public final class WorldRenderer implements FrameRenderer {
         int debugLinesPerThread = 1 << 14;
         Hud hud;
         int overlayGlyphs = 8192;
+        Path shaderCache = defaultShaderCache();
 
         /** Creates the defaults. */
         public Config() {}
@@ -81,6 +84,16 @@ public final class WorldRenderer implements FrameRenderer {
         public Config hud(Hud value, int maxGlyphs) {
             hud = value;
             overlayGlyphs = maxGlyphs;
+            return this;
+        }
+
+        /**
+         * Sets where linked shader programs are cached between runs ({@code null}: no cache). The
+         * default is {@code -Djeddy.shader.cache}, else {@code jeddy/shaders} in the user's cache
+         * directory ({@code %LOCALAPPDATA%}, {@code $XDG_CACHE_HOME} or {@code ~/.cache}).
+         */
+        public Config shaderCache(Path dir) {
+            shaderCache = dir;
             return this;
         }
 
@@ -132,6 +145,23 @@ public final class WorldRenderer implements FrameRenderer {
         this.vfs = vfs;
         this.packets = packets;
         this.config = config;
+    }
+
+    private static Path defaultShaderCache() {
+        String explicit = System.getProperty("jeddy.shader.cache");
+        if (explicit != null) {
+            return explicit.isBlank() ? null : Path.of(explicit);
+        }
+        String local = System.getenv("LOCALAPPDATA");
+        if (local != null && !local.isBlank()) {
+            return Path.of(local, "Jeddy", "shaders");
+        }
+        String xdg = System.getenv("XDG_CACHE_HOME");
+        if (xdg != null && !xdg.isBlank()) {
+            return Path.of(xdg, "jeddy", "shaders");
+        }
+        String home = System.getProperty("user.home");
+        return home == null ? null : Path.of(home, ".cache", "jeddy", "shaders");
     }
 
     @Override

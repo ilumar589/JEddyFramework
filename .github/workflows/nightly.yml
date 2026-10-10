@@ -1,0 +1,101 @@
+name: Nightly
+
+# TASKS M11-03: full JMH with regression thresholds and an allocation sweep, and the 10-minute
+# perf capture of the iso demo (game thread, headless). Also runnable by hand.
+on:
+  schedule:
+    - cron: '23 2 * * *'
+  workflow_dispatch:
+    inputs:
+      write-baseline:
+        description: 'Write bench/baseline/linux-x64.json from this run (uploaded as an artifact)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  jmh:
+    name: JMH (full, -prof gc)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '27'
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      - name: Install Xvfb and Mesa
+        run: sudo apt-get update -q && sudo apt-get install -y -q xvfb libgl1-mesa-dri libglx-mesa0
+
+      - name: Run JMH
+        env:
+          SDL_VIDEO_DRIVER: x11
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          MESA_GL_VERSION_OVERRIDE: '4.6'
+          MESA_GLSL_VERSION_OVERRIDE: '460'
+        run: xvfb-run -a ./gradlew :bench:jmh "-Pjmh.args=-prof gc"
+
+      - name: Check regressions and allocation
+        run: |
+          args=""
+          if [ "${{ inputs.write-baseline }}" = "true" ]; then args="--write-baseline"; fi
+          python3 .github/scripts/jmh-annotate.py bench/build/reports/jmh/results.json
+          python3 .github/scripts/jmh-check.py bench/build/reports/jmh/results.json bench/baseline/linux-x64.json $args
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jmh-nightly
+          path: |
+            bench/build/reports/jmh/results.json
+            bench/baseline/linux-x64.json
+          if-no-files-found: ignore
+          retention-days: 90
+
+  perf:
+    name: Perf scene (10 minutes, headless)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SDL_VIDEO_DRIVER: dummy
+      SDL_AUDIO_DRIVER: dummy
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '27'
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      - name: Perf capture
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p samples/iso-demo/build/perf
+          ./gradlew :iso-demo:run -Pjeddy.jvmArgs="-Xlog:gc*:file=build/perf/gc.log" \
+            --args="--headless --perf 600 --warmup 60 --alloc-probe --report build/perf --fail-on alloc,game" 2>&1 | tee perf.log
+
+      - name: Report
+        if: always()
+        shell: bash
+        run: |
+          if [ -f samples/iso-demo/build/perf/perf.md ]; then cat samples/iso-demo/build/perf/perf.md >> "$GITHUB_STEP_SUMMARY"; fi
+          python3 .github/scripts/perf-annotate.py samples/iso-demo/build/perf/perf.json || true
+
+      - name: Upload the perf report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-nightly
+          path: samples/iso-demo/build/perf/
+          if-no-files-found: ignore
+          retention-days: 90

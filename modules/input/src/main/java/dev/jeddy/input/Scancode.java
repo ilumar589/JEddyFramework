@@ -3,7 +3,7 @@ package dev.jeddy.input;
 /**
  * Physical key positions ({@code SDL_Scancode} values), generated from {@code SDL_scancode.h}.
  * Bindings use scancodes, so WASD stays in place on AZERTY or Dvorak layouts; {@link
- * Input#keyLabel(int)} gives the layout's label for display.
+ * KeyLabels#label(int)} gives the layout's label for display.
  *
  * <p>{@link #name(int)} and {@link #fromName(String)} give stable names for settings files (the SDL
  * constant without its {@code SDL_SCANCODE_} prefix, for example {@code LSHIFT}).
