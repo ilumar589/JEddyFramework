@@ -100,7 +100,8 @@ class AssetManagerTest {
                     h[i] = bytes.load("asset/" + i + ".bin", 8 - i); // the last is most urgent
                     assertEquals(AssetState.QUEUED, bytes.state(h[i]));
                 }
-                int again = bytes.load("ASSET/3.bin", 100); // a less urgent request keeps the priority
+                int again =
+                        bytes.load("ASSET/3.bin", 100); // a less urgent request keeps the priority
                 assertEquals(h[3], again);
                 assertEquals(2, bytes.refCount(h[3]));
                 await(m, () -> m.queuedCount() == 0 && m.inFlightCount() == 0);

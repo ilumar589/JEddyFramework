@@ -8,4 +8,5 @@ dependencies {
     implementation(project(":gl"))
     implementation(project(":window"))
     implementation(project(":compress"))
+    implementation(project(":asset"))
 }

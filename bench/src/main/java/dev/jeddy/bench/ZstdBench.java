@@ -18,9 +18,13 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
@@ -28,7 +32,8 @@ import java.util.concurrent.TimeUnit;
  * zstd throughput through the FFM facade on 8 MiB of asset-like data (TASKS M4-01): divide 8 MiB by
  * the time per operation for MB/s and compare with {@code zstd -b<level>} on the same machine. The
  * facade only adds a fixed ~20 ns per call, so the goal (within 10 % of the CLI) is about reusing
- * contexts, not about FFM.
+ * contexts, not about FFM. With {@code JEDDY_ZSTD_CORPUS} set, the corpus is also written to that
+ * file for {@code zstd -b}.
  */
 @State(Scope.Thread)
 @BenchmarkMode(Mode.AverageTime)
@@ -67,6 +72,14 @@ public class ZstdBench {
         }
         for (int i = SIZE * 3 / 4; i < SIZE; i++) {
             src.set(ValueLayout.JAVA_BYTE, i, (byte) r.nextInt());
+        }
+        String corpus = System.getenv("JEDDY_ZSTD_CORPUS"); // for the CLI comparison in CI
+        if (corpus != null && level == 1) {
+            try {
+                Files.write(Path.of(corpus), src.toArray(ValueLayout.JAVA_BYTE));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
         packed = arena.allocate(Zstd.compressBound(SIZE), 64);
         out = arena.allocate(SIZE, 64);
