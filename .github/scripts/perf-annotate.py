@@ -21,4 +21,8 @@ if halves:
     lines.append("Second-half allocation by thread: " + ", ".join(f"{k} {v:.0f} B" for k, v in halves.items()))
 if perf.get("allocationEvents"):
     lines.append("Allocating frames: " + perf["allocationEvents"])
+if perf.get("jitAllocationEvents"):
+    lines.append("JIT warm-up (excused, DESIGN D70): " + perf["jitAllocationEvents"])
+if perf.get("jitLog"):
+    lines.append("JIT log: " + str(perf["jitLog"]))
 print("::notice title=Perf capture::" + "%0A".join(lines))

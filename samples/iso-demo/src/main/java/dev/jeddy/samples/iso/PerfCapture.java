@@ -22,7 +22,9 @@ import java.util.Map;
  * {@code perf.json} and {@code perf.md}. Steady-state allocation is judged on the second half of
  * the window: the first absorbs one-time effects that the JIT does on its own schedule
  * (deoptimization, D66). The allocation counters are read on every recorded frame, on the frame's
- * regular path, so the measurement adds no rarely-taken branch that would itself deoptimize.
+ * regular path, so the measurement adds no rarely-taken branch that would itself deoptimize. An
+ * allocating frame in the second half that coincides with a C2 compilation in the {@link JitLog} is
+ * reported as JIT warm-up rather than failed (D70).
  *
  * <p>Thread ownership: the game thread records its frames and opens and closes the window; the main
  * thread records its frames (the {@code measuring} flag travels with each frame's HUD slot, so both
@@ -43,6 +45,7 @@ final class PerfCapture {
     private int gameFrames;
     private final long[] gameAllocated;
     private final long[] workerAllocated;
+    private final long[] gameStamp;
     private long[] workerIds = new long[0];
     private long gcCountStart;
     private long gcMillisStart;
@@ -54,6 +57,11 @@ final class PerfCapture {
     private long gcPauseMillisEnd;
     private long startNanos;
     private long endNanos;
+    private long uptimeOriginNanos;
+
+    /** The run's {@link JitLog}, or {@code null} to judge allocation strictly. */
+    Path jitLog;
+
     long loadNanos;
     int agents;
     int instances;
@@ -68,6 +76,7 @@ final class PerfCapture {
 
     // Main thread.
     private final long[] mainAllocated;
+    private final long[] mainStamp;
     private int mainAllocFrames;
     private final long[] mainNanos;
     private final float[] gpuMillis;
@@ -82,7 +91,9 @@ final class PerfCapture {
         gameNanos = new long[capacity];
         gameAllocated = new long[capacity];
         workerAllocated = new long[capacity];
+        gameStamp = new long[capacity];
         mainAllocated = new long[capacity];
+        mainStamp = new long[capacity];
         mainNanos = new long[capacity];
         gpuMillis = new float[capacity];
     }
@@ -111,7 +122,9 @@ final class PerfCapture {
         gcPauseMillisStart = gc[3];
         workerSum(); // links the counter calls before the first recorded frame
         currentThreadAllocated();
+        long uptime = ManagementFactory.getRuntimeMXBean().getUptime();
         startNanos = System.nanoTime();
+        uptimeOriginNanos = startNanos - uptime * 1_000_000L;
     }
 
     /** Bytes allocated so far by every job worker (one id at a time: no garbage). */
@@ -132,6 +145,7 @@ final class PerfCapture {
             gameNanos[gameFrames] = nanos;
             gameAllocated[gameFrames] = currentThreadAllocated();
             workerAllocated[gameFrames] = workerSum();
+            gameStamp[gameFrames] = System.nanoTime();
             gameFrames++;
         }
         instanceSum += frameInstances;
@@ -152,7 +166,9 @@ final class PerfCapture {
     /** Main thread: records its allocation counter for a measured frame (headless runs too). */
     void recordMainAllocation() {
         if (mainAllocFrames < capacity) {
-            mainAllocated[mainAllocFrames++] = currentThreadAllocated();
+            mainAllocated[mainAllocFrames] = currentThreadAllocated();
+            mainStamp[mainAllocFrames] = System.nanoTime();
+            mainAllocFrames++;
         }
     }
 
@@ -252,25 +268,54 @@ final class PerfCapture {
         for (int i = 0; i < threadNames.length; i++) {
             alloc.put(threadNames[i], (double) byThread[i][0]);
         }
+        List<JitLog.Compile> compiles =
+                jitLog != null && Files.isRegularFile(jitLog) ? JitLog.read(jitLog) : List.of();
+        // Second-half allocating frames, unexplained (failures) and at C2 compiles (JIT warm-up).
         int allocatingFrames = 0;
+        int mainAllocating = 0;
+        int jitFrames = 0;
+        long jitBytes = 0;
+        long unexplained = 0;
         StringBuilder events = new StringBuilder();
-        for (int f = Math.max(1, gameFrames / 2); f < gameFrames; f++) {
+        StringBuilder jitEvents = new StringBuilder();
+        for (int f = gameFrames / 2 + 1; f < gameFrames; f++) {
             long g = gameAllocated[f] - gameAllocated[f - 1];
             long w = workerAllocated[f] - workerAllocated[f - 1];
-            if (g != 0 || w != 0) {
-                allocatingFrames++;
-                if (allocatingFrames <= 8) {
-                    events.append(fmt("game frame %d: game %d B, workers %d B; ", f, g, w));
+            if (g == 0 && w == 0) {
+                continue;
+            }
+            JitLog.Compile c =
+                    JitLog.explain(
+                            compiles, uptimeMillis(gameStamp[f - 1]), uptimeMillis(gameStamp[f]));
+            String what = fmt("game frame %d: game %d B, workers %d B", f, g, w);
+            if (c != null) {
+                jitFrames++;
+                jitBytes += g + w;
+                jitEvents.append(jitNote(what, c));
+            } else {
+                unexplained += g + w;
+                if (++allocatingFrames <= 8) {
+                    events.append(what).append("; ");
                 }
             }
         }
-        int mainAllocating = 0;
-        for (int f = Math.max(1, mainAllocFrames / 2); f < mainAllocFrames; f++) {
+        for (int f = mainAllocFrames / 2 + 1; f < mainAllocFrames; f++) {
             long m = mainAllocated[f] - mainAllocated[f - 1];
-            if (m != 0) {
-                mainAllocating++;
-                if (mainAllocating <= 8) {
-                    events.append(fmt("main frame %d of %d: %d B; ", f, mainAllocFrames, m));
+            if (m == 0) {
+                continue;
+            }
+            JitLog.Compile c =
+                    JitLog.explain(
+                            compiles, uptimeMillis(mainStamp[f - 1]), uptimeMillis(mainStamp[f]));
+            String what = fmt("main frame %d of %d: %d B", f, mainAllocFrames, m);
+            if (c != null) {
+                jitFrames++;
+                jitBytes += m;
+                jitEvents.append(jitNote(what, c));
+            } else {
+                unexplained += m;
+                if (++mainAllocating <= 8) {
+                    events.append(what).append("; ");
                 }
             }
         }
@@ -299,14 +344,19 @@ final class PerfCapture {
         json.put("allocatedBytes", alloc);
         json.put("allocatedBytesPerFrame", bytesPerFrame);
         json.put("allocatedBytesSecondHalf", (double) allocSecondHalf);
+        json.put("allocatedBytesSecondHalfUnexplained", (double) unexplained);
         json.put("allocatingFramesSecondHalf", (double) allocatingFrames);
         json.put("mainAllocatingFramesSecondHalf", (double) mainAllocating);
+        json.put("jitAllocatingFramesSecondHalf", (double) jitFrames);
+        json.put("allocatedBytesSecondHalfJit", (double) jitBytes);
+        json.put("jitLog", jitLog == null ? "none" : compiles.size() + " C2 compiles");
         Map<String, Object> halves = new LinkedHashMap<>();
         for (int i = 0; i < threadNames.length; i++) {
             halves.put(threadNames[i], (double) byThread[i][1]);
         }
         json.put("allocatedBytesSecondHalfByThread", halves);
         json.put("allocationEvents", events.toString());
+        json.put("jitAllocationEvents", jitEvents.toString());
         Map<String, Object> gc = new LinkedHashMap<>();
         gc.put("collections", (double) gcCount);
         gc.put("collectionMs", (double) gcMillis);
@@ -349,14 +399,19 @@ final class PerfCapture {
                         "0 B/frame",
                         fmt(
                                 "%d B in the second half, %d game and %d main frames allocating"
-                                        + " (%.2f B/frame over all %d frames, %d B)",
-                                allocSecondHalf,
+                                        + "%s (%.2f B/frame over all %d frames, %d B)",
+                                unexplained,
                                 allocatingFrames,
                                 mainAllocating,
+                                jitFrames == 0
+                                        ? ""
+                                        : fmt(
+                                                "; JIT warm-up: %d B in %d frames at C2 compiles",
+                                                jitBytes, jitFrames),
                                 bytesPerFrame,
                                 frames,
                                 allocTotal),
-                        allocSecondHalf == 0));
+                        unexplained == 0));
         rows.add(
                 row(
                         "gc",
@@ -425,6 +480,12 @@ final class PerfCapture {
         if (!events.isEmpty()) {
             md.append("\nAllocating frames in the second half: ").append(events).append('\n');
         }
+        if (!jitEvents.isEmpty()) {
+            md.append("\nJIT warm-up in the second half (a C2 compile request resolves its class's")
+                    .append(" string literals on the requesting thread, D70): ")
+                    .append(jitEvents)
+                    .append('\n');
+        }
         md.append(notes);
         Files.writeString(dir.resolve("perf.md"), md.toString());
         List<String> failed = new ArrayList<>();
@@ -434,6 +495,19 @@ final class PerfCapture {
             }
         }
         return new Report(md.toString(), failed);
+    }
+
+    private long uptimeMillis(long nanos) {
+        return (nanos - uptimeOriginNanos) / 1_000_000L;
+    }
+
+    private static String jitNote(String what, JitLog.Compile c) {
+        return fmt(
+                "%s at %.1f s, C2 compile of %s%s; ",
+                what,
+                c.uptimeMillis() / 1000.0,
+                c.method(),
+                c.firstC2OfClass() ? " (its class's first)" : "");
     }
 
     /** Bytes over all {@code n} recorded frames and over the second half of them. */

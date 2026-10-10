@@ -36,6 +36,11 @@ public final class IsoDemo {
         RenderPackets packets = new RenderPackets(8192);
         DemoHud hud = new DemoHud();
         PerfCapture perf = new PerfCapture(options.perf() ? 1 << 18 : 1, options.headless);
+        if (options.perf()) {
+            // Tells JIT warm-up from engine allocation in the report (D70).
+            Path jit = options.report.resolve("jit.log");
+            perf.jitLog = JitLog.start(jit) ? jit : null;
+        }
         DemoRenderer renderer = new DemoRenderer(vfs, packets, options, hud, perf);
         DemoGame game = new DemoGame(options, packets, renderer, hud, perf);
         AppConfig config =

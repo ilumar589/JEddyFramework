@@ -166,8 +166,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
 
       # TASKS M10-05: 300 agents, fireballs, fog of war and 16k props, two minutes after a warm-up.
-      # Allocation fails the job; times are reported (shared runners are noisy). GPU budgets need
-      # real hardware and are not measured here.
+      # Allocation fails the job, except at C2 compiles in the run's JIT log (D70); times are
+      # reported (shared runners are noisy). GPU budgets need real hardware.
       - name: Perf capture
         shell: bash
         run: |
