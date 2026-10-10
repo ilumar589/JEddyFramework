@@ -25,6 +25,36 @@ public final class GpuFramebuffers {
     }
 
     /**
+     * Creates a framebuffer that renders into one layer (mip 0) of a 2D array color texture
+     * (texture blits, atlas updates).
+     */
+    public int createColorLayer(int colorTexture, int layer, String label) {
+        MemorySegment ids = device.scratch();
+        glCreateFramebuffers(1, ids);
+        int name = ids.get(ValueLayout.JAVA_INT, 0);
+        glNamedFramebufferTextureLayer(
+                name, GL_COLOR_ATTACHMENT0, device.textures().glName(colorTexture), 0, layer);
+        glNamedFramebufferDrawBuffer(name, GL_COLOR_ATTACHMENT0);
+        int status = glCheckNamedFramebufferStatus(name, GL_FRAMEBUFFER);
+        if (status != GL_FRAMEBUFFER_COMPLETE) {
+            ids.set(ValueLayout.JAVA_INT, 0, name);
+            glDeleteFramebuffers(1, ids);
+            throw new IllegalStateException(
+                    label + " is incomplete: 0x" + Integer.toHexString(status));
+        }
+        if (label != null) {
+            GLDebug.label(GL_FRAMEBUFFER, name, label);
+        }
+        int h = handles.allocate();
+        int i = Handles.index(h);
+        if (i >= names.length) {
+            names = Arrays.copyOf(names, Math.max(i + 1, names.length * 2));
+        }
+        names[i] = name;
+        return h;
+    }
+
+    /**
      * Creates a depth-only framebuffer rendering into one layer of an array texture (shadow
      * cascades) or level 0 of a 2D texture ({@code layer < 0}).
      */

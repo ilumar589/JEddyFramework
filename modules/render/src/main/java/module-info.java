@@ -12,6 +12,7 @@ module dev.jeddy.render {
     exports dev.jeddy.render;
     exports dev.jeddy.render.camera;
     exports dev.jeddy.render.debug;
+    exports dev.jeddy.render.decal;
     exports dev.jeddy.render.draw;
     exports dev.jeddy.render.gpu;
     exports dev.jeddy.render.graph;

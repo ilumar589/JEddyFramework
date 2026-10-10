@@ -31,6 +31,9 @@ public final class RenderPacket {
     /** Instance flag: hovered or selected (outline pass). */
     public static final int FLAG_HIGHLIGHT = 8;
 
+    /** Instance flag: decals do not project onto it (characters, props standing in AoE areas). */
+    public static final int FLAG_NO_DECALS = 16;
+
     private int capacity;
     private int count;
 
@@ -162,6 +165,7 @@ public final class RenderPacket {
         count = 0;
         debugLineCount = 0;
         lightCount = 0;
+        decalCount = 0;
     }
 
     private int nextLight() {
@@ -241,6 +245,208 @@ public final class RenderPacket {
      */
     public void setLightShadow(int i, int key) {
         lights[i * LIGHT_FLOATS + 14] = Float.intBitsToFloat(key);
+    }
+
+    /** Decal shape: a texture from the decal array ({@link #setDecalTexture}). */
+    public static final int DECAL_TEXTURE = 0;
+
+    /**
+     * Decal shape: a ring (selection circle); p0 inner radius (fraction of the outer), p1 edge
+     * softness (meters).
+     */
+    public static final int DECAL_RING = 1;
+
+    /** Decal shape: a disc (circular AoE); p1 outline width (meters), fill opacity inside. */
+    public static final int DECAL_DISC = 2;
+
+    /**
+     * Decal shape: a cone from the center along local +Z (yaw 0 = world +Z); p0 half-angle
+     * (radians), p1 outline width (meters), fill opacity inside.
+     */
+    public static final int DECAL_CONE = 3;
+
+    /** Decal shape: a rectangle (line AoE); p1 outline width (meters), fill opacity inside. */
+    public static final int DECAL_LINE = 4;
+
+    /**
+     * Floats per decal in {@link #decals} (the GPU layout of {@code engine/decals.glsl}): world to
+     * local box rows (12; the box is [-1, 1]³), bounding sphere (4), color rgba (4), shape (int
+     * bits), p0, p1, emission, fill, texture layer, 0, 0.
+     */
+    public static final int DECAL_FLOATS = 28;
+
+    /** Decals projected downward onto opaque surfaces, {@link #DECAL_FLOATS} floats each. */
+    public float[] decals = new float[DECAL_FLOATS * 16];
+
+    /** Number of decals. */
+    public int decalCount;
+
+    /**
+     * Adds a decal: a box centered at {@code (x, y, z)}, {@code halfWidth} along its local X,
+     * {@code halfDepth} vertically (how far above and below the center it projects) and {@code
+     * halfLength} along its local Z, turned by {@code yaw} radians about +Y. Surfaces inside the
+     * box facing up take its shape in color {@code (r, g, b)} (linear, may exceed 1 when emissive)
+     * with opacity {@code a}. Shapes {@link #DECAL_DISC}, {@link #DECAL_CONE} and {@link
+     * #DECAL_LINE} default to a 5 cm outline and 30% fill; {@link #DECAL_RING} to an inner radius
+     * of 0.85.
+     *
+     * @return the decal index ({@link #setDecalShape}, {@link #setDecalEmission}, ...)
+     */
+    public int addDecal(
+            int shape,
+            float x,
+            float y,
+            float z,
+            float halfWidth,
+            float halfDepth,
+            float halfLength,
+            float yaw,
+            float r,
+            float g,
+            float b,
+            float a) {
+        if ((decalCount + 1) * DECAL_FLOATS > decals.length) {
+            decals = Arrays.copyOf(decals, decals.length * 2);
+        }
+        int o = decalCount * DECAL_FLOATS;
+        float[] d = decals;
+        float c = (float) Math.cos(yaw);
+        float sn = (float) Math.sin(yaw);
+        float iw = 1f / halfWidth;
+        float ih = 1f / halfDepth;
+        float il = 1f / halfLength;
+        // Local X = (cos, 0, -sin), Y = up, Z = (sin, 0, cos); rows map world to [-1, 1].
+        d[o] = c * iw;
+        d[o + 1] = 0;
+        d[o + 2] = -sn * iw;
+        d[o + 3] = -(c * x - sn * z) * iw;
+        d[o + 4] = 0;
+        d[o + 5] = ih;
+        d[o + 6] = 0;
+        d[o + 7] = -y * ih;
+        d[o + 8] = sn * il;
+        d[o + 9] = 0;
+        d[o + 10] = c * il;
+        d[o + 11] = -(sn * x + c * z) * il;
+        d[o + 12] = x;
+        d[o + 13] = y;
+        d[o + 14] = z;
+        d[o + 15] =
+                (float)
+                        Math.sqrt(
+                                halfWidth * halfWidth
+                                        + halfDepth * halfDepth
+                                        + halfLength * halfLength);
+        d[o + 16] = r;
+        d[o + 17] = g;
+        d[o + 18] = b;
+        d[o + 19] = a;
+        d[o + 20] = Float.intBitsToFloat(shape);
+        d[o + 21] = shape == DECAL_RING ? 0.85f : 0f;
+        d[o + 22] = shape == DECAL_RING ? 0.02f : 0.05f;
+        d[o + 23] = 0;
+        d[o + 24] = 0.3f;
+        d[o + 25] = 0;
+        d[o + 26] = 0;
+        d[o + 27] = 0;
+        return decalCount++;
+    }
+
+    /** Sets a decal's shape parameters (see the {@code DECAL_*} shapes) and interior opacity. */
+    public void setDecalShape(int decal, float p0, float p1, float fill) {
+        int o = decal * DECAL_FLOATS;
+        decals[o + 21] = p0;
+        decals[o + 22] = p1;
+        decals[o + 24] = fill;
+    }
+
+    /**
+     * Sets how much of a decal's color is emitted (0: it tints the surface, which is then lit; 1:
+     * it glows on top, visible in darkness, like selection circles).
+     */
+    public void setDecalEmission(int decal, float emission) {
+        decals[decal * DECAL_FLOATS + 23] = emission;
+    }
+
+    /** Sets the decal texture layer of a {@link #DECAL_TEXTURE} decal ({@code DecalTextures}). */
+    public void setDecalTexture(int decal, int layer) {
+        decals[decal * DECAL_FLOATS + 25] = layer;
+    }
+
+    /**
+     * Adds a selection circle: an emissive ring of {@code radius} on the ground at {@code (x, y,
+     * z)}.
+     */
+    public int addSelectionCircle(
+            float x, float y, float z, float radius, float r, float g, float b, float a) {
+        int d = addDecal(DECAL_RING, x, y, z, radius, 0.5f, radius, 0, r, g, b, a);
+        setDecalEmission(d, 1);
+        return d;
+    }
+
+    /** Adds a circular area-of-effect template. */
+    public int addAoeCircle(
+            float x, float y, float z, float radius, float r, float g, float b, float a) {
+        int d = addDecal(DECAL_DISC, x, y, z, radius, 1f, radius, 0, r, g, b, a);
+        setDecalShape(d, 0, 0.06f, 0.3f);
+        setDecalEmission(d, 1);
+        return d;
+    }
+
+    /**
+     * Adds a cone template from {@code (x, y, z)} towards {@code yaw} (0 = +Z), {@code length} long
+     * with half-angle {@code halfAngle} radians.
+     */
+    public int addAoeCone(
+            float x,
+            float y,
+            float z,
+            float yaw,
+            float length,
+            float halfAngle,
+            float r,
+            float g,
+            float b,
+            float a) {
+        int d = addDecal(DECAL_CONE, x, y, z, length, 1f, length, yaw, r, g, b, a);
+        setDecalShape(d, halfAngle, 0.04f, 0.3f);
+        setDecalEmission(d, 1);
+        return d;
+    }
+
+    /** Adds a line template from {@code (x0, z0)} to {@code (x1, z1)} at height {@code y}. */
+    public int addAoeLine(
+            float x0,
+            float z0,
+            float x1,
+            float z1,
+            float y,
+            float width,
+            float r,
+            float g,
+            float b,
+            float a) {
+        float dx = x1 - x0;
+        float dz = z1 - z0;
+        float half = Math.max(1e-3f, (float) Math.sqrt(dx * dx + dz * dz) * 0.5f);
+        float yaw = (float) Math.atan2(dx, dz);
+        int d =
+                addDecal(
+                        DECAL_LINE,
+                        (x0 + x1) * 0.5f,
+                        y,
+                        (z0 + z1) * 0.5f,
+                        width * 0.5f,
+                        1f,
+                        half,
+                        yaw,
+                        r,
+                        g,
+                        b,
+                        a);
+        setDecalShape(d, 0, 0.05f, 0.3f);
+        setDecalEmission(d, 1);
+        return d;
     }
 
     /** Bumped by the game whenever static geometry changes (invalidates cached shadow maps). */

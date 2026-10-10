@@ -21,6 +21,8 @@ import java.lang.foreign.ValueLayout;
  * or viewport changes; another assigns the frame's lights to clusters every frame, writing an
  * (offset, count) range per cluster into a shared index list. The forward shader walks only its
  * cluster's lights, so thousands of spell lights cost what the handful near each pixel costs.
+ * Decals (TASKS M7-07) share the grid: a cluster's list holds its lights, then its decals, and the
+ * count packs both (lights in the low 16 bits, decals in the high 16).
  *
  * <p>Thread ownership: the GL thread.
  */
@@ -42,6 +44,9 @@ public final class LightClusters implements AutoCloseable {
 
     /** Storage binding of the cluster bounds. */
     public static final int BOUNDS_BINDING = 7;
+
+    /** Storage binding of the decal array. */
+    public static final int DECALS_BINDING = 6;
 
     /** Average light references per cluster the index list has room for. */
     public static final int AVERAGE_PER_CLUSTER = 48;
@@ -66,6 +71,9 @@ public final class LightClusters implements AutoCloseable {
     private long lightsOffset;
     private long lightsBytes;
     private int lightCount;
+    private long decalsOffset;
+    private long decalsBytes;
+    private int decalCount;
     private int width;
     private int height;
 
@@ -121,15 +129,33 @@ public final class LightClusters implements AutoCloseable {
     }
 
     /**
-     * Copies the packet's lights into the frame ring (they are already in the GPU layout).
+     * Copies the packet's lights and decals into the frame ring (they are already in the GPU
+     * layout).
      *
-     * @return {@code false} if the ring is full (no lights this frame)
+     * @return {@code false} if the ring is full (no lights or decals this frame)
      */
     public boolean upload(RenderPacket p, FrameRing ring) {
+        int align = device.caps().shaderStorageBufferOffsetAlignment();
+        decalCount = p.decalCount;
+        decalsBytes = Math.max(112L, (long) p.decalCount * RenderPacket.DECAL_FLOATS * 4);
+        decalsOffset = ring.allocate(decalsBytes, align);
+        if (decalsOffset < 0) {
+            decalCount = 0;
+            lightCount = 0;
+            return false;
+        }
+        if (p.decalCount > 0) {
+            MemorySegment.copy(
+                    p.decals,
+                    0,
+                    ring.memory(),
+                    ValueLayout.JAVA_FLOAT,
+                    decalsOffset,
+                    p.decalCount * RenderPacket.DECAL_FLOATS);
+        }
         lightCount = p.lightCount;
         lightsBytes = Math.max(64L, (long) p.lightCount * RenderPacket.LIGHT_FLOATS * 4);
-        lightsOffset =
-                ring.allocate(lightsBytes, device.caps().shaderStorageBufferOffsetAlignment());
+        lightsOffset = ring.allocate(lightsBytes, align);
         if (lightsOffset < 0) {
             lightCount = 0;
             return false;
@@ -156,6 +182,11 @@ public final class LightClusters implements AutoCloseable {
         return lightCount;
     }
 
+    /** Returns the decal count to put in the frame constants (0 if the upload failed). */
+    public int frameDecalCount() {
+        return decalCount;
+    }
+
     /**
      * Recomputes the bounds if the projection changed, then assigns lights to clusters. The frame
      * constants (binding 0) must be bound.
@@ -179,19 +210,16 @@ public final class LightClusters implements AutoCloseable {
         header.set(ValueLayout.JAVA_INT, 0, 0);
         header.set(ValueLayout.JAVA_INT, 4, capacity);
         device.buffers().update(itemsBuffer, 0, header);
-        state.bindStorage(LIGHTS_BINDING, ring.glName(), lightsOffset, lightsBytes);
-        state.bindStorage(
-                RANGES_BINDING, device.buffers().glName(rangesBuffer), 0, (long) clusters * 8);
-        state.bindStorage(
-                ITEMS_BINDING, device.buffers().glName(itemsBuffer), 0, 16 + (long) capacity * 4);
+        bind(state, ring);
         state.useProgram(programs.getBlocking(cullProgram, 0));
         glDispatchCompute(groups, 1, 1);
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
     }
 
-    /** Binds the lights, ranges and index list for shading. */
+    /** Binds the lights, decals, ranges and index list for shading. */
     public void bind(StateCache state, FrameRing ring) {
         state.bindStorage(LIGHTS_BINDING, ring.glName(), lightsOffset, lightsBytes);
+        state.bindStorage(DECALS_BINDING, ring.glName(), decalsOffset, decalsBytes);
         state.bindStorage(
                 RANGES_BINDING, device.buffers().glName(rangesBuffer), 0, (long) clusters * 8);
         state.bindStorage(

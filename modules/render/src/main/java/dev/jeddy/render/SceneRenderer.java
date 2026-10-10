@@ -4,6 +4,7 @@ import static dev.jeddy.gl.ffi.GL46.*;
 
 import dev.jeddy.core.job.JobSystem;
 import dev.jeddy.math.Mat4Ops;
+import dev.jeddy.render.decal.DecalTextures;
 import dev.jeddy.render.draw.Culling;
 import dev.jeddy.render.draw.DrawBuilder;
 import dev.jeddy.render.gpu.FrameRing;
@@ -51,6 +52,7 @@ public final class SceneRenderer implements AutoCloseable {
      * @param sunShadows cascade settings, or {@code null} for no sun shadows
      * @param localShadows spot and point shadow atlas settings, or {@code null} for none
      * @param ambientOcclusion half-resolution GTAO settings, or {@code null} for none
+     * @param decalTextureSize layer size of the decal texture array, or 0 for no decals
      * @param post bloom, exposure, tone mapping, grading and anti-aliasing settings
      */
     public record Config(
@@ -59,8 +61,9 @@ public final class SceneRenderer implements AutoCloseable {
             SunShadows.Config sunShadows,
             LocalShadows.Config localShadows,
             Gtao.Config ambientOcclusion,
+            int decalTextureSize,
             PostProcess.Config post) {
-        /** 32 MiB per frame, 256 materials, default shadows, ambient occlusion and post. */
+        /** 32 MiB per frame, 256 materials, shadows, AO, 256² decal textures, default post. */
         public static final Config DEFAULT =
                 new Config(
                         32L << 20,
@@ -68,6 +71,7 @@ public final class SceneRenderer implements AutoCloseable {
                         SunShadows.Config.DEFAULT,
                         LocalShadows.Config.DEFAULT,
                         Gtao.Config.DEFAULT,
+                        256,
                         PostProcess.Config.DEFAULT);
 
         /** Checks that the post settings are present. */
@@ -78,19 +82,49 @@ public final class SceneRenderer implements AutoCloseable {
         /** Returns a copy with other sun shadow settings ({@code null} turns them off). */
         public Config withSunShadows(SunShadows.Config value) {
             return new Config(
-                    ringBytesPerFrame, maxMaterials, value, localShadows, ambientOcclusion, post);
+                    ringBytesPerFrame,
+                    maxMaterials,
+                    value,
+                    localShadows,
+                    ambientOcclusion,
+                    decalTextureSize,
+                    post);
         }
 
         /** Returns a copy with other local shadow settings ({@code null} turns them off). */
         public Config withLocalShadows(LocalShadows.Config value) {
             return new Config(
-                    ringBytesPerFrame, maxMaterials, sunShadows, value, ambientOcclusion, post);
+                    ringBytesPerFrame,
+                    maxMaterials,
+                    sunShadows,
+                    value,
+                    ambientOcclusion,
+                    decalTextureSize,
+                    post);
         }
 
         /** Returns a copy with other ambient occlusion settings ({@code null} turns it off). */
         public Config withAmbientOcclusion(Gtao.Config value) {
             return new Config(
-                    ringBytesPerFrame, maxMaterials, sunShadows, localShadows, value, post);
+                    ringBytesPerFrame,
+                    maxMaterials,
+                    sunShadows,
+                    localShadows,
+                    value,
+                    decalTextureSize,
+                    post);
+        }
+
+        /** Returns a copy with another decal texture size (0 turns decals off). */
+        public Config withDecalTextureSize(int value) {
+            return new Config(
+                    ringBytesPerFrame,
+                    maxMaterials,
+                    sunShadows,
+                    localShadows,
+                    ambientOcclusion,
+                    value,
+                    post);
         }
 
         /** Returns a copy with other post-processing settings. */
@@ -101,6 +135,7 @@ public final class SceneRenderer implements AutoCloseable {
                     sunShadows,
                     localShadows,
                     ambientOcclusion,
+                    decalTextureSize,
                     value);
         }
     }
@@ -115,6 +150,7 @@ public final class SceneRenderer implements AutoCloseable {
     private final LocalShadows localShadows;
     private final Gtao gtao;
     private final PostProcess post;
+    private final DecalTextures decalTextures;
     private final FrameRing ring;
     private final Culling culling;
     private final DrawBuilder draws;
@@ -183,6 +219,13 @@ public final class SceneRenderer implements AutoCloseable {
                 programs.define(
                         "sky", "engine/fullscreen.vert", "pbr/sky.frag", ShaderFeatures.NONE);
         post = new PostProcess(device, programs, config.post(), emptyVao);
+        decalTextures =
+                config.decalTextureSize() <= 0
+                        ? null
+                        : new DecalTextures(device, programs, config.decalTextureSize(), emptyVao);
+        if (decalTextures != null) {
+            materials.setGlobalFeatures(materials.globalFeatures() | MaterialSystem.DECALS);
+        }
 
         graph = new FrameGraph(device);
         hdr = graph.texture("hdr", GL_RGBA16F, 1f);
@@ -256,6 +299,11 @@ public final class SceneRenderer implements AutoCloseable {
     /** Returns the GL name of the blurred half-resolution AO target (0 when disabled). */
     public int aoTexture() {
         return gtao == null ? 0 : graph.glTexture(ao);
+    }
+
+    /** Returns the decal textures, or {@code null} when decals are off. */
+    public DecalTextures decalTextures() {
+        return decalTextures;
     }
 
     /** Returns the post-processing chain. */
@@ -368,7 +416,7 @@ public final class SceneRenderer implements AutoCloseable {
                 environment.levels(),
                 p.exposure);
         m.set(ValueLayout.JAVA_INT, o + 432, clusters.frameLightCount());
-        m.set(ValueLayout.JAVA_INT, o + 436, 0);
+        m.set(ValueLayout.JAVA_INT, o + 436, clusters.frameDecalCount());
         m.set(ValueLayout.JAVA_INT, o + 440, (int) frameNumber);
         m.set(ValueLayout.JAVA_INT, o + 444, p.orthographic ? 1 : 0);
         return o;
@@ -432,6 +480,9 @@ public final class SceneRenderer implements AutoCloseable {
         if (gtao != null) {
             gtao.bind(state, ctx.texture(ao));
         }
+        if (decalTextures != null) {
+            decalTextures.bind(state);
+        }
         environment.bind(state);
         clusters.bind(state, ring);
         if (sunShadows != null) {
@@ -464,6 +515,9 @@ public final class SceneRenderer implements AutoCloseable {
     public void close() {
         graph.close();
         post.close();
+        if (decalTextures != null) {
+            decalTextures.close();
+        }
         MemorySegment id = arena.allocate(4);
         id.set(ValueLayout.JAVA_INT, 0, emptyVao);
         glDeleteVertexArrays(1, id);

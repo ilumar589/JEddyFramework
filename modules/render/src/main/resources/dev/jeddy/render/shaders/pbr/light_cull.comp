@@ -1,7 +1,8 @@
 #version 460 core
-// Assigns lights to clusters (TASKS M7-03): one invocation per cluster tests every light's
-// bounding sphere (in view space) against the cluster's bounds and appends the hits to a global
-// index list. The counter at the start of the list buffer is cleared every frame.
+// Assigns lights and decals to clusters (TASKS M7-03, M7-07): one invocation per cluster tests
+// every light's and decal's bounding sphere (in view space) against the cluster's bounds and
+// appends the hits, lights first, to a global index list. The count packs lights (low 16 bits)
+// and decals (high 16). The counter at the start of the list buffer is cleared every frame.
 #include "/engine/frame.glsl"
 
 layout(local_size_x = 64) in;
@@ -15,6 +16,18 @@ struct JeddyLight {
 
 layout(std430, binding = 2) readonly buffer JeddyLights {
     JeddyLight jLights[];
+};
+
+struct JeddyDecal {
+    vec4 rows[3];
+    vec4 bounds;
+    vec4 color;
+    vec4 params;
+    vec4 extra;
+};
+
+layout(std430, binding = 6) readonly buffer JeddyDecals {
+    JeddyDecal jDecals[];
 };
 
 layout(std430, binding = 3) writeonly buffer JeddyClusterGrid {
@@ -33,7 +46,14 @@ layout(std430, binding = 7) readonly buffer JeddyClusterBounds {
     vec4 jBounds[];
 };
 
-const uint MAX_PER_CLUSTER = 128u;
+const uint MAX_LIGHTS_PER_CLUSTER = 128u;
+const uint MAX_DECALS_PER_CLUSTER = 32u;
+
+bool touches(vec3 center, float radius, vec3 lo, vec3 hi) {
+    vec3 c = (jView * vec4(center, 1.0)).xyz;
+    vec3 d = c - clamp(c, lo, hi);
+    return dot(d, d) <= radius * radius;
+}
 
 void main() {
     uint index = gl_GlobalInvocationID.x;
@@ -43,25 +63,32 @@ void main() {
     }
     vec3 lo = jBounds[index * 2u].xyz;
     vec3 hi = jBounds[index * 2u + 1u].xyz;
-    uint hits[MAX_PER_CLUSTER];
-    uint count = 0u;
-    uint lights = jCounts.x;
-    for (uint i = 0u; i < lights && count < MAX_PER_CLUSTER; i++) {
+    uint hits[MAX_LIGHTS_PER_CLUSTER + MAX_DECALS_PER_CLUSTER];
+    uint lights = 0u;
+    for (uint i = 0u; i < jCounts.x && lights < MAX_LIGHTS_PER_CLUSTER; i++) {
         vec4 pr = jLights[i].positionRange;
-        vec3 c = (jView * vec4(pr.xyz, 1.0)).xyz;
-        float r = pr.w > 0.0 ? pr.w : 1e30;
-        vec3 closest = clamp(c, lo, hi);
-        vec3 d = c - closest;
-        if (dot(d, d) <= r * r) {
-            hits[count++] = i;
+        if (touches(pr.xyz, pr.w > 0.0 ? pr.w : 1e30, lo, hi)) {
+            hits[lights++] = i;
         }
     }
+    uint decals = 0u;
+    for (uint i = 0u; i < jCounts.y && decals < MAX_DECALS_PER_CLUSTER; i++) {
+        vec4 b = jDecals[i].bounds;
+        if (touches(b.xyz, b.w, lo, hi)) {
+            hits[lights + decals++] = i;
+        }
+    }
+    uint count = lights + decals;
     uint offset = atomicAdd(jItemCount, count);
     if (offset + count > jItemCapacity) {
-        count = offset < jItemCapacity ? jItemCapacity - offset : 0u;
+        // Out of room: keep what fits, lights first.
+        uint room = offset < jItemCapacity ? jItemCapacity - offset : 0u;
+        lights = min(lights, room);
+        decals = min(decals, room - lights);
+        count = lights + decals;
     }
     for (uint k = 0u; k < count; k++) {
         jClusterLights[offset + k] = hits[k];
     }
-    jClusterRanges[index] = uvec2(offset + 4u, count);
+    jClusterRanges[index] = uvec2(offset + 4u, lights | decals << 16u);
 }

@@ -1,7 +1,8 @@
 #version 460 core
 // Forward+ PBR (TASKS M7-01, M7-02, M7-03; DESIGN §9.3): glTF metallic-roughness with GGX,
 // height-correlated Smith and Schlick terms, multiple-scattering energy compensation, the sun,
-// clustered point and spot lights, and image-based lighting from a prefiltered cube and SH9.
+// clustered point and spot lights, image-based lighting from a prefiltered cube and SH9, and
+// clustered decals (M7-07).
 #include "/engine/frame.glsl"
 #include "/engine/brdf.glsl"
 #include "/engine/material.glsl"
@@ -9,6 +10,9 @@
 #include "/engine/environment.glsl"
 #include "/engine/shadows.glsl"
 #include "/engine/effects.glsl"
+#if defined(DECALS) && !defined(ALPHA_BLEND)
+#include "/engine/decals.glsl"
+#endif
 
 layout(location = 0) in vec3 vWorld;
 layout(location = 1) in vec3 vNormal;
@@ -20,6 +24,11 @@ layout(location = 5) flat in uint vFlags;
 layout(location = 0) out vec4 outColor;
 
 void main() {
+    // Derivatives first, in uniform control flow (decals sample with explicit gradients).
+    vec3 dpdx = dFdx(vWorld);
+    vec3 dpdy = dFdy(vWorld);
+    float viewDepth = jeddyViewDepth(vWorld);
+    uvec2 range = jClusterRanges[jeddyClusterIndex(gl_FragCoord.xy, viewDepth)];
     JeddyMaterial m = jMaterials[vMaterial];
     vec4 base = m.baseColor;
 #ifdef BASE_COLOR_MAP
@@ -42,6 +51,17 @@ void main() {
 #endif
 #ifdef OCCLUSION_MAP
     occlusion = mix(1.0, texture(jOcclusionMap, vec3(jeddySlotUv(m, 4u, vUv), float(m.layers2.x))).r, m.pbr.w);
+#endif
+    vec3 decalGlow = vec3(0.0);
+#if defined(DECALS) && !defined(ALPHA_BLEND)
+    if ((vFlags & 16u) == 0u) { // RenderPacket.FLAG_NO_DECALS
+        JeddyDecalResult decal = jeddyDecals(range, vWorld, normalize(vNormal), dpdx, dpdy);
+        base.rgb = base.rgb * (1.0 - decal.tint.a) + decal.tint.rgb;
+        // Painted-on marks are matte and not metallic.
+        metallic *= 1.0 - decal.tint.a;
+        roughness = mix(roughness, 0.9, decal.tint.a);
+        decalGlow = decal.emitted;
+    }
 #endif
     roughness = clamp(roughness, 0.045, 1.0);
     metallic = clamp(metallic, 0.0, 1.0);
@@ -75,8 +95,7 @@ void main() {
     vec2 dfg = jeddyDfg(s.NoV, roughness);
     s.energy = 1.0 + s.f0 * (1.0 / max(dfg.x + dfg.y, 1e-4) - 1.0);
 
-    float viewDepth = jeddyViewDepth(vWorld);
-    vec3 color = vec3(0.0);
+    vec3 color = decalGlow;
 
     // Sun.
     if (jSunColor.w > 0.0) {
@@ -86,8 +105,8 @@ void main() {
     }
 
     // Clustered point and spot lights.
-    uvec2 range = jClusterRanges[jeddyClusterIndex(gl_FragCoord.xy, viewDepth)];
-    for (uint i = 0u; i < range.y; i++) {
+    uint lightCount = range.y & 0xFFFFu;
+    for (uint i = 0u; i < lightCount; i++) {
         JeddyLight light = jLights[jClusterLights[range.x + i]];
         vec3 toLight = light.positionRange.xyz - vWorld;
         float d2 = dot(toLight, toLight);
