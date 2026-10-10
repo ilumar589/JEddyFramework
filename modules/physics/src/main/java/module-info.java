@@ -6,6 +6,6 @@ module dev.jeddy.physics {
     requires transitive dev.jeddy.core;
     requires transitive dev.jeddy.math;
 
-// Exported together with the first public type (javac rejects exporting a package with no types):
-// exports dev.jeddy.physics;
+    exports dev.jeddy.physics.bvh;
+    exports dev.jeddy.physics.grid;
 }
