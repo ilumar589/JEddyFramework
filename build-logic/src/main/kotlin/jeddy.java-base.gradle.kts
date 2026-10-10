@@ -43,6 +43,10 @@ dependencies {
     "testImplementation"(platform(catalog.findLibrary("junit-bom").get()))
     "testImplementation"(catalog.findLibrary("junit-jupiter").get())
     "testRuntimeOnly"(catalog.findLibrary("junit-platform-launcher").get())
+    if (project.path != ":testing") {
+        // Shared test helpers, e.g. Allocations.assertNoAllocation (DESIGN §4.7).
+        "testImplementation"(project(":testing"))
+    }
 }
 
 tasks.withType<Test>().configureEach {

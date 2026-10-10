@@ -33,4 +33,5 @@ listOf(
 
 module("cooker", "tools/cooker")
 module("bench", "bench")
+module("testing", "testing")
 module("iso-demo", "samples/iso-demo")
