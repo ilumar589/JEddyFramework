@@ -12,4 +12,5 @@ dependencies {
     implementation(project(":scene"))
     implementation(project(":render"))
     implementation(project(":cooker"))
+    implementation(project(":physics"))
 }
