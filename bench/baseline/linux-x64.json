@@ -1,0 +1,223 @@
+{
+ "scores": {
+  "AssetBench.pakFind": {
+   "score": 58.50695950566201,
+   "unit": "ns/op"
+  },
+  "AssetBench.vfsRead64KiB": {
+   "score": 14819.417995392949,
+   "unit": "ns/op"
+  },
+  "AssetBench.vfsSize": {
+   "score": 5.50026032781262,
+   "unit": "ns/op"
+  },
+  "AudioBench.update64Moving": {
+   "score": 4.252697487958482,
+   "unit": "us/op"
+  },
+  "AudioBench.update64Still": {
+   "score": 1.7591055093517842,
+   "unit": "us/op"
+  },
+  "BaselineBench.baseline": {
+   "score": 0.5492589145931902,
+   "unit": "ns/op"
+  },
+  "CollectionsBench.arraysSort16k": {
+   "score": 687193.7314293308,
+   "unit": "ns/op"
+  },
+  "CollectionsBench.hashMapGet": {
+   "score": 26261.50550706534,
+   "unit": "ns/op"
+  },
+  "CollectionsBench.intIntMapGet": {
+   "score": 7850.264853364875,
+   "unit": "ns/op"
+  },
+  "CollectionsBench.radixSort16k": {
+   "score": 181497.14768022503,
+   "unit": "ns/op"
+  },
+  "DrawBench.cullAndBuild": {
+   "score": 761.8855704492531,
+   "unit": "us/op"
+  },
+  "DrawBench.cullBuildSubmit": {
+   "score": 4367.092846114524,
+   "unit": "us/op"
+  },
+  "DrawBench.gpuCullSubmit": {
+   "score": 4035.11578773481,
+   "unit": "us/op"
+  },
+  "DrawBench.gpuPrepare": {
+   "score": 3.0604448257621177,
+   "unit": "us/op"
+  },
+  "FfmBench.absCritical": {
+   "score": 2.7324529568531473,
+   "unit": "ns/op"
+  },
+  "FfmBench.absRegular": {
+   "score": 3.6238717434228973,
+   "unit": "ns/op"
+  },
+  "FfmBench.mat4CopyThenRegular": {
+   "score": 15.778099494789767,
+   "unit": "ns/op"
+  },
+  "FfmBench.mat4HeapCritical": {
+   "score": 5.4888852645257575,
+   "unit": "ns/op"
+  },
+  "FfmBench.mat4OffHeapCritical": {
+   "score": 5.142139999430517,
+   "unit": "ns/op"
+  },
+  "FfmBench.mat4OffHeapRegular": {
+   "score": 6.908236611488232,
+   "unit": "ns/op"
+  },
+  "GlBench.namedBufferSubData64": {
+   "score": 59.57836515936286,
+   "unit": "ns/op"
+  },
+  "GlBench.uniform4fCritical": {
+   "score": 17.706198118746613,
+   "unit": "ns/op"
+  },
+  "GlBench.uniform4fGenerated": {
+   "score": 17.501586759622025,
+   "unit": "ns/op"
+  },
+  "GlBench.uniform4fRegular": {
+   "score": 19.028345560229905,
+   "unit": "ns/op"
+  },
+  "GlBench.uniformMatrixCopyThenRegular": {
+   "score": 24.517575230108275,
+   "unit": "ns/op"
+  },
+  "GlBench.uniformMatrixHeapCritical": {
+   "score": 18.50028376220191,
+   "unit": "ns/op"
+  },
+  "GlBench.uniformMatrixOffHeapRegular": {
+   "score": 21.29926372029619,
+   "unit": "ns/op"
+  },
+  "JobBench.dispatchEmpty64": {
+   "score": 2.3895325679796526,
+   "unit": "us/op"
+  },
+  "JobBench.parallel1M": {
+   "score": 381.0389670029073,
+   "unit": "us/op"
+  },
+  "JobBench.sequential1M": {
+   "score": 869.8098912984724,
+   "unit": "us/op"
+  },
+  "MathBench.composeTRS10k": {
+   "score": 60.08970527297072,
+   "unit": "us/op"
+  },
+  "MathBench.concatenate10k": {
+   "score": 96.46934307664856,
+   "unit": "us/op"
+  },
+  "MathBench.cullSpheres10k": {
+   "score": 39.70056225486513,
+   "unit": "us/op"
+  },
+  "MathBench.mat4Mul": {
+   "score": 0.014748642118534872,
+   "unit": "us/op"
+  },
+  "PhysicsBench.crowd256": {
+   "score": 295.65788881913903,
+   "unit": "us/op"
+  },
+  "PhysicsBench.gridRebuild5k": {
+   "score": 70.93490031628137,
+   "unit": "us/op"
+  },
+  "PhysicsBench.paths1000Parallel": {
+   "score": 20.469900468913625,
+   "unit": "ms/op"
+  },
+  "PhysicsBench.paths1000Serial": {
+   "score": 53.79507912105263,
+   "unit": "ms/op"
+  },
+  "PhysicsBench.raycastTerrain": {
+   "score": 447.4134035693058,
+   "unit": "ns/op"
+  },
+  "TextureBindingBench.bindPerDraw": {
+   "score": 3872.7145281695657,
+   "unit": "us/op"
+  },
+  "TextureBindingBench.bindless": {
+   "score": 0.0005468361632455597,
+   "unit": "us/op"
+  },
+  "TextureBindingBench.textureArray": {
+   "score": 784.9565665524717,
+   "unit": "us/op"
+  },
+  "TextureCookBench.cook[size=2048]": {
+   "score": 894.5142179999999,
+   "unit": "ms/op"
+  },
+  "TextureCookBench.mips[size=2048]": {
+   "score": 29.035212666666666,
+   "unit": "ms/op"
+  },
+  "TransformBench.allDirty[parallel=false]": {
+   "score": 1822.0605959056961,
+   "unit": "us/op"
+  },
+  "TransformBench.allDirty[parallel=true]": {
+   "score": 1238.6432573409306,
+   "unit": "us/op"
+  },
+  "TransformBench.tenPercentOfRoots[parallel=false]": {
+   "score": 403.60886539652125,
+   "unit": "us/op"
+  },
+  "TransformBench.tenPercentOfRoots[parallel=true]": {
+   "score": 308.89723948145,
+   "unit": "us/op"
+  },
+  "ZstdBench.compress[level=19]": {
+   "score": 1904.5803947499999,
+   "unit": "ms/op"
+  },
+  "ZstdBench.compress[level=1]": {
+   "score": 20.117783369999998,
+   "unit": "ms/op"
+  },
+  "ZstdBench.compress[level=3]": {
+   "score": 24.309850470238096,
+   "unit": "ms/op"
+  },
+  "ZstdBench.decompress[level=19]": {
+   "score": 4.618451843317972,
+   "unit": "ms/op"
+  },
+  "ZstdBench.decompress[level=1]": {
+   "score": 6.882816765410959,
+   "unit": "ms/op"
+  },
+  "ZstdBench.decompress[level=3]": {
+   "score": 6.536392927871148,
+   "unit": "ms/op"
+  }
+ },
+ "thresholds": {
+  "default": 0.25
+ }
+}
