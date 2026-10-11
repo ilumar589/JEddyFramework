@@ -30,3 +30,24 @@ All native code is called through FFM (SDL3, SDL3_mixer, OpenGL 4.6 core, zstd, 
 - Javadoc on every public type states its **thread ownership** (which thread may call it).
 - All versions go in `gradle/libs.versions.toml`. Module build scripts only apply a `jeddy.*` convention plugin and declare dependencies.
 - When you deviate from DESIGN.md, update it (§17) in the same change.
+
+## Working with the owner from M13 on
+The owner is learning 3D math and OpenGL from this project and writes the next milestones' code
+themselves (their request, 2026-10-11).
+- **Picking the milestone.** When the owner comes back to start a milestone, first ask which option
+  from `docs/next-milestones.md` they want: use AskUserQuestion, mention the suggested learning
+  order and offer the warm-up tasks.
+- **Writing the tutorial.** For the chosen option, write a tutorial in
+  `docs/tutorials/m<NN>-<topic>.md` following "The tutorial format" in `docs/next-milestones.md`:
+  - theory with derivations and diagrams;
+  - step-by-step code with explanations;
+  - a check (test or demo run) after each step;
+  - pitfalls, allocation tests and benchmarks;
+  - exercises.
+
+  Also add the milestone's tasks to `docs/TASKS.md` and a planned design section to
+  `docs/DESIGN.md`.
+- **Not implementing it.** Do not implement the milestone in the codebase. Review the owner's code,
+  explain, help debug, and tick tasks when asked.
+- **Keeping the guide current.** The learning guide is `docs/learn/` (index: `docs/learn/README.md`).
+  When code that a chapter quotes or describes changes, update the chapter in the same change.

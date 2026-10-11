@@ -184,4 +184,6 @@ The tracks are *mostly* independent. Dotted edges are the few late cross-track d
 - [x] **M12-08** Docs: `animation` README, getting-started section, Javadoc site · S · Deps: M12-07 · *plus the README modules table, the app README and a new demo screenshot*
 
 ## Backlog (unscheduled)
-animation beyond M12: root-motion extraction, foot IK, additive layers, events, clip compression · declarative system scheduler (D67) · game UI / Dear ImGui debug UI via FFM · `rules` (Pathfinder-like) · save system · dialogue and quest scripting · VFX authoring · Tracy integration · LZ4 codec · BC6H via KTX v5 · Chase-Lev work stealing (if M1-07 shows contention) · `value record` migration once JEP 401 is final · Vector API once final · hierarchical pathfinding
+Each item is described, with a draft task list, in [next-milestones.md](next-milestones.md).
+
+animation beyond M12: root-motion extraction, foot IK, additive layers, events, clip compression · declarative system scheduler (D67) · game UI / Dear ImGui debug UI via FFM · `rules` (Pathfinder-like) · save system · dialogue and quest scripting · VFX authoring · Tracy integration · LZ4 codec · BC6H via KTX v5 · Chase-Lev work stealing (if M1-07 shows contention) · `value record` migration once JEP 401 is final · Vector API once final · hierarchical pathfinding · mirrored instances: front-face flip for negative-determinant transforms (DESIGN §9.2)
