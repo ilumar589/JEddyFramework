@@ -195,6 +195,15 @@ public final class WorldRenderer implements FrameRenderer {
     public void init(MainContext ctx) {
         caps = GLLoader.init(ctx.window()::glProcAddress);
         LOG.info("GL " + caps.version() + " on " + caps.renderer());
+        if (caps.driver() == GLCapabilities.Driver.INTEL
+                && System.getProperty("os.name", "").startsWith("Windows")) {
+            // A Java program cannot export NvOptimusEnablement, so a laptop with a discrete GPU
+            // runs it on the integrated one until the user says otherwise (docs/running.md).
+            LOG.warn(
+                    "running on the Intel GPU; a laptop with a discrete GPU uses it only when"
+                            + " java.exe is set to the high-performance GPU in Windows graphics"
+                            + " settings or the NVIDIA / AMD control panel");
+        }
         if (JeddyApp.GL_DEBUG) {
             boolean debugContext = GLDebug.enable(true);
             LOG.info(
