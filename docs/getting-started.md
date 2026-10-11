@@ -381,7 +381,68 @@ complete example, and [docs/learn/13-ui.md](learn/13-ui.md) explains the layout 
 pipeline. Fonts of your own go into the assets as `.ttf`/`.otf` files (a `<name>.ttf.meta`
 sidecar sets `"size"` and `"range"`) and load with `fonts.load("fonts/<name>")`.
 
-## 6. Run
+## 6. Levels and the editor
+
+A level is a `.jlevel` file (DESIGN §19, [docs/formats/jlevel.md](formats/jlevel.md)): placements
+of *prefabs* (named root nodes of a cooked scene, so one glTF library of pieces shares its
+textures), lights, spawn points, triggers, collision rules and settings. Put the library glTF and
+the level under `assets/levels/`; the cooker copies the level through and bakes its collision,
+navmeshes and occlusion grid from the placements. At runtime a `LevelLoader` puts the level into
+the world:
+
+```java
+private AssetType<LevelData> levels;
+private LevelLoader loader;
+
+@Override
+public void init(AppContext ctx) {
+    levels = renderer.assets().register("level", WorldAssets.levels());
+    levelHandle = levels.load("levels/crypt.jlevel");
+    loader = new LevelLoader(world, scenes);
+}
+
+@Override
+public void update(AppContext ctx, float dt, float alpha) {
+    if (loader.level() == null && levels.isReady(levelHandle)) loader.load(levels.get(levelHandle));
+    if (loader.update()) ready();                                // once, when every placement is in
+}
+
+@Override
+public void extract(AppContext ctx, int index) {
+    ...
+    loader.extractLights(p, time, 1);                            // the level's lights, torches flicker
+}
+```
+
+Spawn points and triggers are read from the `LevelData` (`spawnKind`, `triggerPayload`, ...) by
+the game. To edit a level inside the game, create an `Editor`, attach the world and the loader,
+open the level with the path of its *source* file, and drive it behind a key:
+
+```java
+private final Editor editor = new Editor();
+
+// once the level is in
+editor.attach(world, loader);
+editor.attachAssets(vfs, scenes);
+editor.open(loader.level(), Path.of("assets/levels/crypt.jlevel"));
+
+// every frame
+if (in.wasKeyPressed(Scancode.F10)) { editor.takeCameraFrom(camera); editor.setShown(!editor.isShown()); }
+if (editor.isShown()) editor.update(ctx, ui, dt); else handleInput(ctx);
+editor.declare(ui, w);                                           // after your own screens
+// in extract, after your debug lines:
+editor.extract(p);
+// and render with editor.camera() while it is shown
+```
+
+The editor adds its menu bar and panels over your screens, moves placements in the world as you
+drag them, and `Ctrl+S` writes the source `.jlevel`; the next cook re-bakes the physics. The same
+library runs standalone with the cooker watching your project:
+`./gradlew :editor-tool:run --args="--project assets --level levels/crypt.jlevel"`.
+[docs/learn/14-editor.md](learn/14-editor.md) explains the format, the commands and the gizmo
+math.
+
+## 7. Run
 
 ```
 ./gradlew run
@@ -394,7 +455,7 @@ finds the `paks/` folder of its image.
 For smoke tests and CI, `-Djeddy.app.quitAfterFrames=N` quits after N frames. A packaged game
 accepts it through the `JDK_JAVA_OPTIONS` environment variable.
 
-## 7. Package
+## 8. Package
 
 | Task | Output |
 |---|---|
@@ -423,7 +484,7 @@ skips training. The launchers use the cache when `aot/<name>.aot` exists and fal
 when it does not. The cache only loads with the exact JVM flags it was trained with, so leave the
 flags to the plugin.
 
-## 8. Performance rules
+## 9. Performance rules
 
 The framework's hot paths allocate nothing per frame (DESIGN §4). Games should follow the same
 rules in per-frame and per-tick code:

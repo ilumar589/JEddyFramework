@@ -33,6 +33,7 @@ background loading) and the app loop (30 Hz simulation, interpolated rendering, 
 | Space | pause (simulation stops; orders can still be given) |
 | F3 | profiler overlay (CPU threads, GPU passes) |
 | F12 | screenshot to `build/screenshots` |
+| F10 | the level editor over the running game (click selects, W/E/R gizmos, right drag orbits, Ctrl+Z, Ctrl+S saves `assets/levels/crypt.jlevel`; `--editor` opens it at start) |
 | Esc | cancel aiming, else quit |
 
 ## Performance capture
