@@ -14,7 +14,8 @@ package dev.jeddy.physics.nav.bake;
  * @param minRegionArea regions smaller than this many cells are dropped
  * @param mergeRegionArea regions smaller than this many cells merge into neighbours
  * @param maxEdgeLength longest polygon edge along borders (0: unlimited)
- * @param maxSimplificationError how far simplified contours may stray from the voxel border
+ * @param maxSimplificationError how far simplified contours may stray from the voxel border, in
+ *     cells (voxel widths, as in Recast)
  * @param maxVertsPerPoly vertices per polygon (3..6)
  */
 public record NavBakeConfig(

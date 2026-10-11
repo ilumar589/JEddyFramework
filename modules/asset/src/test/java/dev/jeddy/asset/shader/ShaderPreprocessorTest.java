@@ -50,6 +50,9 @@ class ShaderPreprocessorTest {
         assertTrue(s.contains("float D()"));
         assertEquals(List.of("pbr/lit.frag", "common/math.glsl", "pbr/brdf.glsl"), r.files());
         assertTrue(s.contains("#line 3 0\n"), "back in the main file after the first include");
+        // Included files restart the numbering, so compiler errors point into them.
+        assertTrue(s.contains("#line 1 1\n\nconst float PI"), s);
+        assertTrue(s.contains("#line 1 2\n"), s);
         String log = r.annotate("2(3) : error C0000: syntax error\n");
         assertTrue(log.contains("<- pbr/brdf.glsl"), log);
     }

@@ -98,6 +98,9 @@ public final class ShaderPreprocessor {
         int fileIndex = files.size();
         files.add(path);
         stack.add(path);
+        if (!main) {
+            out.append("#line 1 ").append(fileIndex).append('\n'); // errors point into this file
+        }
         String[] lines = text.split("\r?\n", -1);
         boolean versionSeen = !main;
         for (int i = 0; i < lines.length; i++) {

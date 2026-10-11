@@ -11,7 +11,7 @@ struct JeddyLight {
     vec4 positionRange;  // xyz world position, w range in meters (0 = unlimited)
     vec4 colorType;      // rgb linear color times intensity (candela), w type
     vec4 directionOuter; // xyz unit direction the spot points, w cos(outer angle)
-    vec4 params;         // x cos(inner angle), y shadow index (< 0: none), zw unused
+    vec4 params;         // x cos(inner angle), y shadow index (< 0: none), z CPU-side shadow key, w unused
 };
 
 layout(std430, binding = 2) readonly buffer JeddyLights {

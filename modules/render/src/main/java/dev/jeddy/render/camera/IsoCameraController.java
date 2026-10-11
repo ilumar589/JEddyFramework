@@ -53,6 +53,15 @@ public final class IsoCameraController {
         goalYaw = camera.yaw;
     }
 
+    /**
+     * Takes the camera's current distance (clamped to the zoom limits) and yaw as the goals, after
+     * the game set them directly; otherwise the smoothing glides back to the old goals.
+     */
+    public void syncGoals() {
+        goalDistance = MathF.clamp(camera.distance, minDistance, maxDistance);
+        goalYaw = camera.yaw;
+    }
+
     /** Returns the controlled camera. */
     public IsoCamera camera() {
         return camera;

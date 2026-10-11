@@ -6,7 +6,7 @@ package dev.jeddy.math;
  * columns; {@code a.mul(b)} applies {@code b} first.
  *
  * <p>Projections are reversed-Z with depth in {@code [0, 1]} (near maps to 1), for use with {@code
- * glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE)} and a {@code GL_GREATER} depth test.
+ * glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE)} and a {@code GL_GEQUAL} depth test.
  *
  * <p>Thread ownership: immutable.
  *
