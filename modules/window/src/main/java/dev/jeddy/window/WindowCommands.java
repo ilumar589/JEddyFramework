@@ -44,6 +44,9 @@ public final class WindowCommands implements MainThreadQueue.Handler {
     /** Raise the window and request focus. */
     public static final int RAISE = 10;
 
+    /** Puts the text requested through {@link Clipboard#request} on the clipboard. */
+    public static final int SET_CLIPBOARD = 11;
+
     /** Highest opcode reserved for {@code window}. */
     public static final int LAST = 63;
 
@@ -85,11 +88,17 @@ public final class WindowCommands implements MainThreadQueue.Handler {
             case SET_VSYNC -> window.setVSync(VSYNCS[a]);
             case SET_MOUSE_GRAB -> window.setMouseGrab(a != 0);
             case RAISE -> window.raise();
+            case SET_CLIPBOARD -> window.clipboard().push();
             default -> {
                 return false;
             }
         }
         return true;
+    }
+
+    /** Requests the clipboard write prepared by {@link Clipboard#request}. */
+    public static boolean postSetClipboard(MainThreadQueue queue) {
+        return queue.post(SET_CLIPBOARD);
     }
 
     /** Requests a cursor switch. */

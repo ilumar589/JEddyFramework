@@ -562,6 +562,20 @@ public final class Ui {
         fontTexture[font] = atlasTexture;
     }
 
+    /**
+     * Replaces a registered font's metrics and atlas (a font registered as a placeholder while its
+     * files load).
+     */
+    public void setFont(int font, FontData data, int atlasTexture) {
+        fontData[font] = data;
+        fontTexture[font] = atlasTexture;
+    }
+
+    /** Returns the atlas texture of a registered font. */
+    public int fontTexture(int font) {
+        return fontTexture[font];
+    }
+
     /** Returns the metrics of a registered font. */
     public FontData font(int font) {
         return fontData[font];

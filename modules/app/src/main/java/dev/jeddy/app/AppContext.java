@@ -8,6 +8,7 @@ import dev.jeddy.input.CrpgGestures;
 import dev.jeddy.input.Input;
 import dev.jeddy.input.KeyLabels;
 import dev.jeddy.input.VirtualCursor;
+import dev.jeddy.window.Clipboard;
 import dev.jeddy.window.MainThreadQueue;
 
 import java.io.IOException;
@@ -25,6 +26,7 @@ public final class AppContext {
     final CrpgGestures gestures = new CrpgGestures();
     final VirtualCursor virtualCursor = new VirtualCursor();
     final MainThreadQueue queue;
+    final Clipboard clipboard;
     final JobSystem jobs;
     final FixedStepper stepper;
     final KeyLabels keyLabels;
@@ -38,6 +40,7 @@ public final class AppContext {
             JeddyApp app,
             Input input,
             MainThreadQueue queue,
+            Clipboard clipboard,
             JobSystem jobs,
             FixedStepper stepper,
             KeyLabels keyLabels,
@@ -46,6 +49,7 @@ public final class AppContext {
         this.app = app;
         this.input = input;
         this.queue = queue;
+        this.clipboard = clipboard;
         this.jobs = jobs;
         this.stepper = stepper;
         this.keyLabels = keyLabels;
@@ -77,6 +81,11 @@ public final class AppContext {
     /** Returns the queue for main-thread requests ({@code WindowCommands}, rumble). */
     public MainThreadQueue mainThread() {
         return queue;
+    }
+
+    /** Returns the system clipboard mirror (text fields copy and paste through it). */
+    public Clipboard clipboard() {
+        return clipboard;
     }
 
     /** Returns the job system shared by both threads. */

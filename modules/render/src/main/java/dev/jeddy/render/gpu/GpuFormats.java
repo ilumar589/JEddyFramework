@@ -70,6 +70,20 @@ public final class GpuFormats {
         };
     }
 
+    /** Returns {@code true} for sRGB-encoded internal formats (sampling decodes them to linear). */
+    public static boolean isSrgb(int internalFormat) {
+        return switch (internalFormat) {
+            case GL_SRGB8,
+                    GL_SRGB8_ALPHA8,
+                    GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM,
+                    GL_COMPRESSED_SRGB_S3TC_DXT1_EXT,
+                    GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT,
+                    GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT ->
+                    true;
+            default -> false;
+        };
+    }
+
     /** Returns {@code true} for block-compressed internal formats. */
     public static boolean isCompressed(int internalFormat) {
         return transferFormat(internalFormat) == 0 && internalFormat != 0;

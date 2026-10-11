@@ -39,6 +39,7 @@ public final class Window implements AutoCloseable {
     private final MemorySegment intPair;
     private final MemorySegment displayMode;
     private final MemorySegment rect;
+    private final Clipboard clipboard = new Clipboard();
     private MemorySegment glContext = MemorySegment.NULL;
 
     private int width;
@@ -382,6 +383,11 @@ public final class Window implements AutoCloseable {
     /** Returns {@code true} between {@link #startTextInput} and {@link #stopTextInput()}. */
     public boolean isTextInputActive() {
         return textInput;
+    }
+
+    /** Returns the clipboard mirror (any thread may read it). */
+    public Clipboard clipboard() {
+        return clipboard;
     }
 
     /**
