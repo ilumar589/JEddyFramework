@@ -1,7 +1,7 @@
 # Learning guide: Jeddy from the inside
 
-This guide explains everything built in milestones M0 to M12, so you can understand the code and
-learn the 3D math and OpenGL behind it.
+This guide explains everything built in milestones M0 to M13, so you can understand the code and
+learn the 3D math and OpenGL behind it. From M13 on, each milestone ships with its own chapter.
 
 Each chapter takes one part of the engine and follows the same path:
 1. **Concept.** The idea and the intuition behind it.
@@ -9,7 +9,7 @@ Each chapter takes one part of the engine and follows the same path:
 3. **The real code.** A walkthrough with excerpts copied from the repository; file links sit next
    to them.
 4. **Why it is built this way.** The performance reasons and the design decisions, with their
-   numbers (D1–D81) in [DESIGN.md](../DESIGN.md) §17.
+   numbers (D1–D85) in [DESIGN.md](../DESIGN.md) §17.
 5. **Try it.** Tests to run, demo flags and experiments.
 6. **Exercises.** Each one has a hint, and most are checked by a test.
 
@@ -36,10 +36,11 @@ at "what is a vertex shader".
 | 10 | [Assets: from glTF to the GPU](10-assets.md) | The cooker, glTF import, mesh optimization, BCn textures in KTX2, materials, environment maps, paks with zstd, the async asset manager, hot reload | `tools/cooker`, `asset` |
 | 11 | [Physics: collision, navigation and crowds](11-physics-navigation-crowds.md) | Ray–box and ray–triangle tests, BVHs with SAH, navmesh baking in the style of Recast, A* and the funnel algorithm, crowds with ORCA, formations, visibility | `physics` |
 | 12 | [Fast Java: FFM, zero allocation and the JIT](12-java-performance.md) | The Foreign Function & Memory API, zero allocation per frame and how it is proved, JMH, the perf capture, JIT and AOT, lock-free handoffs | `core`, `testing`, `bench`, the perf capture |
+| 13 | [The user interface: immediate mode, flex layout and distance-field text](13-ui.md) | Immediate-mode UI, the six-pass flex layout derived and checked, hit testing against last frame's rectangles, drag and drop and focus, the exact Euclidean distance transform behind SDF fonts, the one-draw UI renderer with per-vertex clipping and premultiplied blending, widgets, the demo's screens | `ui`, `render/ui`, `app/ui`, `cooker/font`, `DemoUi` |
 
 ## Reading paths
 
-- **Everything, in order:** 01 → 12. Each chapter links back to earlier ones when it builds on
+- **Everything, in order:** 01 → 13. Each chapter links back to earlier ones when it builds on
   them.
 - **3D math:**
   1. 02 Math foundations
@@ -54,6 +55,7 @@ at "what is a vertex shader".
   3. 07 Lighting
   4. 08 Effects
   5. The GPU half of 09 (skinning)
+  6. The renderer half of 13 (distance fields, vertex pulling, per-vertex clipping)
 
   Read 04 first if projection matrices are new to you.
 - **Engine architecture:**
@@ -61,6 +63,7 @@ at "what is a vertex shader".
   2. 12 Fast Java
   3. 06 The renderer
   4. 10 Assets
+  5. 13 The user interface (an immediate-mode module on top of the renderer)
 
 ## Conventions at a glance
 

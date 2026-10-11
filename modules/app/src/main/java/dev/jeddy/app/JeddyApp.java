@@ -117,6 +117,7 @@ public final class JeddyApp {
                             this,
                             input,
                             queue,
+                            window.clipboard(),
                             jobs,
                             stepper,
                             pump.keyLabels(),

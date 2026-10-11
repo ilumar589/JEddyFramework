@@ -15,4 +15,5 @@ dependencies {
     implementation(project(":physics"))
     implementation(project(":audio"))
     implementation(project(":animation"))
+    implementation(project(":ui"))
 }

@@ -9,4 +9,6 @@ dependencies {
     api(project(":gl"))
     api(project(":window"))
     api(project(":asset"))
+    // The render packet carries the frame's UI draw list (DESIGN §18).
+    api(project(":ui"))
 }

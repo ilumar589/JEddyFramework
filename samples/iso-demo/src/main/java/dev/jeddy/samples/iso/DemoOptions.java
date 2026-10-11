@@ -24,6 +24,7 @@ import java.nio.file.Path;
  *   --seed N              random seed of the scripted parts
  *   --no-audio            skips opening the audio device
  *   --profiler            starts with the profiler overlay on
+ *   --show-ui             starts with the inventory and the pause menu open (screenshots)
  *   --headless            no GPU: CPU-only meshes, nothing drawn (game-thread perf on servers;
  *                         with SDL_VIDEO_DRIVER=dummy)
  *   --warmup-frames N     perf: also wait this many frames before measuring (default 600)
@@ -52,6 +53,7 @@ final class DemoOptions {
     long seed = 1;
     boolean audio = true;
     boolean profiler;
+    boolean showUi;
     boolean headless;
     int warmupFrames = 600;
     boolean allocProbe;
@@ -106,6 +108,7 @@ final class DemoOptions {
                 case "--seed" -> o.seed = Long.parseLong(value(args, ++i, a));
                 case "--no-audio" -> o.audio = false;
                 case "--profiler" -> o.profiler = true;
+                case "--show-ui" -> o.showUi = true;
                 case "--headless" -> o.headless = true;
                 case "--alloc-probe" -> o.allocProbe = true;
                 case "--quit-after-first-frame" -> o.quitAfterFirstFrame = true;

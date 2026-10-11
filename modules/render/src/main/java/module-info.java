@@ -1,6 +1,6 @@
 /**
- * GL resources, frame graph, render packets, MDI submission, PBR, lights, shadows, post, decals and
- * debug draw. See §9 of docs/DESIGN.md.
+ * GL resources, frame graph, render packets, MDI submission, PBR, lights, shadows, post, decals,
+ * debug draw and the UI draw-list renderer. See §9 and §18 of docs/DESIGN.md.
  */
 module dev.jeddy.render {
     requires transitive dev.jeddy.core;
@@ -8,6 +8,7 @@ module dev.jeddy.render {
     requires transitive dev.jeddy.gl;
     requires transitive dev.jeddy.window;
     requires transitive dev.jeddy.asset;
+    requires transitive dev.jeddy.ui;
 
     exports dev.jeddy.render;
     exports dev.jeddy.render.camera;
@@ -25,4 +26,5 @@ module dev.jeddy.render {
     exports dev.jeddy.render.post;
     exports dev.jeddy.render.shader;
     exports dev.jeddy.render.shadow;
+    exports dev.jeddy.render.ui;
 }

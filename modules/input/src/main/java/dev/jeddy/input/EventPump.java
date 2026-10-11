@@ -230,6 +230,7 @@ public final class EventPump implements MainThreadQueue.Handler, AutoCloseable {
                         e.get(ValueLayout.JAVA_INT, WHEEL_MOUSE_X),
                         e.get(ValueLayout.JAVA_INT, WHEEL_MOUSE_Y));
             }
+            case SdlEventType.CLIPBOARD_UPDATE -> window.clipboard().refresh();
             case SdlEventType.KEYMAP_CHANGED -> {
                 keyLabels.refresh();
                 emit(InputRecord.KEYMAP_CHANGED, time, 0, 0, 0, 0, 0);

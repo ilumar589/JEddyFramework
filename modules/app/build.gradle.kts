@@ -13,5 +13,6 @@ dependencies {
     api(project(":scene"))
     api(project(":asset"))
     api(project(":animation"))
+    api(project(":ui"))
     implementation(project(":sdl"))
 }

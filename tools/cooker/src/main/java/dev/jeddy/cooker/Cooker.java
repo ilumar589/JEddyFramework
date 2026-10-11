@@ -8,6 +8,8 @@ import dev.jeddy.cooker.CookReport.Item;
 import dev.jeddy.cooker.CookReport.Status;
 import dev.jeddy.cooker.env.BrdfLutImporter;
 import dev.jeddy.cooker.env.EnvironmentImporter;
+import dev.jeddy.cooker.font.DefaultFontImporter;
+import dev.jeddy.cooker.font.FontImporter;
 import dev.jeddy.cooker.gltf.GltfSceneImporter;
 import dev.jeddy.cooker.lut.CubeLutImporter;
 import dev.jeddy.cooker.material.MaterialImporter;
@@ -90,7 +92,7 @@ public final class Cooker implements AutoCloseable {
 
     /** Creates a cooker with the default importers. */
     public Cooker(CookerConfig config) throws IOException {
-        this(config, defaultImporters(), List.of(new BrdfLutImporter()));
+        this(config, defaultImporters(), List.of(new BrdfLutImporter(), new DefaultFontImporter()));
     }
 
     /**
@@ -117,6 +119,7 @@ public final class Cooker implements AutoCloseable {
                 new MaterialImporter(),
                 new EnvironmentImporter(),
                 new CubeLutImporter(),
+                new FontImporter(),
                 new TextureImporter(),
                 new ShaderImporter(),
                 new CopyImporter());

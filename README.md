@@ -23,6 +23,7 @@ A Java 27 framework for building 3D isometric RPGs in the style of *Pathfinder: 
 | [audio](modules/audio/README.md) | Voices, buses, 3D sound, music and ambience on SDL3_mixer |
 | [physics](modules/physics/README.md) | Collision queries, navmesh baking and pathfinding, crowds, visibility and turn-based movement |
 | [animation](modules/animation/README.md) | Skeletons, clips baked at load time, blended and crossfaded instances evaluated on jobs, GPU skinning palettes |
+| [ui](modules/ui/README.md) | Immediate-mode interface: end-of-frame flex layout, signed-distance-field text, widgets, a draw list the renderer draws in one call ([screenshot](docs/images/iso-demo-m13-ui.jpg)) |
 | [scene](modules/scene/README.md) | Struct-of-arrays transforms and hierarchy |
 | [app](modules/app/README.md) | The two-thread game loop, `World` and `WorldRenderer` |
 
@@ -34,7 +35,7 @@ Tools: the asset cooker (`tools/cooker`, also the `dev.jeddy.assets` Gradle plug
 - `./gradlew :iso-demo:distImage` builds a runnable image with its own runtime and an AOT cache; `:iso-demo:jpackage` makes an app image or installer.
 
 ## Documents
-- [Learning guide](docs/learn/README.md): twelve chapters on how the engine works and the 3D math and
+- [Learning guide](docs/learn/README.md): thirteen chapters on how the engine works and the 3D math and
   OpenGL behind it, with exercises
 - [Architecture and design](docs/DESIGN.md)
 - [Task plan](docs/TASKS.md) and [the options for the next milestone](docs/next-milestones.md)
@@ -42,9 +43,9 @@ Tools: the asset cooker (`tools/cooker`, also the `dev.jeddy.assets` Gradle plug
 - [Agent guide](CLAUDE.md)
 
 ## Status
-Pre-alpha. Milestones M0–M12 are implemented: the runtime modules, the cooker, the iso demo with its
-performance capture, packaging, publishing, skeletal animation with GPU skinning, and the docs.
-Version 0.1.0 is tagged at M12. The CPU-side budgets pass in CI; the GPU
+Pre-alpha. Milestones M0–M13 are implemented: the runtime modules, the cooker, the iso demo with its
+performance capture, packaging, publishing, skeletal animation with GPU skinning, the immediate-mode
+UI, and the docs. Version 0.1.0 is tagged at M12. The CPU-side budgets pass in CI; the GPU
 and main-thread budgets still need a run on the reference hardware (docs/perf/m10.md, O1–O2).
 
 ## License

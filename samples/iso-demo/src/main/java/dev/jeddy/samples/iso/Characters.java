@@ -13,6 +13,18 @@ import dev.jeddy.render.RenderPacket;
  */
 final class Characters {
     static final String[] PARTY = {"knight", "barbarian", "mage", "rogue", "rogue_hooded", "mage"};
+
+    /** Display names of the party, for the portraits and the combat log. */
+    static final String[] PARTY_NAMES = {"Aldric", "Brunhild", "Cassius", "Dara", "Ewan", "Fenna"};
+
+    /** One letter per member for the portrait badge. */
+    static final String[] PARTY_INITIALS = {"A", "B", "C", "D", "E", "F"};
+
+    /** Badge colors per member. */
+    static final int[] PARTY_COLORS = {
+        0xFFB0B8C8, 0xFFE07830, 0xFF7A5CC8, 0xFF4CC26A, 0xFF3E8E6E, 0xFF50A0E0
+    };
+
     static final String[] ENEMIES = {
         "skeleton_warrior", "skeleton_minion", "skeleton_mage", "skeleton_rogue"
     };

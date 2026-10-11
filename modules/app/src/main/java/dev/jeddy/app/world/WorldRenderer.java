@@ -25,6 +25,7 @@ import dev.jeddy.render.mesh.MeshRegistry;
 import dev.jeddy.render.shader.EngineShaders;
 import dev.jeddy.render.shader.ProgramBinaryCache;
 import dev.jeddy.render.shader.ProgramCache;
+import dev.jeddy.render.ui.UiRenderer;
 
 import java.nio.file.Path;
 
@@ -55,6 +56,7 @@ public final class WorldRenderer implements FrameRenderer {
         int debugLinesPerThread = 1 << 14;
         Hud hud;
         int overlayGlyphs = 8192;
+        long uiRingBytes = 4L << 20;
         Path shaderCache = defaultShaderCache();
 
         /** Creates the defaults. */
@@ -98,6 +100,12 @@ public final class WorldRenderer implements FrameRenderer {
             return this;
         }
 
+        /** Sets the bytes per frame for UI vertices, indices and clips (4 MiB ≈ 90k quads). */
+        public Config uiRing(long bytes) {
+            uiRingBytes = bytes;
+            return this;
+        }
+
         /** Sets the mega buffer capacities (vertices, indices). */
         public Config meshCapacity(int vertices, int indices) {
             meshVertices = vertices;
@@ -132,6 +140,8 @@ public final class WorldRenderer implements FrameRenderer {
     private FrameRing overlayRing;
     private DebugRenderer lines;
     private Overlay overlay;
+    private FrameRing uiRing;
+    private UiRenderer uiRenderer;
     private int environment;
     private boolean environmentSet;
     private int width;
@@ -196,6 +206,8 @@ public final class WorldRenderer implements FrameRenderer {
         overlayRing = new FrameRing(device, 4L << 20, 3, "overlay ring");
         lines = new DebugRenderer(device);
         overlay = new Overlay(device, config.overlayGlyphs);
+        uiRing = new FrameRing(device, config.uiRingBytes, 3, "ui ring");
+        uiRenderer = new UiRenderer(device, uiRing);
         if (config.environment != null) {
             environment = materials.textures().load(config.environment);
         }
@@ -229,6 +241,11 @@ public final class WorldRenderer implements FrameRenderer {
     /** Returns the overlay the {@link Hud} draws into (main thread). */
     public Overlay overlay() {
         return overlay;
+    }
+
+    /** Returns the UI draw-list renderer (main thread; statistics). */
+    public UiRenderer uiRenderer() {
+        return uiRenderer;
     }
 
     /** Returns the GL capabilities. */
@@ -268,6 +285,17 @@ public final class WorldRenderer implements FrameRenderer {
         RenderPacket p = packets.packet(index);
         if (w > 0 && h > 0) {
             renderer.render(p);
+            // The UI goes over the finished display image, before the debug overlay (DESIGN §18).
+            uiRing.beginFrame();
+            uiRenderer.draw(
+                    device.state(),
+                    uiRing,
+                    p.ui,
+                    renderer.materials().arrays(),
+                    w,
+                    h,
+                    ctx.window().displayScale());
+            uiRing.endFrame();
             overlayRing.beginFrame();
             lines.draw(p, device.state(), overlayRing);
             if (config.hud != null) {
@@ -292,6 +320,12 @@ public final class WorldRenderer implements FrameRenderer {
         }
         if (overlayRing != null) {
             overlayRing.close();
+        }
+        if (uiRenderer != null) {
+            uiRenderer.close();
+        }
+        if (uiRing != null) {
+            uiRing.close();
         }
         if (renderer != null) {
             renderer.close();

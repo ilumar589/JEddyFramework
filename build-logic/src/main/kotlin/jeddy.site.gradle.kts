@@ -29,8 +29,9 @@ val descriptions = mapOf(
     "audio" to "SDL3_mixer voices, buses, 3D emitters, music and ambience",
     "physics" to "Collision queries, navmesh baking and pathfinding, crowds, formations, visibility",
     "animation" to "Skeletons, baked clips, blended and crossfaded instances, skinning palettes",
+    "ui" to "Immediate-mode interface: flex layout, SDF text, widgets, draw lists",
     "scene" to "Entities and transform hierarchies",
-    "app" to "The application loop and world integration (scene, render, physics, animation, audio)",
+    "app" to "The application loop and world integration (scene, render, physics, animation, audio, UI)",
     "testing" to "Test helpers: allocation assertions",
 )
 

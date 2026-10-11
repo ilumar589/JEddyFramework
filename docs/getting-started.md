@@ -328,7 +328,60 @@ by its joints. `setGroupHidden(root, true)` also freezes the character's animati
 `destroy(root)` removes it with its meshes. The iso demo's `Animator` puts it all together: idle,
 walk and run, attacks, casts, hit reactions, death and the skeletons' awakening for 300 characters.
 
-## 5. Run
+## 5. The user interface
+
+Screens are declared every frame with the `ui` module (DESIGN §18): the game keeps its own data,
+the widgets return what happened, and the renderer draws the result after post-processing. Create
+a `Ui`, a `Widgets` on a `Theme`, and the app glue once in `init`, then declare in `update` and
+hand the frame to the packet in `extract`:
+
+```java
+private final Ui ui = new Ui();
+private final Widgets w = new Widgets(ui, Theme.dark());
+private UiBridge bridge;
+private UiFonts fonts;
+private float volume = 0.8f;
+
+@Override
+public void init(AppContext ctx) {
+    bridge = new UiBridge(ctx, ui);                              // Input → UiInput, text input, clipboard
+    w.clipboard = bridge.clipboard();
+    fonts = new UiFonts(ui, renderer.assets(), renderer.materials().textures());
+    fonts.load("engine/fonts/inter");                            // every cook writes it
+}
+
+@Override
+public void update(AppContext ctx, float dt, float alpha) {
+    fonts.update();
+    bridge.beginFrame(dt);                                       // resolves hover, clicks, focus
+    w.panel().width(260).open();                                 // a column with padding and a gap
+        w.heading("Options");
+        volume = w.slider(VOLUME, volume, 0, 1);
+        if (w.button(APPLY, "Apply")) apply();
+    ui.close();
+    if (!ui.wantsMouse()) pickWorld(ctx);                        // the UI did not take the pointer
+}
+
+@Override
+public void extract(AppContext ctx, int index) {
+    RenderPacket p = packets.packet(index);
+    ...
+    ui.endFrame(p.ui);                                           // layout and the draw list
+}
+```
+
+Ids (`VOLUME`, `APPLY`) are `StrId.of("...")` constants; inside lists, wrap each row in
+`ui.pushId(i)` / `ui.popId()`. Boxes size themselves to their content unless told otherwise
+(`width`, `widthGrow`, `widthPercent`), lay children out in a `row()` or `column()`, and
+`floating()` boxes make popups and tooltips. Text is appended without strings:
+`ui.text().append("HP ").append(hp).append('/').append(maxHp)`. The widget set covers buttons,
+check boxes, radios, sliders, drag values, text fields (`TextBuffer`), drop-downs, tabs, tree
+nodes, progress bars, tooltips, popups, menus and movable windows; the iso demo's `DemoUi` is a
+complete example, and [docs/learn/13-ui.md](learn/13-ui.md) explains the layout and the text
+pipeline. Fonts of your own go into the assets as `.ttf`/`.otf` files (a `<name>.ttf.meta`
+sidecar sets `"size"` and `"range"`) and load with `fonts.load("fonts/<name>")`.
+
+## 6. Run
 
 ```
 ./gradlew run
@@ -341,7 +394,7 @@ finds the `paks/` folder of its image.
 For smoke tests and CI, `-Djeddy.app.quitAfterFrames=N` quits after N frames. A packaged game
 accepts it through the `JDK_JAVA_OPTIONS` environment variable.
 
-## 6. Package
+## 7. Package
 
 | Task | Output |
 |---|---|
@@ -370,7 +423,7 @@ skips training. The launchers use the cache when `aot/<name>.aot` exists and fal
 when it does not. The cache only loads with the exact JVM flags it was trained with, so leave the
 flags to the plugin.
 
-## 7. Performance rules
+## 8. Performance rules
 
 The framework's hot paths allocate nothing per frame (DESIGN §4). Games should follow the same
 rules in per-frame and per-tick code:
@@ -399,8 +452,8 @@ of a few hundred bytes to a few KB, which comes minutes into play for rarely cal
   [window](../modules/window/README.md), [input](../modules/input/README.md),
   [render](../modules/render/README.md), [asset](../modules/asset/README.md),
   [audio](../modules/audio/README.md), [physics](../modules/physics/README.md),
-  [animation](../modules/animation/README.md), [scene](../modules/scene/README.md),
-  [app](../modules/app/README.md).
+  [animation](../modules/animation/README.md), [ui](../modules/ui/README.md),
+  [scene](../modules/scene/README.md), [app](../modules/app/README.md).
 - API reference: `./gradlew :site:javadocSite` writes the Javadoc of every module to
   `tools/site/build/site`. The docs workflow publishes it to GitHub Pages when Pages is enabled.
 - Architecture and decisions: [DESIGN.md](DESIGN.md).

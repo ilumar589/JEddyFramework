@@ -98,6 +98,11 @@ public final class TextureArrays implements AutoCloseable {
         return device.textures().glName(texture[bucket]);
     }
 
+    /** Returns the GL internal format of a bucket's layers. */
+    public int internalFormat(int bucket) {
+        return format[bucket];
+    }
+
     /** Returns the number of buckets. */
     public int bucketCount() {
         return bucketCount;

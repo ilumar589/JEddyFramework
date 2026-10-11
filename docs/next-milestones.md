@@ -1,13 +1,35 @@
-# Next milestones: the options
+# Next milestones: the roadmap
 
-Milestones M0 to M12 are done (see [TASKS.md](TASKS.md)). This page keeps every candidate for the
-next milestone, M13, so you can pick one when you come back.
+Milestones M0 to M12 are done (see [TASKS.md](TASKS.md)). This page is the plan for what comes
+next, decided with the owner on 2026-10-11, and the reference for every option.
 
-**How resuming works (your request of 2026-10-11).** When you return, Claude asks which option you
-want. It then writes a **tutorial** for that milestone in `docs/tutorials/`, with the theory,
-step-by-step explanations and the code. You type the code yourself, and Claude does not implement
-the milestone. When you ask, it reviews your code, helps you debug, and ticks the tasks.
-[The tutorial format](#the-tutorial-format) at the end describes what each tutorial contains.
+**How the work goes.** Claude implements the milestones in the order below and asks the owner
+whenever a decision is theirs. Every milestone ends with a learning-guide chapter
+(`docs/learn/NN-<topic>.md`: the concept, the math or API derived step by step, the real code
+explained, why it was built that way, exercises), the DESIGN section with its decisions, and a
+merged PR. Two standing rules: **no new native libraries** (the runtime keeps SDL3, SDL3_mixer,
+zstd, libktx and meshoptimizer; the cooker may use the JDK's `java.desktop`), and the UI and the
+editor are **pure Java on top of `render`**.
+
+## The order
+
+| Milestone | Option | Size | Learning chapter |
+|---|---|---|---|
+| M13 | [Game UI](#1-game-ui-and-debug-ui): immediate-mode widgets, flex layout, SDF text, one-draw rendering | L | 13 |
+| M14 | [Editor](#the-editor-m14): level editing with gizmos and undo, live entity inspector, asset browser with previews, built from the M13 widgets | L | 14 |
+| M15 | [Rules (Pathfinder-like)](#4-rules-pathfinder-like) | L | 15 |
+| M16 | [Save system](#5-save-system) | M | 16 |
+| M17 | [Dialogue and quest scripting](#6-dialogue-and-quest-scripting), plus the graph editor panel in the editor | M | 17 |
+| M18 | [Animation, part 2](#2-animation-part-2) | M | 18 |
+| M19 | [VFX authoring](#3-vfx-authoring) | M | 19 |
+| M20 | [Hierarchical pathfinding](#7-hierarchical-pathfinding) | M | 20 |
+| M21 | Small items: [declarative scheduler](#8-declarative-system-scheduler), [BC6H](#10-bc6h-hdr-textures), [Chase-Lev](#12-chase-lev-work-stealing) if measurements ask for it | S–M | 21 |
+
+Dropped, because they would add native libraries: [Tracy](#9-tracy-profiler-integration) (the
+built-in profiler overlay and the perf capture stay the tools) and [LZ4](#11-lz4-codec) (zstd
+stays the only codec). [GPU validation on real hardware](#13-gpu-validation-on-real-hardware)
+waits for access to the GPUs; [value records and the Vector API](#14-value-records-and-the-vector-api)
+wait for the JDK.
 
 Each option below lists:
 - what it is and why a Pathfinder-like CRPG needs it;
@@ -20,7 +42,7 @@ The size is S (a day or two), M (about a week) or L (several weeks).
 
 | # | Option | Size | Mostly teaches |
 |---|---|---|---|
-| 1 | [Game UI and debug UI](#1-game-ui-and-debug-ui) | L | OpenGL 2D: orthographic projection, batching, text, scissor; FFM to a C++ library |
+| 1 | [Game UI and debug UI](#1-game-ui-and-debug-ui) | L | OpenGL 2D: orthographic projection, batching, SDF text, clipping; layout algorithms |
 | 2 | [Animation, part 2](#2-animation-part-2) | M | Math: two-bone IK, quaternions, root motion, quantization |
 | 3 | [VFX authoring](#3-vfx-authoring) | M | OpenGL compute, GPU particles, curves and gradients, flipbooks, soft particles |
 | 4 | [Rules (Pathfinder-like)](#4-rules-pathfinder-like) | L | Data-oriented game logic, deterministic RNG, turn flow |
@@ -28,23 +50,42 @@ The size is S (a day or two), M (about a week) or L (several weeks).
 | 6 | [Dialogue and quest scripting](#6-dialogue-and-quest-scripting) | M | Graph data, a small interpreter, tooling |
 | 7 | [Hierarchical pathfinding](#7-hierarchical-pathfinding) | M | Graph algorithms on the navmesh, clustering, caching |
 | 8 | [Declarative system scheduler](#8-declarative-system-scheduler) | M | Dependency graphs, the job system, data races |
-| 9 | [Tracy profiler integration](#9-tracy-profiler-integration) | S | FFM to a C API, GPU timestamp queries |
+| 9 | [Tracy profiler integration](#9-tracy-profiler-integration) (dropped) | S | FFM to a C API, GPU timestamp queries |
 | 10 | [BC6H HDR textures](#10-bc6h-hdr-textures) | S | Texture compression, HDR formats, KTX2 |
-| 11 | [LZ4 codec](#11-lz4-codec) | S | Compression trade-offs, FFM, benchmarking |
+| 11 | [LZ4 codec](#11-lz4-codec) (dropped) | S | Compression trade-offs, FFM, benchmarking |
 | 12 | [Chase-Lev work stealing](#12-chase-lev-work-stealing) | M | Lock-free concurrency, the Java memory model |
 | 13 | [GPU validation on real hardware](#13-gpu-validation-on-real-hardware) | S | GPU profiling, vendor differences (needs NVIDIA, AMD and Intel GPUs) |
 | 14 | [Value records and the Vector API](#14-value-records-and-the-vector-api) | S | Valhalla and SIMD in Java (waits for the JDK features to become final) |
 
-[Warm-up tasks](#warm-up-tasks) are small real fixes, a good way back into the code before a
-milestone. [Other ideas](#other-ideas-not-in-the-backlog-yet) lists a few rendering topics that are
-not in the backlog yet but teach a lot of OpenGL.
+[Warm-up tasks](#warm-up-tasks) are small real fixes. [Other ideas](#other-ideas-not-in-the-backlog-yet)
+lists a few rendering topics that are not in the backlog yet but teach a lot of OpenGL.
 
-**For learning math and OpenGL**, this order works well:
-1. **Animation part 2** (option 2): IK is the best math workout left in the project.
-2. **Game UI** (option 1): 2D rendering, text and batching from scratch.
-3. **VFX** (option 3): compute shaders and GPU-driven drawing.
+---
 
-Rules, saves and dialogue come after that, when you want a playable game rather than an engine.
+## The editor (M14)
+
+**What.** A level and content editor that runs as a `Game` on the same application loop, drawn
+with the M13 UI module over the live scene (no native UI library, no second window system):
+- **Level editing:** place, move, rotate and scale props, lights, spawn points and triggers in the
+  3D view with gizmos; snapping; undo and redo; multi-selection; save and load level files that the
+  cooker and the game read.
+- **Live entity inspector:** a tree of entities and their components, with editable properties
+  (transforms, materials, lights, animation state) while the game runs.
+- **Asset browser and previews:** browse the cooked tree, preview meshes, textures, materials and
+  animation clips, re-cook on change (the cooker's watch mode).
+- **Dialogue and quest graph editor:** a node-graph panel, added with M17.
+
+**Approach.** Panels dock around a viewport region; the scene renders into the viewport and the
+UI draws the rest. Editing operations are commands on a stack (undo/redo). The level file is a
+text format (JSON, through `core.json`) that the cooker turns into the scene and spawn data the
+game already loads. The editor lives in `tools/editor`, a `jeddy.application` like the demo, and
+the demo's crypt becomes its first project.
+
+**Draft tasks.** Written when M14 starts, after the UI module's shape is known.
+
+**What you learn.** Gizmo math (ray–plane and ray–axis intersection for dragging in 3D, rotation
+by projected angles), command pattern with undo, docking layouts, rendering into a viewport, the
+difference between an editor's data model and the runtime's.
 
 ---
 
@@ -54,41 +95,41 @@ Rules, saves and dialogue come after that, when you want a playable game rather 
 portraits, tooltips and a combat log. The developers need a debug UI to tweak values live and to
 inspect entities. Today there is only the HUD overlay (`render/debug/Overlay`, a 5×7 bitmap font).
 
-**Approach.**
-- A new `ui` module with a retained-mode game UI:
-  - widgets as SoA arrays: rectangles, nine-slice images, text, a scroll list, a drag source and
-    drop target;
-  - a layout pass (anchors plus simple flex rows and columns);
-  - an input router that sits in front of the world's picking, so a click on a button never moves
-    the party.
-- Text uses signed-distance-field (SDF) or MSDF fonts baked by the cooker, so it stays sharp at
-  every scale.
-- Rendering is one batched pass after post-processing:
-  - quads go into a mapped ring buffer and draw with one `glMultiDrawElementsIndirect`;
-  - an orthographic projection maps pixels;
-  - clipping uses scissor rectangles, or a clip rectangle per quad in the shader.
-- Debug UI: Dear ImGui through **cimgui** (its C API), built into the natives and bound with
-  jextract. A Java GL backend renders its draw lists into the same pass. It is behind a flag and
-  never in release builds.
+**Approach (decided: see DESIGN §18, D82–D84).**
+- A new `ui` module, pure Java, independent of GL: an **immediate-mode** API (the game declares its
+  UI every frame; state stays in the game's data) with an **end-of-frame flex layout** pass over an
+  element tree kept in SoA arrays, as Clay does. Hit testing uses the previous frame's layout.
+- Text uses **signed-distance-field** glyph atlases cooked from TTF/OTF by the cooker (rasterized
+  with the JDK's `java.desktop`, no native library), so one atlas serves every size.
+- Rendering is one batched pass after post-processing: the UI's draw list (vertices, indices,
+  clip rectangles, texture references) travels in the render packet and the renderer draws it with
+  one draw per texture change; clipping is a per-vertex clip rectangle index tested in the
+  fragment shader.
+- The debug UI is the same module: no Dear ImGui and no cimgui.
 
 **Draft tasks.**
-- M13-01 Design: DESIGN §16 → §18 `ui`, decisions, tasks.
-- M13-02 Cooker: SDF/MSDF font atlas from TTF (glyph metrics, kerning) into a cooked `.jfont`.
-- M13-03 `ui` renderer: quad batch, nine-slice, SDF text shader, scissor, an allocation test.
-- M13-04 Widgets and layout: SoA widget tree, anchors, rows and columns, text wrapping.
-- M13-05 Input routing and focus: hover, press, drag and drop, keyboard focus, gamepad navigation.
-- M13-06 Demo screens: party portraits with health, an inventory grid with drag and drop, a
-  tooltip, a combat log.
-- M13-07 Dear ImGui: cimgui in the natives build, jextract bindings, GL backend, an entity
-  inspector in the demo (F2).
-- M13-08 Docs and tests.
+- M13-01 Design: DESIGN §18 `ui`, decisions, tasks.
+- M13-02 Cooker: SDF font atlas from TTF/OTF (glyph metrics, kerning) into `.jfont` + KTX2; the
+  default font (Inter, OFL) as a built-in output.
+- M13-03 `ui` core: element tree, flex layout (fit, grow, percent, wrap), text measurement, the
+  draw list; layout tests and an allocation test.
+- M13-04 Widgets: text, images and nine-slices, buttons, checkboxes, sliders and drag values,
+  text fields, dropdowns, tree nodes, tabs, scroll regions, tooltips, popups, drag and drop.
+- M13-05 Input and focus: hover, press, click, drag, keyboard focus and navigation, gamepad
+  navigation; the game ignores input the UI consumed.
+- M13-06 `render`: the UI renderer (vertex buffer in the frame ring, SDF text shader, rounded
+  rectangles, clipping), a GPU test.
+- M13-07 Demo screens: party portraits with health bars, an inventory grid with drag and drop,
+  tooltips, a combat log, a pause panel; the UI in the perf capture with a budget.
+- M13-08 Docs: learning chapter 13, DESIGN, README.
 
 **What you learn.**
 - OpenGL: orthographic projection; vertex layouts for 2D; premultiplied-alpha blending; scissor
   test; texture atlases; SDF rendering (`smoothstep` on a distance with `fwidth` for
   antialiasing); instanced quads.
 - Math: rectangles, anchoring and layout, the screen → UI → world transforms.
-- FFM: calling a C++ library through a C shim, callbacks (upcalls), and keeping them off hot paths.
+- Algorithms: a two-pass flex layout (fit sizes up the tree, grow sizes down), text wrapping,
+  signed distance transforms, the hot/active/focus model of immediate-mode UIs.
 
 **Read first:** learning guide [05 OpenGL from Java](learn/05-opengl-from-java.md) and
 [06 Renderer architecture](learn/06-renderer-architecture.md).
@@ -437,24 +478,15 @@ These teach a lot of OpenGL and fit an isometric CRPG. Ask to add one to the opt
 
 ---
 
-## The tutorial format
+## The chapter that ships with each milestone
 
-Each tutorial is written to `docs/tutorials/m13-<topic>.md` (later milestones use their own
-number) and contains:
+Each milestone's learning chapter, `docs/learn/NN-<topic>.md`, follows the chapters of M0–M12:
 
-1. **Goal and result.** What you build and what the demo shows at the end, with a screenshot or a
-   test you can run.
-2. **Background.** The theory, with derivations, diagrams and small numeric examples, so the code
-   makes sense before you type it. It links to the learning guide for what you already met.
-3. **Steps.** Each step:
-   - names the files to create or change;
-   - explains the design;
-   - gives the code with comments on the lines that matter;
-   - ends with a **check**: a unit test, a GPU test, or a run of the demo, and what you should see.
-4. **Pitfalls.** The usual mistakes: coordinate spaces, handedness, matrix order, GL state that
-   leaks between passes, allocation in hot paths.
-5. **Performance.** The allocation test and, where it matters, a JMH benchmark (CLAUDE.md
-   non-negotiable 6).
-6. **Exercises.** Smaller extensions to try alone, with hints.
-7. **Finish.** Updating DESIGN.md and TASKS.md, and opening the PR, the way the earlier
-   milestones did.
+1. **Goal and result.** What was built and what the demo or the editor shows at the end.
+2. **Background.** The theory, with derivations, diagrams and small numeric examples.
+3. **The code.** A walkthrough of the real sources with excerpts and file links; the design, and
+   why the alternatives were rejected (with the decision numbers from DESIGN §17).
+4. **Pitfalls.** The mistakes the implementation had to avoid: coordinate spaces, GL state that
+   leaks between passes, allocation in hot paths, threads.
+5. **Performance.** The allocation tests, the benchmark and the budget in the perf capture.
+6. **Try it and exercises.** Tests to run, demo flags, and extensions to try with hints.

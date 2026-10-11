@@ -2,6 +2,7 @@ package dev.jeddy.render;
 
 import dev.jeddy.math.AffineOps;
 import dev.jeddy.math.CullOps;
+import dev.jeddy.ui.UiDrawList;
 
 import java.util.Arrays;
 
@@ -183,6 +184,13 @@ public final class RenderPacket {
     /** Seconds since start (animated effects). */
     public float time;
 
+    /**
+     * The frame's user interface (TASKS M13-06, D84): the game thread builds it with {@code
+     * Ui.endFrame(packet.ui)} inside {@code extract}, and the renderer draws it after
+     * post-processing. Triple-buffered with the packet, so the UI never waits on the main thread.
+     */
+    public final UiDrawList ui = new UiDrawList(1024, 64);
+
     /** Creates a packet for {@code capacity} instances (grows on demand). */
     public RenderPacket(int capacity) {
         allocate(Math.max(16, capacity));
@@ -203,6 +211,7 @@ public final class RenderPacket {
     /** Empties the packet before the game thread fills it. */
     public void reset() {
         count = 0;
+        ui.reset();
         debugLineCount = 0;
         lightCount = 0;
         decalCount = 0;
