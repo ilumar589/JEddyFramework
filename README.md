@@ -31,6 +31,7 @@ A Java 27 framework for building 3D isometric RPGs in the style of *Pathfinder: 
 Tools: the asset cooker (`tools/cooker`, also the `dev.jeddy.assets` Gradle plugin), the standalone level editor (`tools/editor`, `./gradlew :editor-tool:run --args="--project samples/iso-demo/assets --level levels/crypt.jlevel"`) and the Javadoc site (`tools/site`).
 
 ## Getting started
+- [Running Jeddy](docs/running.md): how to build, run the tests and benchmarks, play the iso demo, use the editor and read what CI does.
 - [Getting started](docs/getting-started.md): a game project on the `dev.jeddy.game` plugin, from `samples/game-template` to a packaged build.
 - `./gradlew build` builds and tests everything; `./gradlew :iso-demo:run` cooks the demo's assets and runs it (`--perf 600` for the performance capture).
 - `./gradlew :iso-demo:distImage` builds a runnable image with its own runtime and an AOT cache; `:iso-demo:jpackage` makes an app image or installer.

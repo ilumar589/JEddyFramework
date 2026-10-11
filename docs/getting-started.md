@@ -509,6 +509,8 @@ of a few hundred bytes to a few KB, which comes minutes into play for rarely cal
 
 ## Where next
 
+- [Running Jeddy](running.md): every command to build, test, benchmark, play the demo and use the
+  editor, and what CI runs.
 - Module guides: [core](../modules/core/README.md), [math](../modules/math/README.md),
   [window](../modules/window/README.md), [input](../modules/input/README.md),
   [render](../modules/render/README.md), [asset](../modules/asset/README.md),

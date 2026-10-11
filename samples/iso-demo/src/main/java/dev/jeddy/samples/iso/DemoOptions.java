@@ -207,19 +207,24 @@ final class DemoOptions {
           --size WxH            window size (default 1600x900)
           --no-vsync            render as fast as possible
           --enemies N           skeletons (default 64; 294 with --perf)
-          --perf SECONDS        scripted performance scene with a report, then quit
-          --warmup SECONDS      perf warm-up after loading (default 10)
-          --instances N         extra static props (perf default 16000)
-          --lights N            dynamic point lights in total (perf default 256)
-          --report DIR          perf report directory (default build/perf)
+          --seed N              seed of the scripted parts and the dice
+          --no-audio            do not open an audio device
+          --turn-based          start in turn-based combat (T switches at any time)
+          --auto-turns          scripted play: march on the skeletons, end turns alone
+          --echo-combat         print the combat log to the console
+          --profiler            start with the profiler overlay on
+          --show-ui             start with the inventory and the menu open
           --screenshot FILE     PNG of the frame --screenshot-at seconds after loading
           --screenshot-at S     (default 3)
           --quit-after SECONDS  quit that long after loading
-          --seed N              seed of the scripted parts
-          --no-audio            do not open an audio device
-          --profiler            start with the profiler overlay on
+          --quit-after-first-frame
           --headless            no GPU, nothing drawn: game-thread perf on servers
+          --perf SECONDS        scripted performance scene with a report, then quit
+          --warmup SECONDS      perf warm-up after loading (default 10)
           --warmup-frames N     perf: also wait N frames before measuring (default 600)
+          --instances N         extra static props (perf default 16000)
+          --lights N            dynamic point lights in total (perf default 256)
+          --report DIR          perf report directory (default build/perf)
           --alloc-probe         perf: game-thread allocation by system in the report
           --fail-on KEYS        perf: exit 4 if these budgets fail
                                 (game,animation,main,gpu,alloc,flags,gc,load)
@@ -234,9 +239,10 @@ final class DemoOptions {
           WASD, arrows      pan                 wheel         zoom
           Q / E, middle drag rotate             C             center on the selection
           G                 cycle formations    F             fireball (click to cast)
-          T                 turn-based movement range of the selection
-          Space             pause               F3            profiler      F12  screenshot
-          F10               level editor        Esc           cancel / quit
+          T                 real time / turn-based combat     Enter  end the turn
+          I                 inventory           Space         pause
+          F3                profiler            F12           screenshot
+          F10               level editor        Esc           cancel / menu
         """;
     }
 }
