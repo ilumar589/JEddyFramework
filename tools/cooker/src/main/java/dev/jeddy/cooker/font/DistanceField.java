@@ -44,9 +44,8 @@ public final class DistanceField {
                 // Partially covered: the outline runs through this pixel.
                 sd[i] = c / 255f - 0.5f;
             } else if (c == 255) {
-                // Inside: the nearest outside pixel's center is sqrt(outside) away; the outline
-                // sits
-                // half a pixel before it.
+                // Inside: the nearest outside pixel's center is sqrt(outside) away, and the
+                // outline sits half a pixel before it.
                 sd[i] = (float) Math.sqrt(outside[i]) - 0.5f;
             } else {
                 sd[i] = 0.5f - (float) Math.sqrt(inside[i]);

@@ -1309,9 +1309,10 @@ public final class Ui {
     // ---- Persistent state -------------------------------------------------------------------
 
     /**
-     * Returns the state slot of {@code id} (creating it), for {@link #stateF} and {@link #stateI}:
-     * four floats and two ints a widget keeps between frames (scroll offsets, a tree node's open
-     * flag, a caret blink timer). Slots unused for two frames are recycled when the store is full.
+     * Returns the state slot of {@code id} (creating it), for {@link #stateF(int, int)} and {@link
+     * #stateI(int, int)}: four floats and two ints a widget keeps between frames (scroll offsets, a
+     * tree node's open flag, a caret blink timer). Slots unused for two frames are recycled when
+     * the store is full.
      */
     public int state(long id) {
         id = resolve(id);
