@@ -7,6 +7,7 @@ import dev.jeddy.core.handle.HandlePool;
 import dev.jeddy.core.handle.Handles;
 import dev.jeddy.gl.GLDebug;
 
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.util.Arrays;
@@ -199,15 +200,24 @@ public final class GpuTextures {
 
     /**
      * Copies layers {@code [0, count)} of every level from one 2D array texture into another of the
-     * same format and size (growing an array). Runs on the GPU.
+     * same format and size (growing an array). Runs on the GPU, except the mip levels of a
+     * block-compressed texture that are smaller than a block (2x2, 1x1): Intel's Windows driver
+     * rejects {@code glCopyImageSubData} on those with {@code GL_INVALID_VALUE} (Mesa and the spec
+     * allow a region that reaches the image's edge), so they take a readback through a few bytes of
+     * scratch. A cold path: arrays grow a handful of times while a level loads.
      */
     public void copyLayers(int from, int to, int count) {
         int a = check(from);
         int b = check(to);
         int lv = Math.min(levels[a], levels[b]);
+        boolean compressed = GpuFormats.isCompressed(formats[a]);
         for (int l = 0; l < lv; l++) {
             int w = Math.max(1, widths[a] >> l);
             int h = Math.max(1, heights[a] >> l);
+            if (compressed && (w < 4 || h < 4)) {
+                copySmallCompressedLevel(a, b, l, w, h, count);
+                continue;
+            }
             glCopyImageSubData(
                     names[a],
                     GL_TEXTURE_2D_ARRAY,
@@ -224,6 +234,17 @@ public final class GpuTextures {
                     w,
                     h,
                     count);
+        }
+    }
+
+    /** One block per layer: read the level back and upload it into the other texture. */
+    private void copySmallCompressedLevel(int a, int b, int level, int w, int h, int count) {
+        int bytes = GpuFormats.blockBytes(formats[a]) * count;
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment blocks = arena.allocate(bytes, 16);
+            glGetCompressedTextureSubImage(names[a], level, 0, 0, 0, w, h, count, bytes, blocks);
+            glCompressedTextureSubImage3D(
+                    names[b], level, 0, 0, 0, w, h, count, formats[a], bytes, blocks);
         }
     }
 

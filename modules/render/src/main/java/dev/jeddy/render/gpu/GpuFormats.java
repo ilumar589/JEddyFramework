@@ -89,6 +89,20 @@ public final class GpuFormats {
         return transferFormat(internalFormat) == 0 && internalFormat != 0;
     }
 
+    /** Bytes of one 4x4 block of a compressed format (8 for BC1 and BC4, 16 for the rest). */
+    public static int blockBytes(int internalFormat) {
+        return switch (internalFormat) {
+            case GL_COMPRESSED_RGB_S3TC_DXT1_EXT,
+                    GL_COMPRESSED_SRGB_S3TC_DXT1_EXT,
+                    GL_COMPRESSED_RGBA_S3TC_DXT1_EXT,
+                    GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT,
+                    GL_COMPRESSED_RED_RGTC1,
+                    GL_COMPRESSED_SIGNED_RED_RGTC1 ->
+                    8;
+            default -> 16;
+        };
+    }
+
     /** Returns the extension a format needs beyond GL 4.6 core, or {@code null}. */
     public static String requiredExtension(int internalFormat) {
         return switch (internalFormat) {

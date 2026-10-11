@@ -333,6 +333,17 @@ its stdout and stack trace.
 
 ## 9. Troubleshooting
 
+### Drivers seen so far
+
+CI renders with Mesa's llvmpipe, which is permissive. Real drivers differ; what they have taught us:
+
+| Driver | Finding | What the engine does |
+|---|---|---|
+| Intel Graphics, Windows, 32.0.101.8331 | `glCopyImageSubData` returns `GL_INVALID_VALUE` for the mip levels of a block-compressed texture that are smaller than a block (2x2, 1x1), which the spec and Mesa allow. Growing a texture array lost those levels and, with them, the textures loaded afterwards (black characters, no UI) | `GpuTextures.copyLayers` copies those levels through a readback instead |
+
+Add a row when you run on new hardware (`-Djeddy.gl.debug=true` shows the driver's complaints).
+
+
 | Symptom | What to do |
 |---|---|
 | `gh`, `python3` or `xvfb-run` not found | Those are only needed by the CI scripts and the headless recipes; on Windows the Gradle commands alone are enough |
