@@ -89,8 +89,13 @@ public final class Cooker implements AutoCloseable {
     private record Job(
             String source, Path file, Importer importer, ImportSettings settings, String error) {}
 
-    /** A job's result. */
-    private record Result(Item item, SourceState state) {}
+    /**
+     * One job's outcome. {@code intended} lists the outputs the importer produced even when writing
+     * them failed, so two sources aiming at the same file are both caught: on Windows the second
+     * writer of a shared output fails with an I/O error (the first still holds the file), and
+     * without this the first would pass as cooked.
+     */
+    private record Result(Item item, SourceState state, List<String> intended) {}
 
     /** Creates a cooker with the default importers. */
     public Cooker(CookerConfig config) throws IOException {
@@ -215,13 +220,12 @@ public final class Cooker implements AutoCloseable {
                 todo.size(),
                 1);
 
-        // Two sources writing the same output fail together.
+        // Two sources writing the same output fail together, whether or not their writes
+        // succeeded (the intended outputs, not the written ones, decide).
         Map<String, List<String>> producers = new HashMap<>();
         for (Result r : results) {
-            if (r.state() != null) {
-                for (String o : r.state().outputs()) {
-                    producers.computeIfAbsent(o, k -> new ArrayList<>()).add(r.item().source());
-                }
+            for (String o : r.intended()) {
+                producers.computeIfAbsent(o, k -> new ArrayList<>()).add(r.item().source());
             }
         }
         List<Item> items = new ArrayList<>();
@@ -229,24 +233,19 @@ public final class Cooker implements AutoCloseable {
         Set<String> produced = new HashSet<>();
         for (Result r : results) {
             Item item = r.item();
-            if (r.state() != null) {
-                List<String> clash = new ArrayList<>();
-                for (String o : r.state().outputs()) {
-                    if (producers.get(o).size() > 1) {
-                        clash.add(o + " (also from " + String.join(", ", producers.get(o)) + ")");
-                    }
+            List<String> clash = new ArrayList<>();
+            for (String o : r.intended()) {
+                if (producers.get(o).size() > 1) {
+                    clash.add(o + " (also from " + String.join(", ", producers.get(o)) + ")");
                 }
-                if (!clash.isEmpty()) {
-                    item =
-                            failed(
-                                    item,
-                                    "outputs written by more than one source: "
-                                            + String.join("; ", clash));
-                    next.remove(item.source());
-                } else {
-                    next.put(item.source(), r.state());
-                    produced.addAll(r.state().outputs());
-                }
+            }
+            if (!clash.isEmpty()) {
+                String why = "outputs written by more than one source: " + String.join("; ", clash);
+                item = failed(item, item.error() == null ? why : item.error() + "; " + why);
+                next.remove(item.source());
+            } else if (r.state() != null) {
+                next.put(item.source(), r.state());
+                produced.addAll(r.state().outputs());
             }
             items.add(item);
         }
@@ -431,9 +430,11 @@ public final class Cooker implements AutoCloseable {
                             List.of(),
                             Map.of(),
                             job.error()),
-                    null);
+                    null,
+                    List.of());
         }
         String importerName = job.importer().name();
+        List<String> intended = List.of();
         try {
             byte[] bytes = job.file() == null ? new byte[0] : Files.readAllBytes(job.file());
             String key = key(job, bytes);
@@ -464,12 +465,14 @@ public final class Cooker implements AutoCloseable {
                                 hit.warnings(),
                                 hit.stats(),
                                 null),
-                        st);
+                        st,
+                        outs);
             }
             CookContext ctx =
                     new CookContext(
                             config, job.source(), job.file(), bytes, job.settings(), jobs, threads);
             job.importer().cook(ctx);
+            intended = new ArrayList<>(ctx.outputs().keySet());
             List<Output> outputs = new ArrayList<>();
             long size = 0;
             for (Map.Entry<String, byte[]> e : ctx.outputs().entrySet()) {
@@ -497,7 +500,8 @@ public final class Cooker implements AutoCloseable {
                             entry.warnings(),
                             entry.stats(),
                             null),
-                    new SourceState(key, importerName, outs, new ArrayList<>(deps.keySet())));
+                    new SourceState(key, importerName, outs, new ArrayList<>(deps.keySet())),
+                    outs);
         } catch (Exception | LinkageError | AssertionError e) {
             LOG.debug("{} failed", job.source());
             return new Result(
@@ -511,7 +515,8 @@ public final class Cooker implements AutoCloseable {
                             List.of(),
                             Map.of(),
                             describe(e)),
-                    null);
+                    null,
+                    intended);
         }
     }
 
