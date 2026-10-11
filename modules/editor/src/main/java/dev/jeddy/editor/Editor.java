@@ -3,12 +3,25 @@ package dev.jeddy.editor;
 import dev.jeddy.app.AppContext;
 import dev.jeddy.app.world.LevelLoader;
 import dev.jeddy.app.world.World;
+import dev.jeddy.asset.AssetType;
+import dev.jeddy.asset.Vfs;
 import dev.jeddy.asset.format.LevelData;
+import dev.jeddy.asset.format.SceneData;
 import dev.jeddy.core.collections.IntList;
+import dev.jeddy.core.config.Settings;
 import dev.jeddy.core.handle.Handles;
 import dev.jeddy.editor.command.AddObjectsCommand;
 import dev.jeddy.editor.command.Command;
 import dev.jeddy.editor.command.DeleteObjectsCommand;
+import dev.jeddy.editor.panel.AssetsPanel;
+import dev.jeddy.editor.panel.ConsolePanel;
+import dev.jeddy.editor.panel.Dock;
+import dev.jeddy.editor.panel.EntitiesPanel;
+import dev.jeddy.editor.panel.HistoryPanel;
+import dev.jeddy.editor.panel.InspectorPanel;
+import dev.jeddy.editor.panel.OutlinerPanel;
+import dev.jeddy.editor.panel.Panel;
+import dev.jeddy.editor.panel.SettingsPanel;
 import dev.jeddy.input.Input;
 import dev.jeddy.input.Modifiers;
 import dev.jeddy.input.Scancode;
@@ -33,10 +46,23 @@ import java.nio.file.Path;
  * <p>Thread ownership: the game thread.
  */
 public final class Editor {
+    private static final long ROOT = 0xED17L;
+    private static final long MENU_BAR = 1;
+    private static final long MENU_FILE = 2;
+    private static final long MENU_EDIT = 3;
+    private static final long MENU_VIEW = 4;
+    private static final long MENU_MODE = 5;
+    private static final long ITEM = 100;
+    private static final long PANEL_ITEM = 200;
+    private static final CharSequence[] MODE_NAMES = {"Move (W)", "Rotate (E)", "Scale (R)"};
+
     private final EditorContext ctx;
     private final Viewport viewport;
+    private final Dock dock = new Dock();
+    private final ConsolePanel consolePanel = new ConsolePanel();
     private boolean shown;
     private Path file;
+    private String fileName = ""; // cached: Path.getFileName allocates
     private LevelFiles.Save saving;
     private final ViewportInput viewportInput = new ViewportInput();
     private final IntList highlighted = new IntList(64);
@@ -47,6 +73,29 @@ public final class Editor {
     public Editor() {
         ctx = new EditorContext(null, 256);
         viewport = new Viewport(ctx);
+        ctx.setEditor(this, viewport);
+        dock.add(new OutlinerPanel(), Dock.LEFT);
+        dock.add(new AssetsPanel(), Dock.LEFT);
+        dock.add(new InspectorPanel(), Dock.RIGHT);
+        dock.add(new SettingsPanel(), Dock.RIGHT);
+        dock.add(new EntitiesPanel(), Dock.HIDDEN);
+        dock.add(consolePanel, Dock.BOTTOM);
+        dock.add(new HistoryPanel(), Dock.HIDDEN);
+    }
+
+    /** Returns the dock holding the panels. */
+    public Dock dock() {
+        return dock;
+    }
+
+    /** Runs a console command line ({@code help} lists them). */
+    public void runCommand(String line) {
+        consolePanel.run(ctx, line);
+    }
+
+    /** Connects the cooked asset tree and scene loading for the Assets panel. */
+    public void attachAssets(Vfs vfs, AssetType<SceneData> scenes) {
+        ctx.setAssets(vfs, scenes);
     }
 
     /** Returns the context (level, selection, history, settings, console). */
@@ -71,11 +120,12 @@ public final class Editor {
     public void open(LevelData level, Path file) {
         close();
         ctx.setLevel(level);
-        this.file = file;
+        setFile(file);
         ctx.settings().translateStep = level.settings.gridStep;
         ctx.undo().clear();
         ctx.selection().clear();
         levelVersionSeen = level.version();
+        dock.levelChanged(ctx);
         ctx.console().info("opened " + (file == null ? "a new level" : file.toString()));
     }
 
@@ -88,12 +138,18 @@ public final class Editor {
         ctx.selection().clear();
         ctx.undo().clear();
         ctx.setLevel(null);
-        file = null;
+        setFile(null);
+        dock.levelChanged(ctx);
     }
 
     /** Returns whether a level is being edited. */
     public boolean isOpen() {
         return ctx.level() != null;
+    }
+
+    private void setFile(Path path) {
+        file = path;
+        fileName = path == null || path.getFileName() == null ? "" : path.getFileName().toString();
     }
 
     /** Returns the file the level is saved to, or {@code null}. */
@@ -164,15 +220,152 @@ public final class Editor {
         syncHighlights();
     }
 
-    /** Declares the editor's panels into {@code ui} (nothing while hidden). */
+    /**
+     * Declares the editor's menu bar, dock and panels into {@code ui} (nothing while hidden): a
+     * full-window floating root that lets the pointer through where no panel is, so the viewport
+     * underneath gets the clicks.
+     */
     public void declare(Ui ui, Widgets widgets) {
         if (!shown) {
             return;
         }
         ctx.setUi(ui, widgets);
-        viewport.setRegion(0, 0, ui.width(), ui.height());
+        float width = ui.width();
+        float height = ui.height();
+        ui.box(ROOT)
+                .floatingOnScreen()
+                .anchor(Ui.TOP_LEFT, Ui.TOP_LEFT)
+                .size(width, height)
+                .column()
+                .gap(0)
+                .z(50)
+                .noHit()
+                .open();
+        menuBar(widgets);
+        dock.declare(ctx, widgets, widgets.theme.widgetHeight, width, height);
+        ui.close();
+        viewport.setRegion(dock.regionX(), dock.regionY(), dock.regionW(), dock.regionH());
         viewport.declare(ui);
         ctx.setUi(null, null);
+    }
+
+    private void menuBar(Widgets w) {
+        Ui ui = w.ui;
+        LevelData level = ctx.level();
+        w.beginMenuBar(MENU_BAR);
+        if (w.menu(MENU_FILE, "File")) {
+            if (w.menuItem(ITEM + 1, "Save", "Ctrl+S", level != null && file != null)) {
+                save();
+            }
+            if (w.menuItem(
+                    ITEM + 2, "Dump JSON next to the level", null, level != null && file != null)) {
+                runCommand("dump");
+            }
+            if (w.menuItem(ITEM + 3, "Close editor", "F10", true)) {
+                setShown(false);
+            }
+            w.endMenu();
+        }
+        if (w.menu(MENU_EDIT, "Edit")) {
+            UndoStack undo = ctx.undo();
+            if (w.menuItem(ITEM + 10, "Undo", "Ctrl+Z", undo.canUndo())) {
+                undo();
+            }
+            if (w.menuItem(ITEM + 11, "Redo", "Ctrl+Y", undo.canRedo())) {
+                redo();
+            }
+            boolean any = !ctx.selection().isEmpty();
+            if (w.menuItem(ITEM + 12, "Duplicate", "Ctrl+D", any)) {
+                duplicateSelection();
+            }
+            if (w.menuItem(ITEM + 13, "Delete", "Del", any)) {
+                deleteSelection();
+            }
+            if (w.menuItem(ITEM + 14, "Select all", "Ctrl+A", level != null)) {
+                selectAll();
+            }
+            if (w.menuItem(ITEM + 15, "Frame selection", "F", level != null)) {
+                viewport.frameSelection();
+            }
+            w.endMenu();
+        }
+        if (w.menu(MENU_VIEW, "View")) {
+            EditorSettings s = ctx.settings();
+            if (w.menuCheck(ITEM + 20, "Grid", s.showGrid)) {
+                s.showGrid = !s.showGrid;
+            }
+            if (w.menuCheck(ITEM + 21, "Markers", s.showMarkers)) {
+                s.showMarkers = !s.showMarkers;
+            }
+            if (w.menuCheck(ITEM + 22, "Snap", s.snap)) {
+                s.snap = !s.snap;
+            }
+            w.separator();
+            for (int i = 0; i < dock.panels().size(); i++) {
+                Panel p = dock.panels().get(i);
+                if (w.menuCheck(PANEL_ITEM + i, p.name(), dock.zone(i) != Dock.HIDDEN)) {
+                    dock.toggle(i);
+                }
+            }
+            w.endMenu();
+        }
+        if (w.menu(MENU_MODE, MODE_NAMES[viewport.mode()])) {
+            for (int m = 0; m < 3; m++) {
+                if (w.menuCheck(ITEM + 30 + m, MODE_NAMES[m], viewport.mode() == m)) {
+                    viewport.setMode(m);
+                }
+            }
+            w.endMenu();
+        }
+        w.spacer();
+        // Status: file, dirty mark, selection, snapping.
+        if (level != null) {
+            ui.text(file == null ? "unsaved level" : fileName)
+                    .fontSize(w.theme.fontSizeSmall)
+                    .color(w.theme.textDim);
+            if (isDirty()) {
+                ui.text("*").fontSize(w.theme.fontSizeSmall).color(w.theme.focus);
+            }
+            ui.text()
+                    .append(ctx.selection().size())
+                    .append(" selected")
+                    .fontSize(w.theme.fontSizeSmall)
+                    .color(w.theme.textDim);
+        }
+        ui.text(ctx.settings().snap ? "snap on" : "snap off")
+                .fontSize(w.theme.fontSizeSmall)
+                .color(w.theme.textDim);
+        w.endMenuBar();
+    }
+
+    // ---- Settings persistence -----------------------------------------------------------------
+
+    /** Writes the dock layout and the editor settings into {@code settings} ({@code editor.*}). */
+    public void saveSettings(Settings settings) {
+        EditorSettings s = ctx.settings();
+        settings.set("editor.layout", dock.layout());
+        settings.set("editor.snap", s.snap);
+        settings.set("editor.translateStep", s.translateStep);
+        settings.set("editor.rotateStep", s.rotateStepDegrees);
+        settings.set("editor.scaleStep", s.scaleStep);
+        settings.set("editor.grid", s.showGrid);
+        settings.set("editor.markers", s.showMarkers);
+        settings.set("editor.gizmoPixels", s.gizmoPixels);
+        settings.set("editor.orbitSpeed", s.orbitSpeed);
+    }
+
+    /** Reads what {@link #saveSettings} wrote (missing keys keep the defaults). */
+    public void loadSettings(Settings settings) {
+        EditorSettings s = ctx.settings();
+        dock.setLayout(settings.getString("editor.layout", ""));
+        s.snap = settings.getBoolean("editor.snap", s.snap);
+        s.translateStep = settings.getFloat("editor.translateStep", s.translateStep);
+        s.rotateStepDegrees = settings.getFloat("editor.rotateStep", s.rotateStepDegrees);
+        s.scaleStep = settings.getFloat("editor.scaleStep", s.scaleStep);
+        s.showGrid = settings.getBoolean("editor.grid", s.showGrid);
+        s.showMarkers = settings.getBoolean("editor.markers", s.showMarkers);
+        s.gizmoPixels = settings.getFloat("editor.gizmoPixels", s.gizmoPixels);
+        s.orbitSpeed = settings.getFloat("editor.orbitSpeed", s.orbitSpeed);
     }
 
     /** Adds the editor's lines (grid, markers, gizmo) to the packet while shown. */
@@ -377,7 +570,7 @@ public final class Editor {
             ctx.console().warn("a save is still in progress");
             return;
         }
-        file = path;
+        setFile(path);
         saving = LevelFiles.save(ctx.level(), path);
         ctx.undo().markSaved();
     }

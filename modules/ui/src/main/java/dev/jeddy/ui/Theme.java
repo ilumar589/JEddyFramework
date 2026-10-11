@@ -83,6 +83,12 @@ public final class Theme {
     /** Seconds before a tooltip appears. */
     public float tooltipDelay = 0.5f;
 
+    /** Thickness of a splitter bar between docked panels. */
+    public float splitterWidth = 5;
+
+    /** Width of the label column of a property row ({@code Widgets.beginProperty}). */
+    public float labelWidth = 96;
+
     /** Creates the default dark theme. */
     public Theme() {}
 

@@ -2,7 +2,10 @@ package dev.jeddy.editor;
 
 import dev.jeddy.app.world.LevelLoader;
 import dev.jeddy.app.world.World;
+import dev.jeddy.asset.AssetType;
+import dev.jeddy.asset.Vfs;
 import dev.jeddy.asset.format.LevelData;
+import dev.jeddy.asset.format.SceneData;
 import dev.jeddy.math.IsoCamera;
 import dev.jeddy.ui.Ui;
 import dev.jeddy.ui.Widgets;
@@ -29,6 +32,10 @@ public final class EditorContext {
     private final IsoCamera camera = new IsoCamera();
     private Ui ui;
     private Widgets widgets;
+    private Editor editor;
+    private Viewport viewport;
+    private Vfs vfs;
+    private AssetType<SceneData> scenes;
 
     /** Creates a context editing {@code level} (may be {@code null} until one is opened). */
     public EditorContext(LevelData level, int undoCapacity) {
@@ -86,7 +93,37 @@ public final class EditorContext {
         return widgets;
     }
 
+    /** Returns the editor this context belongs to. */
+    public Editor editor() {
+        return editor;
+    }
+
+    /** Returns the viewport (camera, picking, gizmos). */
+    public Viewport viewport() {
+        return viewport;
+    }
+
+    /** Returns the virtual file system of cooked assets, or {@code null} (the Assets panel). */
+    public Vfs vfs() {
+        return vfs;
+    }
+
+    /** Returns the scene asset type, or {@code null} (prefab browsing). */
+    public AssetType<SceneData> scenes() {
+        return scenes;
+    }
+
     // ---- Wiring (the Editor) ------------------------------------------------------------------
+
+    void setEditor(Editor editor, Viewport viewport) {
+        this.editor = editor;
+        this.viewport = viewport;
+    }
+
+    void setAssets(Vfs vfs, AssetType<SceneData> scenes) {
+        this.vfs = vfs;
+        this.scenes = scenes;
+    }
 
     void setLevel(LevelData level) {
         this.level = level;
