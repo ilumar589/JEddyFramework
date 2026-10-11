@@ -235,8 +235,15 @@ final class DemoUi {
                     .border(0xFF50FF80, 1)
                     .noHit();
         }
-        ui.box(HELP).floatingOnScreen().anchor(Ui.BOTTOM, Ui.BOTTOM).offset(0, -4).noHit().open();
-        w.small(HELP_TEXT).color(theme.textDim);
+        // The help line wraps on a narrow logical screen (a small window at a high DPI scale).
+        ui.box(HELP)
+                .floatingOnScreen()
+                .anchor(Ui.BOTTOM, Ui.BOTTOM)
+                .offset(0, -4)
+                .width(Math.min(ui.width() - 24, 1100))
+                .noHit()
+                .open();
+        w.small(HELP_TEXT).color(theme.textDim).wrap().widthGrow().textAlign(Ui.CENTER);
         ui.close();
         buildNanos = beginNanos + System.nanoTime() - buildStart;
     }
@@ -506,7 +513,9 @@ final class DemoUi {
                 .column()
                 .gap(4)
                 .padding(8)
-                .width(340)
+                // Beside the portrait row (12 + 6 x 84 + 5 x 6 = 546 wide) when the logical
+                // screen is narrow, 340 otherwise.
+                .width(Math.max(160, Math.min(340, ui.width() - 582)))
                 .height(150)
                 .background(theme.panel)
                 .border(theme.panelBorder, 1)

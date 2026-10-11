@@ -7,9 +7,10 @@ import dev.jeddy.ui.Ui;
 
 /**
  * One frame of pointer input for the {@link Viewport}, copied out of {@link Input} by the editor
- * (or made up by a test): position and movement in window points, which buttons are held and which
- * went down this frame, the wheel, the modifiers, the window size, and whether the UI has the
- * pointer (then the viewport ignores it). Keys are handled by the {@link Editor}.
+ * (or made up by a test): position and movement in UI logical pixels (window coordinates times
+ * {@link Input#uiScale}, the units of the dock's region), which buttons are held and which went
+ * down this frame, the wheel, the modifiers, the window size in the same units, and whether the UI
+ * has the pointer (then the viewport ignores it). Keys are handled by the {@link Editor}.
  *
  * <p>Thread ownership: the game thread.
  */
@@ -29,10 +30,11 @@ public final class ViewportInput {
 
     /** Fills this frame from {@code in} and {@code ui}. */
     public void copyFrom(Input in, Ui ui) {
-        mouseX = in.mouseX();
-        mouseY = in.mouseY();
-        deltaX = in.mouseDeltaX();
-        deltaY = in.mouseDeltaY();
+        float k = in.uiScale();
+        mouseX = in.mouseX() * k;
+        mouseY = in.mouseY() * k;
+        deltaX = in.mouseDeltaX() * k;
+        deltaY = in.mouseDeltaY() * k;
         wheelY = in.wheelY();
         leftDown = in.isMouseDown(MouseButton.LEFT);
         leftPressed = in.wasMousePressed(MouseButton.LEFT);
@@ -43,8 +45,8 @@ public final class ViewportInput {
         int mods = in.modifiers();
         shift = (mods & Modifiers.SHIFT) != 0;
         ctrl = (mods & Modifiers.CTRL) != 0;
-        windowWidth = Math.max(1, in.windowWidth());
-        windowHeight = Math.max(1, in.windowHeight());
+        windowWidth = Math.max(1, Math.round(in.windowWidth() * k));
+        windowHeight = Math.max(1, Math.round(in.windowHeight() * k));
         uiWantsPointer = ui.wantsMouse();
     }
 

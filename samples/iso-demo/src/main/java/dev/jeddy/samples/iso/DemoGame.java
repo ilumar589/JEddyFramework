@@ -674,10 +674,11 @@ final class DemoGame implements Game {
             u.enemiesVisible = enemies.visibleCount;
             u.formation = party.formation;
             u.boxSelecting = g.isBoxSelecting() && !spells.targeting && !u.ui.wantsMouse();
-            u.boxX0 = g.boxMinX();
-            u.boxY0 = g.boxMinY();
-            u.boxX1 = g.boxMaxX();
-            u.boxY1 = g.boxMaxY();
+            float k = in.uiScale(); // the gestures are in window coordinates, the UI in logical
+            u.boxX0 = g.boxMinX() * k;
+            u.boxY0 = g.boxMinY() * k;
+            u.boxX1 = g.boxMaxX() * k;
+            u.boxY1 = g.boxMaxY() * k;
             if (u.clickedMember >= 0) {
                 party.select(u.clickedMember, u.shift);
             }

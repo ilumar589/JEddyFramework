@@ -72,11 +72,14 @@ public final class UiBridge {
         ui.beginFrame(in);
         boolean want = ui.wantsKeyboard();
         if (want) {
+            // The focused field's rectangle, back in window coordinates for SDL's text-input area
+            // (the IME candidate window goes next to it).
+            float k = 1 / ctx.input().uiScale();
             int r = ui.lastRecord(ui.focusedId());
-            int x = r >= 0 ? (int) ui.recordX(r) : 0;
-            int y = r >= 0 ? (int) ui.recordY(r) : 0;
-            int w = r >= 0 ? (int) ui.recordWidth(r) : 0;
-            int h = r >= 0 ? (int) ui.recordHeight(r) : 0;
+            int x = r >= 0 ? (int) (ui.recordX(r) * k) : 0;
+            int y = r >= 0 ? (int) (ui.recordY(r) * k) : 0;
+            int w = r >= 0 ? (int) (ui.recordWidth(r) * k) : 0;
+            int h = r >= 0 ? (int) (ui.recordHeight(r) * k) : 0;
             if (!textInput || x != fieldX || y != fieldY || w != fieldW || h != fieldH) {
                 fieldX = x;
                 fieldY = y;
@@ -94,11 +97,15 @@ public final class UiBridge {
         }
     }
 
-    /** Copies one frame of {@code src} into {@code dst}; allocates nothing. */
+    /**
+     * Copies one frame of {@code src} into {@code dst}, in UI logical pixels ({@link
+     * Input#uiScale}); allocates nothing.
+     */
     public static void copy(Input src, UiInput dst, float dt) {
+        float k = src.uiScale();
         dst.clearEvents();
-        dst.mouseX = src.mouseX();
-        dst.mouseY = src.mouseY();
+        dst.mouseX = src.mouseX() * k;
+        dst.mouseY = src.mouseY() * k;
         dst.mouseInWindow = src.isMouseInWindow() && src.isFocused();
         dst.buttonsDown = buttons(src, 0);
         dst.buttonsPressed = buttons(src, 1);
@@ -106,8 +113,8 @@ public final class UiBridge {
         dst.wheelX = src.wheelX();
         dst.wheelY = src.wheelY();
         dst.modifiers = src.modifiers(); // the same bit values as UiKey.MOD_*
-        dst.width = src.windowWidth();
-        dst.height = src.windowHeight();
+        dst.width = src.windowWidth() * k;
+        dst.height = src.windowHeight() * k;
         dst.displayScale = src.displayScale();
         dst.dt = dt;
         dst.navigation = src.lastDevice() == Input.DEVICE_GAMEPAD;

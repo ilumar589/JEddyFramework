@@ -544,6 +544,21 @@ public final class Input {
         return displayScale;
     }
 
+    /**
+     * Returns UI logical pixels per window coordinate unit: the factor that turns {@link #mouseX}
+     * and {@link #windowWidth} into the UI's units, which are {@code pixels / displayScale} (DESIGN
+     * §18, D102). It is 1 on macOS, where window coordinates are points and the display scale is
+     * the backing density, and {@code 1 / scale} on Windows and X11, where window coordinates are
+     * pixels and the scale is the DPI setting (1.5 at 150%). The UI renderer maps logical pixels
+     * onto the drawable, so a UI laid out in window coordinates on a 150% Windows desktop would be
+     * drawn 1.5x too far out and lose everything anchored to an edge.
+     */
+    public float uiScale() {
+        return windowWidth > 0 && displayScale > 0
+                ? pixelWidth / (float) windowWidth / displayScale
+                : 1f;
+    }
+
     /** Returns a counter that changes whenever the window size or scale changes. */
     public int windowGeneration() {
         return windowGeneration;
