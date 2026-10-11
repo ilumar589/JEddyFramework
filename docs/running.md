@@ -131,6 +131,7 @@ editor over the running game.
 ```
 ./gradlew :iso-demo:run
 ./gradlew :iso-demo:run --args="--size 1920x1080 --no-vsync"
+./gradlew :iso-demo:run "-Pjeddy.jvmArgs=-Djeddy.gl.debug=true"   # with the GPU driver's messages in the log
 ```
 
 `run` first cooks the sample's assets (`samples/iso-demo/assets` → `samples/iso-demo/build/cooked`)
