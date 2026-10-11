@@ -8,6 +8,7 @@ import dev.jeddy.core.collections.SparseSet;
 import dev.jeddy.core.handle.Handles;
 import dev.jeddy.core.job.JobSystem;
 import dev.jeddy.math.AffineOps;
+import dev.jeddy.math.Intersect;
 import dev.jeddy.render.RenderPacket;
 import dev.jeddy.render.mesh.GpuMesh;
 import dev.jeddy.scene.EntityPool;
@@ -243,8 +244,11 @@ public final class World {
     /** Sets the outline style of {@code entity} ({@code RenderPacket.HIGHLIGHT_*}, 0 for none). */
     public void setHighlight(int entity, int highlightStyle) {
         int i = renderables.indexOf(Handles.index(entity));
-        if (i >= 0 && entityOf[i] == entity) {
+        if (i >= 0 && entityOf[i] == entity && style[i] != highlightStyle) {
             style[i] = highlightStyle;
+            if ((flags[i] & RenderPacket.FLAG_STATIC) != 0) {
+                staticStructure++; // the cached static set carries the outline style (D49)
+            }
         }
     }
 
@@ -270,8 +274,11 @@ public final class World {
     /** Sets the outline style of every renderable of a group (see {@link #setGroupHidden}). */
     public void setGroupHighlight(int groupEntity, int highlightStyle) {
         for (int i = 0, n = renderables.size(); i < n; i++) {
-            if (group[i] == groupEntity) {
+            if (group[i] == groupEntity && style[i] != highlightStyle) {
                 style[i] = highlightStyle;
+                if ((flags[i] & RenderPacket.FLAG_STATIC) != 0) {
+                    staticStructure++;
+                }
             }
         }
     }
@@ -912,6 +919,71 @@ public final class World {
         float sz = m[o + 2] * m[o + 2] + m[o + 6] * m[o + 6] + m[o + 10] * m[o + 10];
         return (float) Math.sqrt(Math.max(sx, Math.max(sy, sz)));
     }
+
+    /**
+     * Casts a ray against the oriented bounding boxes of every renderable whose mesh is ready and
+     * whose group is not hidden (an editor's click, a unit under the cursor): each mesh's local box
+     * tested in its own space, with the ray brought there by the inverse of its world transform, so
+     * a turned wall is picked by its real outline and not a sphere around it. Returns the entity of
+     * the closest hit, or {@link Handles#NULL}; {@code outT[0]} receives the hit distance along
+     * {@code (dx, dy, dz)} (the same parameter in world and local space because the direction is
+     * transformed linearly, not normalized). Allocates nothing.
+     */
+    public int pick(
+            float ox, float oy, float oz, float dx, float dy, float dz, float maxT, float[] outT) {
+        float[] world = transforms.world();
+        float best = maxT;
+        int bestEntity = Handles.NULL;
+        for (int i = 0, n = renderables.size(); i < n; i++) {
+            int h = meshAsset[i];
+            if (!meshes.isReady(h)) {
+                continue;
+            }
+            int g = Handles.index(group[i]);
+            if (g < hiddenGroup.length && hiddenGroup[g]) {
+                continue;
+            }
+            GpuMesh mesh = meshes.get(h);
+            int s = transforms.indexOf(entityOf[i]);
+            // A sphere test first: it rejects almost everything for the price of a few multiplies.
+            AffineOps.transformPoint(
+                    world, s * 12, mesh.sphere(0), mesh.sphere(1), mesh.sphere(2), point, 0);
+            float r = mesh.sphere(3) * maxScale(world, s * 12);
+            float ts = Intersect.raySphere(ox, oy, oz, dx, dy, dz, point[0], point[1], point[2], r);
+            if (ts == Intersect.MISS || ts > best) {
+                continue;
+            }
+            if (!AffineOps.invert(world, s * 12, pickInverse, 0)) {
+                continue;
+            }
+            AffineOps.transformPoint(pickInverse, 0, ox, oy, oz, pickLocal, 0);
+            AffineOps.transformDirection(pickInverse, 0, dx, dy, dz, pickLocal, 3);
+            float t =
+                    Intersect.rayAabb(
+                            pickLocal[0],
+                            pickLocal[1],
+                            pickLocal[2],
+                            pickLocal[3],
+                            pickLocal[4],
+                            pickLocal[5],
+                            mesh.bounds(0),
+                            mesh.bounds(1),
+                            mesh.bounds(2),
+                            mesh.bounds(3),
+                            mesh.bounds(4),
+                            mesh.bounds(5),
+                            best);
+            if (t < best) {
+                best = t;
+                bestEntity = entityOf[i];
+            }
+        }
+        outT[0] = best;
+        return bestEntity;
+    }
+
+    private final float[] pickInverse = new float[12];
+    private final float[] pickLocal = new float[6];
 
     /** Returns the world position of {@code entity} into {@code out} (after the last update). */
     public void position(int entity, float[] out) {

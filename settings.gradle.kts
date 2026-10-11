@@ -28,7 +28,7 @@ fun module(path: String, dir: String) {
 
 listOf(
     "core", "math", "compress", "sdl", "gl", "window", "input",
-    "render", "asset", "audio", "physics", "animation", "ui", "scene", "app",
+    "render", "asset", "audio", "physics", "animation", "ui", "scene", "app", "editor",
 ).forEach { module(it, "modules/$it") }
 
 module("cooker", "tools/cooker")

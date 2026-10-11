@@ -7,6 +7,8 @@ import static dev.jeddy.asset.format.Bytes.U64;
 import static dev.jeddy.asset.format.Bytes.align;
 import static dev.jeddy.asset.format.Bytes.checkRange;
 
+import dev.jeddy.core.collections.IntIntMap;
+
 import java.io.ByteArrayOutputStream;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
@@ -184,9 +186,11 @@ public final class LevelData {
         /** The editor's snapping grid step. */
         public float gridStep = 0.5f;
 
-        Settings() {}
+        /** Creates default settings. */
+        public Settings() {}
 
-        void copyFrom(Settings o) {
+        /** Copies every field from {@code o}. */
+        public void copyFrom(Settings o) {
             navCellSize = o.navCellSize;
             navCellHeight = o.navCellHeight;
             navTileSize = o.navTileSize;
@@ -267,6 +271,10 @@ public final class LevelData {
 
     private int nextId = 1;
     private int version;
+    // id → kind << 28 | row index, kept by every insert and remove so lookups by id are O(1) (the
+    // gizmo resolves the selection every frame; a linear scan over 400 placements per object
+    // would not do).
+    private final IntIntMap ids = new IntIntMap(256, -1);
 
     /** Creates an empty level. */
     public LevelData() {}
@@ -274,6 +282,11 @@ public final class LevelData {
     /** Returns a counter that changes with every edit (the editor's dirty tracking). */
     public int version() {
         return version;
+    }
+
+    /** Bumps {@link #version} after a change made through a public field ({@link #settings}). */
+    public void touch() {
+        version++;
     }
 
     /** Returns the next free object id (ids start at 1). */
@@ -295,19 +308,30 @@ public final class LevelData {
 
     /** Returns the kind of the object with {@code id}, or {@link #KIND_NONE}. */
     public int kindOf(int id) {
-        if (placementIndex(id) >= 0) {
-            return KIND_PLACEMENT;
+        int v = ids.get(id);
+        return v < 0 ? KIND_NONE : v >>> 28;
+    }
+
+    private int indexOf(int id, int kind) {
+        int v = ids.get(id);
+        return v >= 0 && v >>> 28 == kind ? v & 0x0FFFFFFF : -1;
+    }
+
+    /** Records row {@code index} of {@code kind} under {@code id}; rejects a duplicate id. */
+    private void indexInsert(int id, int kind, int index, int[] rowIds, int count) {
+        if (ids.containsKey(id)) {
+            throw new IllegalArgumentException("duplicate object id " + id);
         }
-        if (lightIndex(id) >= 0) {
-            return KIND_LIGHT;
+        for (int i = index; i < count; i++) { // the rows after it moved up by one
+            ids.put(rowIds[i], kind << 28 | i);
         }
-        if (spawnIndex(id) >= 0) {
-            return KIND_SPAWN;
+    }
+
+    private void indexRemove(int id, int kind, int index, int[] rowIds, int count) {
+        ids.remove(id);
+        for (int i = index; i < count; i++) {
+            ids.put(rowIds[i], kind << 28 | i);
         }
-        if (triggerIndex(id) >= 0) {
-            return KIND_TRIGGER;
-        }
-        return KIND_NONE;
     }
 
     // ---- Prefabs ------------------------------------------------------------------------------
@@ -373,12 +397,7 @@ public final class LevelData {
 
     /** Returns the index of the placement with {@code id}, or -1. */
     public int placementIndex(int id) {
-        for (int i = 0; i < placementCount; i++) {
-            if (placementId[i] == id) {
-                return i;
-            }
-        }
-        return -1;
+        return indexOf(id, KIND_PLACEMENT);
     }
 
     /** Returns placement {@code i}'s prefab index. */
@@ -540,6 +559,7 @@ public final class LevelData {
         placementCollision[index] = collision;
         Arrays.fill(placementData, index * PLACEMENT_FLOATS, (index + 1) * PLACEMENT_FLOATS, 0);
         placementCount++;
+        indexInsert(id, KIND_PLACEMENT, index, placementId, placementCount);
         noteId(id);
         version++;
         return index;
@@ -547,6 +567,7 @@ public final class LevelData {
 
     /** Removes placement {@code index}, keeping the order of the others. */
     public void removePlacement(int index) {
+        int removed = placementId[index];
         int tail = placementCount - index - 1;
         if (tail > 0) {
             System.arraycopy(placementId, index + 1, placementId, index, tail);
@@ -563,6 +584,7 @@ public final class LevelData {
                     tail * PLACEMENT_FLOATS);
         }
         placementCount--;
+        indexRemove(removed, KIND_PLACEMENT, index, placementId, placementCount);
         placementName[placementCount] = null;
         placementLayer[placementCount] = null;
         version++;
@@ -582,12 +604,7 @@ public final class LevelData {
 
     /** Returns the index of the light with {@code id}, or -1. */
     public int lightIndex(int id) {
-        for (int i = 0; i < lightCount; i++) {
-            if (lightId[i] == id) {
-                return i;
-            }
-        }
-        return -1;
+        return indexOf(id, KIND_LIGHT);
     }
 
     /** Returns light {@code i}'s type ({@link #LIGHT_POINT}, {@link #LIGHT_SPOT}). */
@@ -702,6 +719,7 @@ public final class LevelData {
         lightFlags[index] = flags;
         Arrays.fill(lightData, index * LIGHT_FLOATS, (index + 1) * LIGHT_FLOATS, 0);
         lightCount++;
+        indexInsert(id, KIND_LIGHT, index, lightId, lightCount);
         noteId(id);
         version++;
         return index;
@@ -709,6 +727,7 @@ public final class LevelData {
 
     /** Removes light {@code index}. */
     public void removeLight(int index) {
+        int removed = lightId[index];
         int tail = lightCount - index - 1;
         if (tail > 0) {
             System.arraycopy(lightId, index + 1, lightId, index, tail);
@@ -723,6 +742,7 @@ public final class LevelData {
                     tail * LIGHT_FLOATS);
         }
         lightCount--;
+        indexRemove(removed, KIND_LIGHT, index, lightId, lightCount);
         lightName[lightCount] = null;
         version++;
     }
@@ -741,12 +761,7 @@ public final class LevelData {
 
     /** Returns the index of the spawn with {@code id}, or -1. */
     public int spawnIndex(int id) {
-        for (int i = 0; i < spawnCount; i++) {
-            if (spawnId[i] == id) {
-                return i;
-            }
-        }
-        return -1;
+        return indexOf(id, KIND_SPAWN);
     }
 
     /** Returns spawn {@code i}'s name. */
@@ -824,6 +839,7 @@ public final class LevelData {
         spawnKind[index] = kind;
         Arrays.fill(spawnData, index * SPAWN_FLOATS, (index + 1) * SPAWN_FLOATS, 0);
         spawnCount++;
+        indexInsert(id, KIND_SPAWN, index, spawnId, spawnCount);
         noteId(id);
         version++;
         return index;
@@ -831,6 +847,7 @@ public final class LevelData {
 
     /** Removes spawn {@code index}. */
     public void removeSpawn(int index) {
+        int removed = spawnId[index];
         int tail = spawnCount - index - 1;
         if (tail > 0) {
             System.arraycopy(spawnId, index + 1, spawnId, index, tail);
@@ -844,6 +861,7 @@ public final class LevelData {
                     tail * SPAWN_FLOATS);
         }
         spawnCount--;
+        indexRemove(removed, KIND_SPAWN, index, spawnId, spawnCount);
         spawnName[spawnCount] = null;
         spawnKind[spawnCount] = null;
         version++;
@@ -863,12 +881,7 @@ public final class LevelData {
 
     /** Returns the index of the trigger with {@code id}, or -1. */
     public int triggerIndex(int id) {
-        for (int i = 0; i < triggerCount; i++) {
-            if (triggerId[i] == id) {
-                return i;
-            }
-        }
-        return -1;
+        return indexOf(id, KIND_TRIGGER);
     }
 
     /** Returns trigger {@code i}'s name. */
@@ -989,6 +1002,7 @@ public final class LevelData {
         triggerFlags[index] = flags;
         Arrays.fill(triggerData, index * TRIGGER_FLOATS, (index + 1) * TRIGGER_FLOATS, 0);
         triggerCount++;
+        indexInsert(id, KIND_TRIGGER, index, triggerId, triggerCount);
         noteId(id);
         version++;
         return index;
@@ -996,6 +1010,7 @@ public final class LevelData {
 
     /** Removes trigger {@code index}. */
     public void removeTrigger(int index) {
+        int removed = triggerId[index];
         int tail = triggerCount - index - 1;
         if (tail > 0) {
             System.arraycopy(triggerId, index + 1, triggerId, index, tail);
@@ -1011,6 +1026,7 @@ public final class LevelData {
                     tail * TRIGGER_FLOATS);
         }
         triggerCount--;
+        indexRemove(removed, KIND_TRIGGER, index, triggerId, triggerCount);
         triggerName[triggerCount] = null;
         triggerKind[triggerCount] = null;
         triggerPayload[triggerCount] = null;
@@ -1062,6 +1078,36 @@ public final class LevelData {
         areaPolygon[areaCount] = polygonXz.clone();
         version++;
         return areaCount++;
+    }
+
+    /** Sets area volume {@code i}'s navigation area. */
+    public void setArea(int i, int area, float yMin, float yMax) {
+        areaArea[i] = area;
+        areaYMin[i] = yMin;
+        areaYMax[i] = yMax;
+        version++;
+    }
+
+    /** Replaces area volume {@code i}'s polygon (copied). */
+    public void setAreaPolygon(int i, float[] polygonXz) {
+        areaPolygon[i] = polygonXz.clone();
+        version++;
+    }
+
+    /** Inserts an area volume at {@code index} (an undo putting a removed one back). */
+    public int insertArea(int index, int area, float yMin, float yMax, float[] polygonXz) {
+        addArea(area, yMin, yMax, polygonXz);
+        for (int i = areaCount - 1; i > index; i--) {
+            areaArea[i] = areaArea[i - 1];
+            areaYMin[i] = areaYMin[i - 1];
+            areaYMax[i] = areaYMax[i - 1];
+            areaPolygon[i] = areaPolygon[i - 1];
+        }
+        areaArea[index] = area;
+        areaYMin[index] = yMin;
+        areaYMax[index] = yMax;
+        areaPolygon[index] = polygonXz.clone();
+        return index;
     }
 
     /** Removes area volume {@code index}. */
@@ -1144,6 +1190,47 @@ public final class LevelData {
         return i;
     }
 
+    /** Sets link {@code i}'s flags, area and user id. */
+    public void setLink(int i, int flags, int area, int userId) {
+        linkFlags[i] = flags;
+        linkArea[i] = area;
+        linkUserId[i] = userId;
+        version++;
+    }
+
+    /** Inserts a link at {@code index}. */
+    public int insertLink(
+            int index,
+            float sx,
+            float sy,
+            float sz,
+            float ex,
+            float ey,
+            float ez,
+            float radius,
+            int flags,
+            int area,
+            int userId) {
+        addLink(sx, sy, sz, ex, ey, ez, radius, flags, area, userId);
+        for (int i = linkCount - 1; i > index; i--) {
+            linkFlags[i] = linkFlags[i - 1];
+            linkArea[i] = linkArea[i - 1];
+            linkUserId[i] = linkUserId[i - 1];
+            System.arraycopy(
+                    linkData, (i - 1) * LINK_FLOATS, linkData, i * LINK_FLOATS, LINK_FLOATS);
+        }
+        setLink(index, flags, area, userId);
+        int o = index * LINK_FLOATS;
+        linkData[o] = sx;
+        linkData[o + 1] = sy;
+        linkData[o + 2] = sz;
+        linkData[o + 3] = ex;
+        linkData[o + 4] = ey;
+        linkData[o + 5] = ez;
+        linkData[o + 6] = radius;
+        return index;
+    }
+
     /** Removes link {@code index}. */
     public void removeLink(int index) {
         int tail = linkCount - index - 1;
@@ -1212,6 +1299,19 @@ public final class LevelData {
         return i;
     }
 
+    /** Inserts a rule at {@code index} (rules match in order, so position matters). */
+    public int insertRule(int index, String layer, int flags, int surface, int area) {
+        addRule(layer, flags, surface, area);
+        for (int i = ruleCount - 1; i > index; i--) {
+            ruleLayer[i] = ruleLayer[i - 1];
+            ruleFlags[i] = ruleFlags[i - 1];
+            ruleSurface[i] = ruleSurface[i - 1];
+            ruleArea[i] = ruleArea[i - 1];
+        }
+        setRule(index, layer, flags, surface, area);
+        return index;
+    }
+
     /** Removes rule {@code index}. */
     public void removeRule(int index) {
         int tail = ruleCount - index - 1;
@@ -1256,6 +1356,32 @@ public final class LevelData {
         sizeClassData[o + 2] = climb;
         version++;
         return i;
+    }
+
+    /** Sets size class {@code i}. */
+    public void setSizeClass(int i, String name, float radius, float height, float climb) {
+        sizeClassName[i] = name;
+        int o = i * SIZE_CLASS_FLOATS;
+        sizeClassData[o] = radius;
+        sizeClassData[o + 1] = height;
+        sizeClassData[o + 2] = climb;
+        version++;
+    }
+
+    /** Inserts a size class at {@code index}. */
+    public int insertSizeClass(int index, String name, float radius, float height, float climb) {
+        addSizeClass(name, radius, height, climb);
+        for (int i = sizeClassCount - 1; i > index; i--) {
+            sizeClassName[i] = sizeClassName[i - 1];
+            System.arraycopy(
+                    sizeClassData,
+                    (i - 1) * SIZE_CLASS_FLOATS,
+                    sizeClassData,
+                    i * SIZE_CLASS_FLOATS,
+                    SIZE_CLASS_FLOATS);
+        }
+        setSizeClass(index, name, radius, height, climb);
+        return index;
     }
 
     /** Removes size class {@code index}. */
@@ -1779,6 +1905,7 @@ public final class LevelData {
 
     /** Copies everything from {@code other} into this level (the editor's reload). */
     public void copyFrom(LevelData other) {
+        ids.clear();
         prefabCount = 0;
         placementCount = 0;
         lightCount = 0;
