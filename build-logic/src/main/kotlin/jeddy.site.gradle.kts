@@ -32,6 +32,7 @@ val descriptions = mapOf(
     "ui" to "Immediate-mode interface: flex layout, SDF text, widgets, draw lists",
     "scene" to "Entities and transform hierarchies",
     "app" to "The application loop and world integration (scene, render, physics, animation, audio, UI)",
+    "editor" to "The level editor as a library: commands with undo, picking, gizmos, docked panels",
     "testing" to "Test helpers: allocation assertions",
 )
 

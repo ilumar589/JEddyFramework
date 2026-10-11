@@ -84,6 +84,11 @@ final class DemoRenderer implements FrameRenderer, WorldRenderer.Hud {
                                 .hud(this, 16384));
     }
 
+    /** Returns the virtual file system of cooked assets (the editor's asset browser). */
+    Vfs vfs() {
+        return vfs;
+    }
+
     /** The asset manager (the game thread owns it). */
     AssetManager assets() {
         return options.headless ? headlessAssets : world.assets();

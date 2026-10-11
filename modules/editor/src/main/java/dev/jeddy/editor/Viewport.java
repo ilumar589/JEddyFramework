@@ -929,6 +929,12 @@ public final class Viewport {
         }
         IsoCamera cam = ctx.camera();
         int half = 24;
+        // Far away, a half-meter grid is a blur: coarsen it by powers of two until the drawn
+        // square (48 steps) covers about twice the distance to the target.
+        float span = cam.orthographic ? cam.orthoHeight : cam.distance;
+        while (step * 2 * half < span * 2 && step < 1e5f) {
+            step *= 2;
+        }
         float cx = GizmoMath.snap(cam.target.x, step);
         float cz = GizmoMath.snap(cam.target.z, step);
         float y = 0.01f;

@@ -134,7 +134,17 @@ jobs:
             --args="--size 960x540 --quit-after 20 --screenshot build/screenshots/ci.png --screenshot-at 8 --profiler" 2>&1 | tee -a gpu.log
           python3 .github/scripts/png-check.py samples/iso-demo/build/screenshots/ci.png
 
-      - name: Upload the screenshot
+      # The standalone editor on the crypt (TASKS M14-08): cooks the sample's assets, opens the
+      # level with two tiles selected, draws 30 frames and keeps a screenshot.
+      - name: Editor smoke run with a screenshot
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew :editor-tool:run --stacktrace \
+            --args="--project samples/iso-demo/assets --level levels/crypt.jlevel --shader-include modules/render/src/main/resources/dev/jeddy/render/shaders --size 1280x720 --frames 30 --screenshot samples/iso-demo/build/screenshots/editor.png --command \"select 150 151\"" 2>&1 | tee -a gpu.log
+          python3 .github/scripts/png-check.py samples/iso-demo/build/screenshots/editor.png
+
+      - name: Upload the screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:

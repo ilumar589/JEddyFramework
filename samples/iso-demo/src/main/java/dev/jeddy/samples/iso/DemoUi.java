@@ -135,6 +135,10 @@ final class DemoUi {
 
     // Read back by the game.
     boolean menuOpen;
+
+    /** The level editor is shown: the HUD stays out of its way. */
+    boolean editorOpen;
+
     boolean inventoryOpen;
     boolean quitRequested;
     int clickedMember = -1;
@@ -197,10 +201,12 @@ final class DemoUi {
             buildNanos = beginNanos + System.nanoTime() - buildStart;
             return;
         }
-        statusPanel();
-        messages();
-        portraits(party);
-        combatLog();
+        if (!editorOpen) { // the editor's panels take the screen edges
+            statusPanel();
+            messages();
+            portraits(party);
+            combatLog();
+        }
         if (inventoryOpen) {
             inventory();
         }

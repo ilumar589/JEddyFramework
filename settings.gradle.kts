@@ -32,6 +32,7 @@ listOf(
 ).forEach { module(it, "modules/$it") }
 
 module("cooker", "tools/cooker")
+module("editor-tool", "tools/editor")
 module("site", "tools/site")
 module("bench", "bench")
 module("testing", "testing")

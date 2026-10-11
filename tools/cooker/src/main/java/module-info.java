@@ -10,4 +10,10 @@ module dev.jeddy.cooker {
     requires dev.jeddy.compress;
     requires dev.jeddy.asset;
     requires dev.jeddy.physics;
+
+    // The standalone editor runs the cooker in watch mode next to the level being edited.
+    exports dev.jeddy.cooker to
+            dev.jeddy.editortool;
+    exports dev.jeddy.cooker.watch to
+            dev.jeddy.editortool;
 }

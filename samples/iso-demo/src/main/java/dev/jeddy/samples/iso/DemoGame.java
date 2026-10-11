@@ -18,6 +18,7 @@ import dev.jeddy.audio.Audio;
 import dev.jeddy.audio.SoundClip;
 import dev.jeddy.core.log.Log;
 import dev.jeddy.core.log.Logger;
+import dev.jeddy.editor.Editor;
 import dev.jeddy.input.CrpgGestures;
 import dev.jeddy.input.Input;
 import dev.jeddy.input.Scancode;
@@ -104,6 +105,10 @@ final class DemoGame implements Game {
     private int debugThread;
 
     private final IsoCamera camera = new IsoCamera();
+
+    /** The level editor (M14): F10 shows it over the running game; it edits the crypt live. */
+    private final Editor editor = new Editor();
+
     private final IsoCameraController controller = new IsoCameraController(camera);
     private boolean following;
     private QueryContext pickQuery = new QueryContext();
@@ -237,6 +242,7 @@ final class DemoGame implements Game {
         controller.syncGoals(); // keep the distance and yaw set above
 
         perf.agents = characters;
+        editor.loadSettings(ctx.settings());
     }
 
     // Loading ------------------------------------------------------------------------------------
@@ -291,6 +297,18 @@ final class DemoGame implements Game {
                         options.seed);
         sync = new AgentSync(level.crowd, world);
         pickQuery = new QueryContext(characters);
+        editor.attach(world, levelLoader);
+        editor.attachAssets(renderer.vfs(), scenes);
+        editor.open(levelLoader.level(), options.levelSource);
+        if (options.editor) {
+            toggleEditor();
+            // The game camera has not followed the party yet on this first frame: look at the
+            // level (or whatever --editor-command selects).
+            for (String command : options.editorCommands) {
+                editor.runCommand(command);
+            }
+            editor.viewport().frameSelection();
+        }
         SceneData[] partyScenes = new SceneData[partyModels.length];
         for (int i = 0; i < partyScenes.length; i++) {
             partyScenes[i] = scenes.get(partyModels[i]);
@@ -509,7 +527,19 @@ final class DemoGame implements Game {
             if (audio != null && sounds.isReady(boomSound)) {
                 spells.setSound(sounds.get(boomSound));
             }
-            handleInput(ctx, in);
+            if (in.wasKeyPressed(Scancode.F10) && !demoUi.ui.wantsKeyboard()) {
+                toggleEditor();
+            }
+            if (editor.isShown()) {
+                // The editor owns the pointer, the keys and the camera while it is open; the
+                // game keeps simulating underneath (Space pauses it as usual).
+                editor.update(ctx, demoUi.ui, dt);
+                if (in.wasKeyPressed(Scancode.SPACE) && !demoUi.ui.wantsKeyboard()) {
+                    ctx.simulation().setPaused(!ctx.simulation().isPaused());
+                }
+            } else {
+                handleInput(ctx, in);
+            }
         }
         probe.mark(AllocProbe.INPUT);
         if (levelBuilt) {
@@ -520,7 +550,9 @@ final class DemoGame implements Game {
             animationNanos = System.nanoTime() - t0;
         }
         probe.mark(AllocProbe.ANIMATION);
-        updateCamera(ctx, in, dt);
+        if (!editor.isShown()) {
+            updateCamera(ctx, in, dt);
+        }
         probe.mark(AllocProbe.CAMERA);
         if (audio != null) {
             if (audioSync != null) {
@@ -532,7 +564,7 @@ final class DemoGame implements Game {
         if (options.quitAfterFirstFrame && renderer.firstFrameShown()) {
             ctx.quit();
         }
-        if (in.wasKeyPressed(Scancode.ESCAPE) && !demoUi.ui.wantsKeyboard()) {
+        if (in.wasKeyPressed(Scancode.ESCAPE) && !demoUi.ui.wantsKeyboard() && !editor.isShown()) {
             if (spells != null && spells.targeting) {
                 spells.targeting = false;
             } else if (demoUi.inventoryOpen) {
@@ -547,8 +579,27 @@ final class DemoGame implements Game {
         timers(ctx);
         probe.mark(AllocProbe.TIMERS);
         fillUi(ctx);
+        demoUi.editorOpen = editor.isShown();
         demoUi.declare(party);
+        editor.declare(demoUi.ui, demoUi.w);
         probe.mark(AllocProbe.UI);
+    }
+
+    /** Opens the editor over the current view, or closes it (F10). */
+    private void toggleEditor() {
+        if (editor.isShown()) {
+            editor.setShown(false);
+            demoUi.log.start().add("Editor closed").end();
+        } else {
+            editor.takeCameraFrom(camera);
+            editor.setShown(true);
+            demoUi.log
+                    .start()
+                    .add(
+                            "Editor: click selects, W/E/R move/rotate/scale, right drag orbits, F10"
+                                    + " closes")
+                    .end();
+        }
     }
 
     /** Hands the frame's state to the UI and applies what the player changed in it. */
@@ -924,18 +975,19 @@ final class DemoGame implements Game {
         p.frame = ctx.frame();
         p.time = (float) time;
         p.alpha = ctx.simulation().alpha();
+        IsoCamera cam = editor.isShown() ? editor.camera() : camera;
         p.setCamera(
-                camera.view,
-                camera.projection,
-                camera.viewProjection,
-                camera.inverseViewProjection,
-                camera.frustumPlanes,
-                camera.eye().x,
-                camera.eye().y,
-                camera.eye().z);
-        p.near = camera.near;
-        p.far = camera.distance * 2 + 60;
-        p.orthographic = camera.orthographic;
+                cam.view,
+                cam.projection,
+                cam.viewProjection,
+                cam.inverseViewProjection,
+                cam.frustumPlanes,
+                cam.eye().x,
+                cam.eye().y,
+                cam.eye().z);
+        p.near = cam.near;
+        p.far = cam.distance * 2 + 60;
+        p.orthographic = cam.orthographic;
         // A crypt: faint cold moonlight through cracks, torches do the rest.
         p.sunDirection[0] = -0.35f;
         p.sunDirection[1] = -0.85f;
@@ -977,12 +1029,17 @@ final class DemoGame implements Game {
                 }
             }
             probe.mark(AllocProbe.EFFECTS);
-            level.fog.extract(p);
+            if (editor.isShown()) {
+                p.fogOfWar = null; // the whole level is visible while editing it
+            } else {
+                level.fog.extract(p);
+            }
             if (turnBasedOn && boundaryCount > 0) {
                 level.nav.debugDrawPolygons(
                         debugSink, debugThread, boundary, boundaryCount, 0.08f, 0xFF40E0FF);
             }
             renderer.debugDraw().collect(p);
+            editor.extract(p); // grid, markers and the gizmo (an overlay) after the game's lines
             probe.mark(AllocProbe.FOG);
         }
         if (ready) {
@@ -1017,6 +1074,12 @@ final class DemoGame implements Game {
         if (measuring) {
             perf.end();
             measuring = false;
+        }
+        editor.saveSettings(ctx.settings());
+        try {
+            ctx.saveSettings();
+        } catch (java.io.IOException e) {
+            LOG.warn("settings not saved", e);
         }
         LOG.info("instances " + instanceCount + ", ambience " + ambienceStarted);
     }
