@@ -69,7 +69,7 @@ plugins {
 version = "0.1.0"
 
 dependencies {
-    implementation("dev.jeddy:jeddy-app:0.1.0-SNAPSHOT")
+    implementation("dev.jeddy:jeddy-app:0.2.0-SNAPSHOT")
 }
 
 application {
@@ -93,7 +93,7 @@ The `dev.jeddy.game` plugin does the rest:
 - It adds the packaging tasks.
 
 `dev.jeddy:jeddy-app` brings the whole runtime with it: math, window, input, render, asset, audio,
-physics and scene.
+physics, animation and scene.
 
 ### Published artifacts instead of a composite build
 
@@ -120,12 +120,12 @@ dependencyResolutionManagement {
 
 // build.gradle.kts
 plugins {
-    id("dev.jeddy.game") version "0.1.0-SNAPSHOT"
+    id("dev.jeddy.game") version "0.2.0-SNAPSHOT"
 }
 ```
 
 The plugin's version picks the cooker and native libraries, so keep it equal to the `jeddy-app`
-version.
+version: `0.2.0-SNAPSHOT` from a local publish of `main`, or `0.1.0` from the tagged release.
 
 ## 2. The game class
 

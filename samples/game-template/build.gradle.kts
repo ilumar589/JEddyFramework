@@ -5,7 +5,7 @@ plugins {
 version = "0.1.0"
 
 dependencies {
-    implementation("dev.jeddy:jeddy-app:0.1.0-SNAPSHOT")
+    implementation("dev.jeddy:jeddy-app:0.2.0-SNAPSHOT")
 }
 
 application {
