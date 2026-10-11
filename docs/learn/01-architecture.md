@@ -1865,9 +1865,12 @@ the main thread** (`Audio.open`, which SDL_mixer requires, D62), and `DemoGame` 
 ### Try it
 
 ```
-./gradlew :iso-demo:run                                     # play (cooks and packs assets first)
-./gradlew :iso-demo:run --args="--headless --perf 60"       # game thread only, with a perf report
-./gradlew :iso-demo:run --args="--profiler"                 # profiler overlay on (F3 toggles it)
+# play (cooks and packs assets first)
+./gradlew :iso-demo:run
+# game thread only, with a perf report
+./gradlew :iso-demo:run --args="--headless --perf 60"
+# profiler overlay on (F3 toggles it)
+./gradlew :iso-demo:run --args="--profiler"
 ```
 
 Space pauses the simulation: watch the characters freeze mid-step while the camera keeps

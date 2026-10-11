@@ -628,8 +628,10 @@ fails the build.
 
 ```
 ./gradlew :bench:jmh -Pjmh.includes=FfmBench
-./gradlew :bench:jmh -Pjmh.includes=GlBench          # needs a GL 4.6 context
-./gradlew :sdl:test                                  # SdlBindingsTest: initializes every generated holder
+# needs a GL 4.6 context
+./gradlew :bench:jmh -Pjmh.includes=GlBench
+# SdlBindingsTest: initializes every generated holder
+./gradlew :sdl:test
 ```
 
 ---
@@ -1097,8 +1099,10 @@ and the perf capture checks that the launcher flags are present, failing CI unde
 ### Try it
 
 ```
-./gradlew :core:test --tests 'dev.jeddy.core.job.JobSystemTest'       # dispatchDoesNotAllocate
-./gradlew :app:test --tests 'dev.jeddy.app.JeddyAppTest'              # the two-thread soak
+# dispatchDoesNotAllocate
+./gradlew :core:test --tests 'dev.jeddy.core.job.JobSystemTest'
+# the two-thread soak
+./gradlew :app:test --tests 'dev.jeddy.app.JeddyAppTest'
 ./gradlew :iso-demo:run --args="--headless --perf 300 --warmup 60 --alloc-probe"
 ```
 
@@ -1242,7 +1246,8 @@ frame takes 0.21 s with the cache against 0.37 s without on a GitHub Linux runne
 against 0.72 s on Windows.
 
 ```
-./gradlew :iso-demo:distImage                 # image with launchers and the AOT cache
+# image with launchers and the AOT cache
+./gradlew :iso-demo:distImage
 ./gradlew :iso-demo:distImage -Pjeddy.aot=false
 ```
 

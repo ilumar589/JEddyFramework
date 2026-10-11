@@ -552,9 +552,11 @@ native address (D29). This is how `GpuBuffers.update` passes `segment.address()`
 ### Try it
 
 ```bash
-./gradlew :gl:generateGlBindings      # writes modules/gl/build/generated/sources/gl/...
+# writes modules/gl/build/generated/sources/gl/...
+./gradlew :gl:generateGlBindings
 ./gradlew :gl:test -Pjeddy.gpuTests=true --tests 'dev.jeddy.gl.GLTest'
-./gradlew :bench:jmh -Pjmh.includes=GlBench   # critical vs regular, heap vs off-heap
+# critical vs regular, heap vs off-heap
+./gradlew :bench:jmh -Pjmh.includes=GlBench
 ```
 
 GPU tests need a GL 4.6 driver. On a Linux machine without a GPU, CI runs them with Mesa llvmpipe

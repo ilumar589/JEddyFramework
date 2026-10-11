@@ -103,15 +103,23 @@ at "what is a vertex shader".
 ## Running things
 
 ```
-./gradlew build                                   # build and test everything
-./gradlew :math:test                              # one module's tests
+# build and test everything
+./gradlew build
+# one module's tests
+./gradlew :math:test
 ./gradlew :math:test --tests 'dev.jeddy.math.MatrixAndQuatTest'
-./gradlew :render:test -Pjeddy.gpuTests=true      # include GPU tests (needs a GL 4.6 driver)
-./gradlew :bench:jmh -Pjmh.includes=MathBench     # a JMH benchmark
-./gradlew :iso-demo:run                           # the demo (cooks and packs assets first)
-./gradlew :iso-demo:run --args="--help"           # its options
-./gradlew :iso-demo:run --args="--headless --perf 120"   # a short perf capture, no GPU
-./gradlew :hello-triangle:run                     # the smallest OpenGL program in the repo
+# include GPU tests (needs a GL 4.6 driver)
+./gradlew :render:test -Pjeddy.gpuTests=true
+# a JMH benchmark
+./gradlew :bench:jmh -Pjmh.includes=MathBench
+# the demo (cooks and packs assets first)
+./gradlew :iso-demo:run
+# its options
+./gradlew :iso-demo:run --args="--help"
+# a short perf capture, no GPU
+./gradlew :iso-demo:run --args="--headless --perf 120"
+# the smallest OpenGL program in the repo
+./gradlew :hello-triangle:run
 ```
 
 ## Glossary

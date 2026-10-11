@@ -5,6 +5,10 @@ repository root; on Windows use `gradlew.bat` instead of `./gradlew` and the sam
 provisions JDK 27 by itself the first time, so the only things to install are a JDK of any recent
 version to bootstrap the wrapper and, for anything that draws, an OpenGL 4.6 driver.
 
+IntelliJ shows a run icon next to every `./gradlew` line in this file and runs it as a Gradle
+task, not through a shell, so the explanations in the command blocks sit on their own `#` lines
+rather than after the command (a trailing comment would become a task named `#`).
+
 Related: [Getting started](getting-started.md) builds a game project of your own on the framework;
 the [learning guide](learn/README.md) explains how the engine works. This page is about operating
 what is already here.
@@ -83,8 +87,10 @@ edits reports `UP-TO-DATE` in a few seconds; that is expected, not a skipped run
 ### GPU tests
 
 ```
-./gradlew test -Pjeddy.gpuTests=true     # the normal tests plus the GPU ones
-./gradlew test -Pjeddy.gpuTests=only     # just the GPU ones
+# the normal tests plus the GPU ones
+./gradlew test -Pjeddy.gpuTests=true
+# just the GPU ones
+./gradlew test -Pjeddy.gpuTests=only
 ```
 
 They open real windows for a moment. On a Linux machine without a display (a server, WSL without
@@ -131,7 +137,8 @@ editor over the running game.
 ```
 ./gradlew :iso-demo:run
 ./gradlew :iso-demo:run --args="--size 1920x1080 --no-vsync"
-./gradlew :iso-demo:run "-Pjeddy.jvmArgs=-Djeddy.gl.debug=true"   # with the GPU driver's messages in the log
+# with the GPU driver's messages in the log
+./gradlew :iso-demo:run "-Pjeddy.jvmArgs=-Djeddy.gl.debug=true"
 ```
 
 `run` first cooks the sample's assets (`samples/iso-demo/assets` → `samples/iso-demo/build/cooked`)
@@ -214,9 +221,12 @@ slots unlimited, so the fight does not change what is measured.
 ### Package it
 
 ```
-./gradlew :iso-demo:distImage        # build/dist/iso-demo: a jlink runtime, launchers, paks, AOT cache
-./gradlew :iso-demo:distImageZip     # the same, zipped under build/distributions
-./gradlew :iso-demo:jpackage         # an app image; -Pjeddy.package.type=deb|rpm|msi|exe for installers
+# build/dist/iso-demo: a jlink runtime, launchers, paks, AOT cache
+./gradlew :iso-demo:distImage
+# the same, zipped under build/distributions
+./gradlew :iso-demo:distImageZip
+# an app image; -Pjeddy.package.type=deb|rpm|msi|exe for installers
+./gradlew :iso-demo:jpackage
 ```
 
 The image runs without a JDK: `samples/iso-demo/build/dist/iso-demo/bin/iso-demo` (or

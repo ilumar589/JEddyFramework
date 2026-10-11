@@ -1629,9 +1629,12 @@ Inside this repository the cooker comes from the `:cooker` project; elsewhere fr
 shader directory to `shaderIncludeDirs`, and makes `run` depend on `packAssets`:
 
 ```
-./gradlew :iso-demo:cookAssets      # source tree -> build/cooked
-./gradlew :iso-demo:packAssets      # build/cooked -> build/paks/*.jpak
-./gradlew :iso-demo:run             # packs first, then mounts build/paks
+# source tree -> build/cooked
+./gradlew :iso-demo:cookAssets
+# build/cooked -> build/paks/*.jpak
+./gradlew :iso-demo:packAssets
+# packs first, then mounts build/paks
+./gradlew :iso-demo:run
 ```
 
 ---

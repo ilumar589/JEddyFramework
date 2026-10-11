@@ -11,7 +11,8 @@ background loading) and the app loop (30 Hz simulation, interpolated rendering, 
 ![The iso demo on Mesa llvmpipe](../../docs/images/iso-demo.png)
 
 ```
-./gradlew :iso-demo:run                 # cooks and packs the assets first
+# cooks and packs the assets first
+./gradlew :iso-demo:run
 ./gradlew :iso-demo:run --args="--help"
 ```
 
@@ -39,8 +40,10 @@ background loading) and the app loop (30 Hz simulation, interpolated rendering, 
 ## Performance capture
 
 ```
-./gradlew :iso-demo:run --args="--perf 600"                     # 10 minutes, rendered
-./gradlew :iso-demo:run --args="--headless --perf 600"          # game thread only, no GPU
+# 10 minutes, rendered
+./gradlew :iso-demo:run --args="--perf 600"
+# game thread only, no GPU
+./gradlew :iso-demo:run --args="--headless --perf 600"
 ./gradlew :iso-demo:run -Pjeddy.jvmArgs="-Xlog:gc*:file=build/perf/gc.log" --args="--perf 600"
 ```
 
