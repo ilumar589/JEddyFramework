@@ -235,7 +235,8 @@ public final class RulesSchema {
         "initiative",
         "speed",
         "maxHp",
-        "aoo"
+        "aoo",
+        "extraAttacks"
     };
 
     /** Bonus types; same-type bonuses do not stack except untyped, dodge and circumstance. */
