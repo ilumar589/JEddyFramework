@@ -42,7 +42,8 @@ public final class FontCooker {
 
     /**
      * Default code point ranges: ASCII, Latin-1 supplement, Latin Extended-A, general punctuation
-     * (dashes, quotes, ellipsis, bullet), the euro sign and the replacement character.
+     * (dashes, quotes, ellipsis, bullet), the euro sign, the arrows, triangles, circles and check
+     * mark the built-in widgets draw, and the replacement character.
      */
     public static final int[][] DEFAULT_RANGES = {
         {0x20, 0x7E},
@@ -50,6 +51,14 @@ public final class FontCooker {
         {0x100, 0x17F},
         {0x2010, 0x2027},
         {0x20AC, 0x20AC},
+        {0x2190, 0x2193}, // arrows
+        {0x25B2, 0x25B2}, // triangles the widgets use (tree nodes, dropdowns)
+        {0x25B6, 0x25B6},
+        {0x25BC, 0x25BC},
+        {0x25C0, 0x25C0},
+        {0x25CB, 0x25CB}, // circles (radio buttons)
+        {0x25CF, 0x25CF},
+        {0x2713, 0x2713}, // check mark
         {0xFFFD, 0xFFFD}
     };
 

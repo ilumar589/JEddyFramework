@@ -4,7 +4,7 @@ import java.util.Arrays;
 
 /**
  * Editable text for text fields (TASKS M13-04): UTF-16 chars with a caret and a selection, owned by
- * the game and edited by {@link Ui#textField}. It is also a {@link CharSequence}, so it can be
+ * the game and edited by {@link Widgets#textField}. It is also a {@link CharSequence}, so it can be
  * drawn directly. Editing allocates nothing until the text outgrows the buffer.
  *
  * <p>Thread ownership: the thread that drives the {@link Ui}.

@@ -132,6 +132,8 @@ public final class Ui {
     static final int F_SCROLLBAR = 1 << 15; // records only: a scrollbar track of a scroll box
     static final int F_OPENED = 1 << 16;
     static final int F_NO_HIT = 1 << 17; // explicitly transparent to the pointer
+    static final int F_NO_BARS = 1 << 18; // a scroll box without visible scrollbars
+    static final int F_FLOAT_CLIP = 1 << 19; // a floating element clipped like its siblings
 
     /** Float target: the parent element. */
     static final int TARGET_PARENT = -1;
@@ -202,6 +204,8 @@ public final class Ui {
     int[] dragKind;
     int[] dragValue;
     int[] stateSlot;
+    int[] floatClip; // F_FLOAT_CLIP: the clip index in force where the element was declared
+    float[] floatClipRect; // and its rectangle, 4 per element
     // Text
     int[] textStart;
     int[] textLength;
@@ -428,6 +432,8 @@ public final class Ui {
         dragKind = new int[n];
         dragValue = new int[n];
         stateSlot = new int[n];
+        floatClip = new int[n];
+        floatClipRect = new float[n * 4];
         textStart = new int[n];
         textLength = new int[n];
         font = new int[n];
@@ -478,6 +484,8 @@ public final class Ui {
         dragKind = Arrays.copyOf(dragKind, n);
         dragValue = Arrays.copyOf(dragValue, n);
         stateSlot = Arrays.copyOf(stateSlot, n);
+        floatClip = Arrays.copyOf(floatClip, n);
+        floatClipRect = Arrays.copyOf(floatClipRect, n * 4);
         textStart = Arrays.copyOf(textStart, n);
         textLength = Arrays.copyOf(textLength, n);
         font = Arrays.copyOf(font, n);
@@ -567,11 +575,16 @@ public final class Ui {
 
     /** Returns the width of {@code s} in {@code font} at {@code size} pixels (no kerning). */
     public float measure(int font, float size, CharSequence s) {
+        return measure(font, size, s, 0, s.length());
+    }
+
+    /** Returns the width of {@code s[from, to)} in {@code font} at {@code size} (no kerning). */
+    public float measure(int font, float size, CharSequence s, int from, int to) {
         FontData f = fontData[font];
         float scale = size / f.emSize();
         float w = 0;
-        int n = s.length();
-        for (int i = 0; i < n; i++) {
+        int n = to;
+        for (int i = from; i < n; i++) {
             char c = s.charAt(i);
             int cp = c;
             if (Character.isHighSurrogate(c)
@@ -1939,11 +1952,19 @@ public final class Ui {
         int sp = 0;
         stackEl[0] = root;
         stackChild[0] = -2;
-        stackClip[0] = 0;
-        stackRect[0] = 0;
-        stackRect[1] = 0;
-        stackRect[2] = width;
-        stackRect[3] = height;
+        if ((flags[root] & F_FLOAT_CLIP) != 0) {
+            stackClip[0] = floatClip[root];
+            stackRect[0] = floatClipRect[root * 4];
+            stackRect[1] = floatClipRect[root * 4 + 1];
+            stackRect[2] = floatClipRect[root * 4 + 2];
+            stackRect[3] = floatClipRect[root * 4 + 3];
+        } else {
+            stackClip[0] = 0;
+            stackRect[0] = 0;
+            stackRect[1] = 0;
+            stackRect[2] = width;
+            stackRect[3] = height;
+        }
         while (sp >= 0) {
             int e = stackEl[sp];
             if (stackChild[sp] == -2) {
@@ -2014,6 +2035,12 @@ public final class Ui {
                         floats = Arrays.copyOf(floats, floatCount * 2);
                     }
                     floats[floatCount++] = c;
+                    int pc = stackClip[sp];
+                    floatClip[c] = pc >>> 16 != 0 ? pc >>> 16 : pc & 0xFFFF;
+                    floatClipRect[c * 4] = stackRect[sp * 4];
+                    floatClipRect[c * 4 + 1] = stackRect[sp * 4 + 1];
+                    floatClipRect[c * 4 + 2] = stackRect[sp * 4 + 2];
+                    floatClipRect[c * 4 + 3] = stackRect[sp * 4 + 3];
                     continue;
                 }
                 sp++;
@@ -2033,7 +2060,9 @@ public final class Ui {
                 stackRect[sp * 4 + 3] = stackRect[(sp - 1) * 4 + 3];
             } else {
                 // All children done: scrollbars on top, with the enclosing clip.
-                if ((flags[e] & (F_SCROLL_X | F_SCROLL_Y)) != 0 && ids[e] != NONE) {
+                if ((flags[e] & (F_SCROLL_X | F_SCROLL_Y)) != 0
+                        && (flags[e] & F_NO_BARS) == 0
+                        && ids[e] != NONE) {
                     int enclosing = stackClip[sp] & 0xFFFF;
                     int o = sp * 4;
                     float ex = stackRect[o];

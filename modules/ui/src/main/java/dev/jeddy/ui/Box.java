@@ -245,6 +245,12 @@ public final class Box {
         return this;
     }
 
+    /** A scroll box without scrollbars (text fields scroll their one line this way). */
+    public Box hideScrollbars() {
+        ui.flags[cur] |= Ui.F_NO_BARS;
+        return this;
+    }
+
     // ---- Floating ---------------------------------------------------------------------------
 
     /**
@@ -300,6 +306,15 @@ public final class Box {
     /** Lets a floating box leave the screen. */
     public Box unclamped() {
         ui.flags[cur] &= ~Ui.F_CLAMP_SCREEN;
+        return this;
+    }
+
+    /**
+     * Clips a floating box like its non-floating siblings (by the enclosing clip boxes) instead of
+     * letting it escape them as popups do. Carets and selection highlights use this.
+     */
+    public Box clippedByParent() {
+        ui.flags[cur] |= Ui.F_FLOAT_CLIP;
         return this;
     }
 
