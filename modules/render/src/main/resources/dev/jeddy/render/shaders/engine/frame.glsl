@@ -1,5 +1,5 @@
 // Per-frame constants (DESIGN §9.2, §9.3), written once per frame by SceneRenderer into a uniform
-// buffer at binding 0. Layout std140; FrameConstants in Java mirrors it.
+// buffer at binding 0. Layout std140; SceneRenderer.writeFrameConstants writes it.
 #pragma once
 
 layout(std140, binding = 0) uniform JeddyFrame {
@@ -12,7 +12,7 @@ layout(std140, binding = 0) uniform JeddyFrame {
     vec4 jViewport;     // width, height, 1 / width, 1 / height (pixels)
     vec4 jClusterZ;     // near, far, slice scale, slice bias (view-space depth slicing)
     uvec4 jClusterDims; // clusters along x, y, z; tile size in pixels
-    vec4 jSunDirection; // xyz unit direction the sunlight travels, w cascade count
+    vec4 jSunDirection; // xyz unit direction the sunlight travels, w 0 (cascades: jSunShadowParams.w)
     vec4 jSunColor;     // rgb linear color times illuminance, w 1 when the sun is on
     vec4 jEnvironment;  // x specular scale, y diffuse scale, z prefiltered mip count, w exposure
     uvec4 jCounts;      // x lights, y decals, z frame number, w flags (bit 0 orthographic)

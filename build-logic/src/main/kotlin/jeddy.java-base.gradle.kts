@@ -64,6 +64,8 @@ dependencies {
 }
 
 val gpuTests = providers.gradleProperty("jeddy.gpuTests").getOrElse("false")
+// Longer soak runs of the app loop test: -Pjeddy.soakSeconds=600 (JeddyAppTest).
+val soakSeconds = providers.gradleProperty("jeddy.soakSeconds").orNull
 
 tasks.withType<Test>().configureEach {
     // Most modules have no GPU tests, which is expected in the gpu-only run.
@@ -82,6 +84,7 @@ tasks.withType<Test>().configureEach {
     // Whitebox tests (no module-info in src/test) run on the classpath, so native access is
     // granted to the unnamed module (DESIGN §6.3).
     jvmArgs("--enable-native-access=ALL-UNNAMED")
+    soakSeconds?.let { systemProperty("jeddy.soakSeconds", it) }
     maxHeapSize = "1g"
     testLogging {
         events("failed", "skipped")

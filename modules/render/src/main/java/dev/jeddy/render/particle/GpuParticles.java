@@ -140,14 +140,25 @@ public final class GpuParticles implements AutoCloseable {
         depth = sceneDepth;
         int pool = graph.importedBuffer("particles");
         graph.setBuffer(pool, device.buffers().glName(particleBuffer));
-        graph.addComputePass("particle emit", this::emit).writes(pool);
-        graph.addComputePass("particle simulate", this::simulate).readsStorage(pool).writes(pool);
-        graph.addComputePass("particle args", this::args).readsStorage(pool).writes(pool);
+        // The counters, alive and dead lists, and the indirect draw command.
+        int lists = graph.importedBuffer("particle lists");
+        graph.setBuffer(lists, device.buffers().glName(listBuffer));
+        graph.addComputePass("particle emit", this::emit)
+                .readsStorage(lists)
+                .writes(pool)
+                .writes(lists);
+        graph.addComputePass("particle simulate", this::simulate)
+                .readsStorage(pool)
+                .readsStorage(lists)
+                .writes(pool)
+                .writes(lists);
+        graph.addComputePass("particle args", this::args).readsStorage(lists).writes(lists);
         graph.addPass("particles", this::draw)
                 .color(hdr)
                 .readsTexture(sceneDepth)
                 .readsStorage(pool)
-                .readsIndirect(pool);
+                .readsStorage(lists)
+                .readsIndirect(lists);
     }
 
     /**

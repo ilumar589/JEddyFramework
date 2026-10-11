@@ -9,7 +9,7 @@ struct Item {
     vec4 rows[3]; // world transform (row-major 3x4)
     vec4 bounds;  // world bounding sphere
     uvec4 ids;    // x packet index, y bin, z material, w entity
-    vec4 extra;   // x largest axis scale (LOD)
+    vec4 extra;   // x scale along the instance's X axis (length of the first column, for LOD)
 };
 
 struct Bin {

@@ -55,6 +55,26 @@ class IsoCameraControllerTest {
     }
 
     @Test
+    void syncedGoalsKeepADistanceSetDirectly() {
+        IsoCamera cam = new IsoCamera();
+        IsoCameraController c = new IsoCameraController(cam); // goals from the default distance
+        cam.distance = 30;
+        cam.yaw = 1;
+        settle(c);
+        assertEquals(20, cam.distance, 1e-3f, "without a sync the old goal wins");
+        cam.distance = 30;
+        cam.yaw = 1;
+        c.syncGoals();
+        settle(c);
+        assertEquals(30, cam.distance, 1e-3f);
+        assertEquals(1, cam.yaw, 1e-6f);
+        c.maxDistance = 25;
+        c.syncGoals();
+        settle(c);
+        assertEquals(25, cam.distance, 1e-3f, "clamped to the zoom limits");
+    }
+
+    @Test
     void dragKeepsTheGrabbedGroundPointUnderTheCursor() {
         IsoCamera cam = new IsoCamera();
         IsoCameraController c = new IsoCameraController(cam);

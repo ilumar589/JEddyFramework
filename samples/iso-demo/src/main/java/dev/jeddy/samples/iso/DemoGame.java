@@ -223,7 +223,8 @@ final class DemoGame implements Game {
         controller.minDistance = 8;
         controller.maxDistance = 48;
         controller.smoothing = 0.15f;
-        controller.zoom(0);
+        controller.syncGoals(); // keep the distance and yaw set above
+
         perf.agents = characters;
     }
 

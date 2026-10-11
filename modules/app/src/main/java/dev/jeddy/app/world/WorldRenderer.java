@@ -23,6 +23,7 @@ import dev.jeddy.render.material.MaterialAssets;
 import dev.jeddy.render.mesh.MeshAssets;
 import dev.jeddy.render.mesh.MeshRegistry;
 import dev.jeddy.render.shader.EngineShaders;
+import dev.jeddy.render.shader.ProgramBinaryCache;
 import dev.jeddy.render.shader.ProgramCache;
 
 import java.nio.file.Path;
@@ -164,6 +165,20 @@ public final class WorldRenderer implements FrameRenderer {
         return home == null ? null : Path.of(home, ".cache", "jeddy", "shaders");
     }
 
+    /** The program binary cache of D73, or {@code null} when off or unsupported by the driver. */
+    private ProgramBinaryCache binaryCache() {
+        if (config.shaderCache == null) {
+            return null;
+        }
+        ProgramBinaryCache cache = new ProgramBinaryCache(config.shaderCache, caps);
+        if (!cache.isSupported()) {
+            LOG.info("the driver offers no program binary formats: shaders compile every run");
+            return null;
+        }
+        LOG.info("program binaries cached in " + config.shaderCache);
+        return cache;
+    }
+
     @Override
     public void init(MainContext ctx) {
         caps = GLLoader.init(ctx.window()::glProcAddress);
@@ -172,7 +187,7 @@ public final class WorldRenderer implements FrameRenderer {
         device.useReversedZ();
         upload = new UploadRing(device, 64L << 20, 32L << 20);
         registry = new MeshRegistry(device, upload, config.meshVertices, config.meshIndices);
-        programs = new ProgramCache(EngineShaders.sources(), caps, null);
+        programs = new ProgramCache(EngineShaders.sources(), caps, binaryCache());
         renderer = new SceneRenderer(device, programs, registry, ctx.jobs(), config.scene);
         assets = new AssetManager(vfs, ctx.jobs());
         materials = new MaterialAssets(assets, device, renderer.materials());

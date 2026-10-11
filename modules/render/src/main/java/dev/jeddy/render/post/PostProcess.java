@@ -76,7 +76,10 @@ public final class PostProcess implements AutoCloseable {
             float key,
             float brightenRate,
             float darkenRate) {
-        /** Luminance 2^-8..2^10, the middle 45% of pixels, middle grey, 3 / s and 1 / s. */
+        /**
+         * Luminance 2^-8..2^10, pixels from the median to the 95th percentile, middle grey, 3 / s
+         * and 1 / s.
+         */
         public static final AutoExposure DEFAULT =
                 new AutoExposure(-8f, 10f, 0.5f, 0.95f, 0.18f, 3f, 1f);
 

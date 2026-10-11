@@ -1,4 +1,4 @@
-// Image-based lighting (TASKS M7-02, DESIGN §10.3): a GGX-prefiltered radiance cube (mip i for
+// Image-based lighting (TASKS M7-02, DESIGN §9.3): a GGX-prefiltered radiance cube (mip i for
 // roughness i / (levels - 1)), SH9 irradiance (already convolved with the cosine lobe; uniform
 // block at binding 2) and the split-sum BRDF LUT.
 #pragma once

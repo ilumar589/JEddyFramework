@@ -17,7 +17,8 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * The app loop under SDL's dummy video driver (TASKS M2-09). The AC asks for 10 minutes at 0 B per
  * frame on both threads; CI runs {@code jeddy.soakSeconds} (default 4) seconds, measured after a
- * warm-up, and a local run can pass {@code -Djeddy.soakSeconds=600}.
+ * warm-up, and a local run can ask for more with {@code ./gradlew :app:test
+ * -Pjeddy.soakSeconds=600}.
  */
 class JeddyAppTest {
     private static AppConfig headless() {

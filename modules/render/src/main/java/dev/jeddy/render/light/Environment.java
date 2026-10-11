@@ -41,6 +41,8 @@ public final class Environment implements AutoCloseable {
     private final GpuDevice device;
     private final Arena arena = Arena.ofConfined();
     private final MemorySegment sh = arena.allocate(9 * 16, 16);
+    private final MemorySegment uniformTexels = arena.allocate(6 * 8, 8); // one RGBA16F per face
+    private final float[] uniformSh = new float[27];
     private final int shBuffer;
     private final int lut;
     private final int defaultCube;
@@ -95,7 +97,7 @@ public final class Environment implements AutoCloseable {
      * irradiance is {@code π} times it.
      */
     public void setUniform(float r, float g, float b) {
-        MemorySegment px = arena.allocate(6 * 8, 8);
+        MemorySegment px = uniformTexels;
         for (int f = 0; f < 6; f++) {
             px.set(ValueLayout.JAVA_SHORT, f * 8L, Float.floatToFloat16(r));
             px.set(ValueLayout.JAVA_SHORT, f * 8L + 2, Float.floatToFloat16(g));
@@ -103,7 +105,7 @@ public final class Environment implements AutoCloseable {
             px.set(ValueLayout.JAVA_SHORT, f * 8L + 6, Float.floatToFloat16(1));
         }
         device.textures().uploadLevel(defaultCube, 0, px.address(), (int) px.byteSize());
-        float[] coefficients = new float[27];
+        float[] coefficients = uniformSh; // only the constant band is non-zero
         float scale = (float) Math.PI / Y00;
         coefficients[0] = r * scale;
         coefficients[1] = g * scale;
