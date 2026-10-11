@@ -337,6 +337,7 @@ its stdout and stack trace.
 |---|---|
 | `gh`, `python3` or `xvfb-run` not found | Those are only needed by the CI scripts and the headless recipes; on Windows the Gradle commands alone are enough |
 | The first build cannot download the natives (a proxy, no network) | Build them locally: `python natives/build.py` (CMake, a C compiler and Git), then `-Pjeddy.natives.dir=natives/out/<platform>` on every Gradle command, or set it in `~/.gradle/gradle.properties` |
+| Something renders wrong on your GPU (black models, missing UI) while CI's pictures are fine | Run with the driver's debug output in the log: `./gradlew :iso-demo:run -Pjeddy.jvmArgs="-Djeddy.gl.debug=true"` (any Jeddy app takes the property; it also turns off critical linking so the callback can run). Errors and performance warnings from the driver appear as `gl:` lines; send them with the `GL ... on <GPU>` line |
 | "OpenGL 4.6 is required" or a black window | Update the GPU driver; on Linux check `glxinfo \| grep "core profile version"`. Mesa's llvmpipe works with the environment variables of the GPU-tests section, slowly |
 | No audio device (servers, WSL, CI) | `--no-audio`, or `SDL_AUDIO_DRIVER=dummy` in the environment |
 | Running on a machine with no display at all | `--headless` for the demo and the perf scene (no window is opened), `SDL_VIDEO_DRIVER=dummy` for the app tests |

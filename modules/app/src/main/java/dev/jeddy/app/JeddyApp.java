@@ -49,6 +49,13 @@ import java.nio.file.Files;
  * <p>Thread ownership: {@link #run} is called from the thread that becomes the SDL main thread.
  */
 public final class JeddyApp {
+    /**
+     * {@code -Djeddy.gl.debug=true}: a GL debug context with driver messages in the log (errors and
+     * performance warnings from KHR_debug), for diagnosing a renderer problem on a machine where
+     * the picture is wrong. Costs a little per call; off by default.
+     */
+    public static final boolean GL_DEBUG = Boolean.getBoolean("jeddy.gl.debug");
+
     private static final Logger LOG = Log.logger("app");
     private static final SpinParkWaiter WAITER = new SpinParkWaiter(100, 20, 50_000);
 
@@ -97,6 +104,12 @@ public final class JeddyApp {
         boolean rendererStarted = false;
         try {
             Platform.init(config.name, config.version, config.identifier);
+            if (GL_DEBUG) {
+                // A debug context, and the KHR_debug callback the renderer installs needs the
+                // non-critical downcalls (DESIGN §4.4): decided here, before any GL class loads.
+                config.window.glDebug(true);
+                System.setProperty("jeddy.gl.critical", "false");
+            }
             window = Window.create(config.window);
             cursors = new Cursors();
             SpscIntRing ring = new SpscIntRing(ringCapacity(config.inputRingRecords));

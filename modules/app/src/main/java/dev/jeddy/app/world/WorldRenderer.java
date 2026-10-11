@@ -1,6 +1,7 @@
 package dev.jeddy.app.world;
 
 import dev.jeddy.app.FrameRenderer;
+import dev.jeddy.app.JeddyApp;
 import dev.jeddy.app.MainContext;
 import dev.jeddy.asset.AssetManager;
 import dev.jeddy.asset.AssetType;
@@ -8,6 +9,7 @@ import dev.jeddy.asset.Vfs;
 import dev.jeddy.core.log.Log;
 import dev.jeddy.core.log.Logger;
 import dev.jeddy.gl.GLCapabilities;
+import dev.jeddy.gl.GLDebug;
 import dev.jeddy.gl.GLLoader;
 import dev.jeddy.render.RenderPacket;
 import dev.jeddy.render.RenderPackets;
@@ -193,6 +195,14 @@ public final class WorldRenderer implements FrameRenderer {
     public void init(MainContext ctx) {
         caps = GLLoader.init(ctx.window()::glProcAddress);
         LOG.info("GL " + caps.version() + " on " + caps.renderer());
+        if (JeddyApp.GL_DEBUG) {
+            boolean debugContext = GLDebug.enable(true);
+            LOG.info(
+                    "GL debug output on"
+                            + (debugContext
+                                    ? ""
+                                    : " (no debug context: the driver may stay quiet)"));
+        }
         device = new GpuDevice(caps);
         device.useReversedZ();
         upload = new UploadRing(device, 64L << 20, 32L << 20);
