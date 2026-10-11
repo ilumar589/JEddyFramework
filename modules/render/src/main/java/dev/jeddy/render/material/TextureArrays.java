@@ -11,7 +11,8 @@ import java.util.Arrays;
  * height, levels), the binding model of ADR 0001 (DESIGN §9.2): a material refers to a texture by
  * {@code (bucket, layer)}, the shader samples {@code sampler2DArray}s with the layer as the third
  * coordinate, and draws whose materials share buckets share bindings. Buckets start with a few
- * layers and double on the GPU ({@code glCopyImageSubData}) when full; freed layers are reused.
+ * layers and double when full ({@link GpuTextures#copyLayers}: on the GPU, except the sub-block mip
+ * levels, which come back from a CPU copy, D101); freed layers are reused.
  *
  * <p>A reference packs the bucket into the high 16 bits and the layer into the low 16 ({@link
  * #bucket}, {@link #layer}); {@link #NONE} is no texture.

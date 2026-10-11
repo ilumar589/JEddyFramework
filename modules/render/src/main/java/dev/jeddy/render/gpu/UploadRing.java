@@ -92,19 +92,21 @@ public final class UploadRing implements AutoCloseable {
         glCopyNamedBufferSubData(glName, dstBufferName, ringOffset, dstOffset, bytes);
     }
 
-    /** Uploads a texture level from {@code ringOffset} through the pixel-unpack binding. */
+    /**
+     * Uploads a texture level from {@code ringOffset} through the pixel-unpack binding. The ring is
+     * mapped write-only, so a compressed array's tail cannot be mirrored from here and {@link
+     * GpuTextures#copyLayers} falls back to a readback for that texture; the material arrays are
+     * uploaded from client memory instead.
+     */
     public void copyToTexture(int textureHandle, int level, long ringOffset, int bytes) {
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, glName);
-        device.textures().uploadLevel(textureHandle, level, ringOffset, bytes);
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+        device.textures().uploadLevelFromBuffer(textureHandle, level, glName, ringOffset, bytes);
     }
 
     /** Uploads one level of one array layer from {@code ringOffset} through the unpack binding. */
     public void copyToTextureLayer(
             int textureHandle, int level, int layer, long ringOffset, int bytes) {
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, glName);
-        device.textures().uploadLayer(textureHandle, level, layer, ringOffset, bytes);
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+        device.textures()
+                .uploadLayerFromBuffer(textureHandle, level, layer, glName, ringOffset, bytes);
     }
 
     /** Ends the frame: fences what this frame copied. */

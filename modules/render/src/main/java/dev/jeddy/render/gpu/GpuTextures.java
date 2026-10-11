@@ -17,6 +17,12 @@ import java.util.Arrays;
  * for 2D, 2D arrays, cube maps and 3D textures, uploads of BCn blocks or pixels per level, and
  * creation from KTX2 (DESIGN §9.2).
  *
+ * <p>Block-compressed 2D arrays keep a CPU mirror of their <em>tail</em>: the mip levels smaller
+ * than a 4x4 block in either direction (2x2, 1x1). Intel's Windows driver rejects both the GPU copy
+ * and the readback of those levels, so {@link #copyLayers} (which grows the material arrays)
+ * re-uploads them from the mirror instead (D101). The mirror is a few bytes per layer; only a thin
+ * texture (2xN) makes it as large as the texture itself.
+ *
  * <p>Thread ownership: the GL context thread (main thread).
  */
 public final class GpuTextures {
@@ -44,6 +50,15 @@ public final class GpuTextures {
     private int[] heights = new int[64];
     private int[] layers = new int[64];
     private int[] levels = new int[64];
+    // The tail mirrors (class comment): level-major, one run of `layers × levelBytes` per tail
+    // level, in a confined arena per texture; null for textures without a tail.
+    private MemorySegment[] tails = new MemorySegment[64];
+    private Arena[] tailArenas = new Arena[64];
+    private int[] tailFirst = new int[64]; // the first tail level; the level count when none
+    private boolean[] tailStale = new boolean[64]; // an upload from a PBO bypassed the mirror
+
+    /** Every address, so a copy out of raw client memory needs no segment per upload. */
+    private static final MemorySegment ALL = MemorySegment.NULL.reinterpret(Long.MAX_VALUE);
 
     GpuTextures(GpuDevice device) {
         this.device = device;
@@ -104,7 +119,63 @@ public final class GpuTextures {
         heights[i] = height;
         layers[i] = layerCount;
         levels[i] = levelCount;
+        tailFirst[i] = levelCount;
+        tailStale[i] = false;
+        if (kind == KIND_2D_ARRAY && GpuFormats.isCompressed(internalFormat)) {
+            for (int l = 0; l < levelCount; l++) {
+                if ((width >> l) < 4 || (height >> l) < 4) {
+                    tailFirst[i] = l;
+                    break;
+                }
+            }
+            if (tailFirst[i] < levelCount) {
+                long bytes = tailOffset(i, levelCount, 0); // one past the last tail level
+                tailArenas[i] = Arena.ofConfined();
+                tails[i] = tailArenas[i].allocate(bytes, 16);
+            }
+        }
         return h;
+    }
+
+    /** Bytes of one layer of one level of a compressed texture: whole 4x4 blocks. */
+    private static int levelBytes(int format, int w, int h) {
+        return ((w + 3) >> 2) * ((h + 3) >> 2) * GpuFormats.blockBytes(format);
+    }
+
+    /** Offset of {@code layer} of tail level {@code level} (which may be one past the last). */
+    private long tailOffset(int i, int level, int layer) {
+        int fmt = formats[i];
+        long off = 0;
+        for (int l = tailFirst[i]; l < level; l++) {
+            off +=
+                    (long) layers[i]
+                            * levelBytes(
+                                    fmt, Math.max(1, widths[i] >> l), Math.max(1, heights[i] >> l));
+        }
+        if (level < levels[i]) {
+            off +=
+                    (long) layer
+                            * levelBytes(
+                                    fmt,
+                                    Math.max(1, widths[i] >> level),
+                                    Math.max(1, heights[i] >> level));
+        }
+        return off;
+    }
+
+    /** Copies {@code count} layers of a tail level from client memory into the mirror. */
+    private void mirror(int i, int level, int layer, int count, long address, int bytes) {
+        int expected =
+                count
+                        * levelBytes(
+                                formats[i],
+                                Math.max(1, widths[i] >> level),
+                                Math.max(1, heights[i] >> level));
+        if (bytes != expected) {
+            throw new IllegalArgumentException(
+                    bytes + " bytes for level " + level + ", expected " + expected);
+        }
+        MemorySegment.copy(ALL, address, tails[i], tailOffset(i, level, layer), bytes);
     }
 
     /** Creates a 2D texture. */
@@ -120,6 +191,31 @@ public final class GpuTextures {
      */
     public void uploadLevel(int handle, int level, long address, int bytes) {
         int i = check(handle);
+        if (tails[i] != null && level >= tailFirst[i]) {
+            mirror(i, level, 0, layers[i], address, bytes);
+        }
+        level(i, level, address, bytes);
+    }
+
+    /**
+     * {@link #uploadLevel} from {@code offset} into the pixel-unpack buffer {@code buffer} (the
+     * upload ring). The tail of a compressed array cannot be mirrored from a buffer, so {@link
+     * #copyLayers} reads it back for such a texture from then on.
+     */
+    void uploadLevelFromBuffer(int handle, int level, int buffer, long offset, int bytes) {
+        int i = check(handle);
+        if (level >= tailFirst[i]) {
+            tailStale[i] = true;
+        }
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, buffer);
+        try {
+            level(i, level, offset, bytes);
+        } finally {
+            glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+        }
+    }
+
+    private void level(int i, int level, long address, int bytes) {
         int w = Math.max(1, widths[i] >> level);
         int hgt = Math.max(1, heights[i] >> level);
         int fmt = formats[i];
@@ -168,14 +264,42 @@ public final class GpuTextures {
     }
 
     /**
-     * Uploads one mip level of one layer of a 2D array texture from {@code address} (a raw address,
-     * or an offset into the bound pixel-unpack buffer). Allocates nothing.
+     * Uploads one mip level of one layer of a 2D array texture from native memory at {@code
+     * address}. Allocates nothing.
      */
     public void uploadLayer(int handle, int level, int layer, long address, int bytes) {
         int i = check(handle);
         if (kinds[i] != KIND_2D_ARRAY) {
             throw new IllegalArgumentException("uploadLayer needs a 2D array texture");
         }
+        if (tails[i] != null && level >= tailFirst[i]) {
+            mirror(i, level, layer, 1, address, bytes);
+        }
+        layer(i, level, layer, address, bytes);
+    }
+
+    /**
+     * {@link #uploadLayer} from {@code offset} into the pixel-unpack buffer {@code buffer}; see
+     * {@link #uploadLevelFromBuffer} for what that costs a compressed array.
+     */
+    void uploadLayerFromBuffer(
+            int handle, int level, int layer, int buffer, long offset, int bytes) {
+        int i = check(handle);
+        if (kinds[i] != KIND_2D_ARRAY) {
+            throw new IllegalArgumentException("uploadLayer needs a 2D array texture");
+        }
+        if (level >= tailFirst[i]) {
+            tailStale[i] = true;
+        }
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, buffer);
+        try {
+            layer(i, level, layer, offset, bytes);
+        } finally {
+            glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+        }
+    }
+
+    private void layer(int i, int level, int layer, long address, int bytes) {
         int w = Math.max(1, widths[i] >> level);
         int hgt = Math.max(1, heights[i] >> level);
         int fmt = formats[i];
@@ -200,22 +324,32 @@ public final class GpuTextures {
 
     /**
      * Copies layers {@code [0, count)} of every level from one 2D array texture into another of the
-     * same format and size (growing an array). Runs on the GPU, except the mip levels of a
-     * block-compressed texture that are smaller than a block (2x2, 1x1): Intel's Windows driver
-     * rejects {@code glCopyImageSubData} on those with {@code GL_INVALID_VALUE} (Mesa and the spec
-     * allow a region that reaches the image's edge), so they take a readback through a few bytes of
-     * scratch. A cold path: arrays grow a handful of times while a level loads.
+     * same format, size and level count (growing an array). Runs on the GPU, except the tail of a
+     * block-compressed texture (the levels smaller than a block, 2x2 and 1x1), which is uploaded
+     * again from the CPU mirror: Intel's Windows driver rejects {@code glCopyImageSubData} on those
+     * levels with {@code GL_INVALID_VALUE} and {@code glGetCompressedTextureSubImage} with {@code
+     * GL_INVALID_OPERATION}, although the spec (and Mesa) allow a region that reaches the image's
+     * edge. A cold path: arrays grow a handful of times while a level loads.
      */
     public void copyLayers(int from, int to, int count) {
         int a = check(from);
         int b = check(to);
-        int lv = Math.min(levels[a], levels[b]);
-        boolean compressed = GpuFormats.isCompressed(formats[a]);
-        for (int l = 0; l < lv; l++) {
+        if (kinds[a] != KIND_2D_ARRAY
+                || kinds[b] != KIND_2D_ARRAY
+                || formats[a] != formats[b]
+                || widths[a] != widths[b]
+                || heights[a] != heights[b]
+                || levels[a] != levels[b]) {
+            throw new IllegalArgumentException("copyLayers needs two 2D arrays of one description");
+        }
+        if (count > layers[a] || count > layers[b]) {
+            throw new IllegalArgumentException(count + " layers exceed the textures");
+        }
+        for (int l = 0; l < levels[a]; l++) {
             int w = Math.max(1, widths[a] >> l);
             int h = Math.max(1, heights[a] >> l);
-            if (compressed && (w < 4 || h < 4)) {
-                copySmallCompressedLevel(a, b, l, w, h, count);
+            if (l >= tailFirst[a]) {
+                copyTailLevel(a, b, l, w, h, count);
                 continue;
             }
             glCopyImageSubData(
@@ -237,15 +371,29 @@ public final class GpuTextures {
         }
     }
 
-    /** One block per layer: read the level back and upload it into the other texture. */
-    private void copySmallCompressedLevel(int a, int b, int level, int w, int h, int count) {
-        int bytes = GpuFormats.blockBytes(formats[a]) * count;
-        try (Arena arena = Arena.ofConfined()) {
-            MemorySegment blocks = arena.allocate(bytes, 16);
-            glGetCompressedTextureSubImage(names[a], level, 0, 0, 0, w, h, count, bytes, blocks);
-            glCompressedTextureSubImage3D(
-                    names[b], level, 0, 0, 0, w, h, count, formats[a], bytes, blocks);
+    /**
+     * A tail level: upload it into the other texture from the mirror, and copy the mirror along. A
+     * mirror that a PBO upload bypassed is unknown, so the level is read back instead; the engine's
+     * own uploads never take that path (it is the one Intel rejects).
+     */
+    private void copyTailLevel(int a, int b, int level, int w, int h, int count) {
+        int bytes = count * levelBytes(formats[a], w, h);
+        if (tailStale[a]) {
+            tailStale[b] = true;
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment blocks = arena.allocate(bytes, 16);
+                glGetCompressedTextureSubImage(
+                        names[a], level, 0, 0, 0, w, h, count, bytes, blocks);
+                glCompressedTextureSubImage3D(
+                        names[b], level, 0, 0, 0, w, h, count, formats[a], bytes, blocks);
+            }
+            return;
         }
+        long from = tailOffset(a, level, 0);
+        long to = tailOffset(b, level, 0);
+        MemorySegment.copy(tails[a], from, tails[b], to, bytes);
+        glCompressedTextureSubImage3D(
+                names[b], level, 0, 0, 0, w, h, count, formats[a], bytes, tails[b].address() + to);
     }
 
     /** Returns the layer count of an array texture (1 otherwise). */
@@ -283,6 +431,11 @@ public final class GpuTextures {
         id.set(ValueLayout.JAVA_INT, 0, names[i]);
         glDeleteTextures(1, id);
         names[i] = 0;
+        if (tailArenas[i] != null) {
+            tailArenas[i].close();
+            tailArenas[i] = null;
+            tails[i] = null;
+        }
         handles.free(handle);
     }
 
@@ -335,6 +488,10 @@ public final class GpuTextures {
             heights = Arrays.copyOf(heights, cap);
             layers = Arrays.copyOf(layers, cap);
             levels = Arrays.copyOf(levels, cap);
+            tails = Arrays.copyOf(tails, cap);
+            tailArenas = Arrays.copyOf(tailArenas, cap);
+            tailFirst = Arrays.copyOf(tailFirst, cap);
+            tailStale = Arrays.copyOf(tailStale, cap);
         }
     }
 

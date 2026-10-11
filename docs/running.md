@@ -350,7 +350,7 @@ CI renders with Mesa's llvmpipe, which is permissive. Real drivers differ; what 
 
 | Driver | Finding | What the engine does |
 |---|---|---|
-| Intel Graphics, Windows, 32.0.101.8331 | `glCopyImageSubData` returns `GL_INVALID_VALUE` for the mip levels of a block-compressed texture that are smaller than a block (2x2, 1x1), which the spec and Mesa allow. Growing a texture array lost those levels and, with them, the textures loaded afterwards (black characters, no UI) | `GpuTextures.copyLayers` copies those levels through a readback instead |
+| Intel Graphics, Windows, 32.0.101.8331 | `glCopyImageSubData` returns `GL_INVALID_VALUE` and `glGetCompressedTextureSubImage` `GL_INVALID_OPERATION` for the mip levels of a block-compressed texture that are smaller than a block (2x2, 1x1), which the spec and Mesa allow. Growing a texture array lost those levels and, with them, the textures loaded afterwards (black characters, no UI) | `GpuTextures` keeps a CPU copy of those levels from the upload (16 bytes per level per layer) and `copyLayers` uploads them again instead of copying or reading back (D101) |
 
 Add a row when you run on new hardware (`-Djeddy.gl.debug=true` shows the driver's complaints).
 

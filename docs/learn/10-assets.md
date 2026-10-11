@@ -1057,8 +1057,10 @@ decodes on a worker (reads the KTX2, decompresses zstd levels into native memory
 the main thread. A plain 2D texture does not get a GL texture of its own: it becomes a **layer of
 a 2D array texture** in [`TextureArrays`](../../modules/render/src/main/java/dev/jeddy/render/material/TextureArrays.java).
 Arrays ("buckets") are keyed by (GL internal format, width, height, level count), start with 4
-layers and double on the GPU (`glCopyImageSubData`) when full. A texture is referenced by one
-`int`:
+layers and double on the GPU (`glCopyImageSubData`) when full. The levels smaller than a block
+(2x2, 1x1) are the exception: Intel's Windows driver can neither copy nor read those back, so
+`GpuTextures` keeps their bytes on the CPU from the upload and re-uploads them into the bigger
+array (D101, a few bytes per layer). A texture is referenced by one `int`:
 
 ```math
 \text{ref} = (\text{bucket} \ll 16) \mid \text{layer}

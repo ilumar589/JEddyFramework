@@ -3,9 +3,11 @@ package dev.jeddy.render.gpu;
 import static dev.jeddy.gl.ffi.GL46.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import dev.jeddy.gl.GLDebug;
 import dev.jeddy.render.GpuTestContext;
+import dev.jeddy.testing.Allocations;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -17,12 +19,15 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 
 /**
- * Growing a block-compressed array texture keeps every mip level of every layer, including the 2x2
- * and 1x1 levels that are smaller than a block (an Intel driver rejected copying those with {@code
- * glCopyImageSubData}; they go through a readback).
+ * Growing a block-compressed array texture keeps every mip level of every layer, including the tail
+ * (levels smaller than a block, which Intel's Windows driver can neither copy on the GPU nor read
+ * back): {@link GpuTextures#copyLayers} re-uploads the tail from the CPU mirror that {@link
+ * GpuTextures#uploadLayer} keeps, and falls back to a readback only for a layer uploaded through a
+ * pixel-unpack buffer.
  */
 @Tag("gpu")
 class TextureCopyTest {
+    private static final int FORMAT = GL_COMPRESSED_RGBA_BPTC_UNORM; // BC7: 16-byte blocks, core
     private static GpuTestContext context;
     private static GpuDevice device;
 
@@ -39,44 +44,104 @@ class TextureCopyTest {
     }
 
     @Test
-    void copyLayersKeepsEveryLevelOfACompressedArray() {
+    void copyLayersKeepsEveryLevelOfASquareArray() {
+        // 8x8, 4x4, 2x2, 1x1: the last two are the tail.
+        assertCopyKeepsEveryLevel(8, 8, 4, false);
+    }
+
+    @Test
+    void copyLayersKeepsEveryLevelOfAThinArray() {
+        // 8x2 (two blocks), 4x1, 2x1, 1x1: every level is in the tail, the first one two blocks.
+        assertCopyKeepsEveryLevel(8, 2, 4, false);
+    }
+
+    @Test
+    void layersUploadedThroughABufferAreReadBack() {
+        assertCopyKeepsEveryLevel(8, 8, 4, true);
+    }
+
+    @Test
+    void tailUploadsCheckTheirSizeAndAllocateNothing() {
         GpuTextures textures = device.textures();
-        int format = GL_COMPRESSED_RGBA_BPTC_UNORM; // BC7: 16-byte 4x4 blocks, GL 4.2 core
-        int w = 8;
-        int levels = 4; // 8x8, 4x4, 2x2, 1x1: the last two are smaller than a block
+        int tex = textures.create(GpuTextures.KIND_2D_ARRAY, FORMAT, 8, 8, 2, 4, "sized");
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment block = arena.allocate(64, 16);
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> textures.uploadLayer(tex, 3, 0, block.address(), 64),
+                    "a 1x1 BC7 level is one block");
+            long address = block.address();
+            Allocations.assertNoAllocation(
+                    "uploadLayer",
+                    25,
+                    500,
+                    () -> {
+                        textures.uploadLayer(tex, 0, 1, address, 64);
+                        textures.uploadLayer(tex, 2, 1, address, 16);
+                        textures.uploadLayer(tex, 3, 1, address, 16);
+                    });
+        }
+        textures.destroy(tex);
+    }
+
+    /**
+     * Fills {@code layers} layers of a {@code w}x{@code h} array with distinct bytes per layer,
+     * level and position, copies them into an array twice the size, and checks every byte.
+     */
+    private static void assertCopyKeepsEveryLevel(int w, int h, int levels, boolean viaBuffer) {
+        GpuTextures textures = device.textures();
         int layers = 3;
         long errors = GLDebug.errorCount();
-        try (Arena arena = Arena.ofConfined()) {
+        try (Arena arena = Arena.ofConfined();
+                UploadRing ring = new UploadRing(device, 1 << 16, 1 << 16)) {
             int small =
                     textures.create(
-                            GpuTextures.KIND_2D_ARRAY, format, w, w, layers, levels, "small");
-            // Distinct bytes per layer and level, one or four blocks each.
-            MemorySegment data = arena.allocate(64, 16);
+                            GpuTextures.KIND_2D_ARRAY, FORMAT, w, h, layers, levels, "small");
+            MemorySegment data = arena.allocate(256, 16);
             for (int layer = 0; layer < layers; layer++) {
                 for (int l = 0; l < levels; l++) {
-                    int blocks = l == 0 ? 4 : 1;
-                    for (int i = 0; i < blocks * 16; i++) {
-                        data.set(ValueLayout.JAVA_BYTE, i, (byte) (layer * 40 + l * 8 + i));
+                    int bytes = levelBytes(w, h, l);
+                    for (int i = 0; i < bytes; i++) {
+                        data.set(ValueLayout.JAVA_BYTE, i, pattern(layer, l, i));
                     }
-                    textures.uploadLayer(small, l, layer, data.address(), blocks * 16);
+                    if (viaBuffer) {
+                        long offset = ring.reserve(bytes, 16);
+                        MemorySegment.copy(data, 0, ring.memory(), offset, bytes);
+                        ring.copyToTextureLayer(small, l, layer, offset, bytes);
+                    } else {
+                        textures.uploadLayer(small, l, layer, data.address(), bytes);
+                    }
                 }
             }
             int big =
                     textures.create(
-                            GpuTextures.KIND_2D_ARRAY, format, w, w, layers * 2, levels, "big");
+                            GpuTextures.KIND_2D_ARRAY, FORMAT, w, h, layers * 2, levels, "big");
             textures.copyLayers(small, big, layers);
+            // Grow once more: the mirror (or the readback) must carry over too.
+            int bigger =
+                    textures.create(
+                            GpuTextures.KIND_2D_ARRAY, FORMAT, w, h, layers * 4, levels, "bigger");
+            textures.copyLayers(big, bigger, layers);
             glFinish();
-            MemorySegment back = arena.allocate(64, 16);
+            MemorySegment back = arena.allocate(256, 16);
             for (int layer = 0; layer < layers; layer++) {
                 for (int l = 0; l < levels; l++) {
-                    int size = Math.max(1, w >> l);
-                    int blocks = l == 0 ? 4 : 1;
+                    int bytes = levelBytes(w, h, l);
                     back.fill((byte) 0);
                     glGetCompressedTextureSubImage(
-                            textures.glName(big), l, 0, 0, layer, size, size, 1, blocks * 16, back);
-                    for (int i = 0; i < blocks * 16; i++) {
+                            textures.glName(bigger),
+                            l,
+                            0,
+                            0,
+                            layer,
+                            Math.max(1, w >> l),
+                            Math.max(1, h >> l),
+                            1,
+                            bytes,
+                            back);
+                    for (int i = 0; i < bytes; i++) {
                         assertEquals(
-                                (byte) (layer * 40 + l * 8 + i),
+                                pattern(layer, l, i),
                                 back.get(ValueLayout.JAVA_BYTE, i),
                                 "layer " + layer + " level " + l + " byte " + i);
                     }
@@ -84,7 +149,18 @@ class TextureCopyTest {
             }
             textures.destroy(small);
             textures.destroy(big);
+            textures.destroy(bigger);
         }
         assertEquals(errors, GLDebug.errorCount(), "no GL errors");
+    }
+
+    private static int levelBytes(int w, int h, int level) {
+        int lw = Math.max(1, w >> level);
+        int lh = Math.max(1, h >> level);
+        return ((lw + 3) >> 2) * ((lh + 3) >> 2) * 16;
+    }
+
+    private static byte pattern(int layer, int level, int i) {
+        return (byte) (layer * 67 + level * 13 + i);
     }
 }

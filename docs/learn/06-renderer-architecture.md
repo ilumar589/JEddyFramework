@@ -898,8 +898,10 @@ manages the buckets:
 - `allocate(format, width, height, levels)` finds a bucket with that exact description (or creates
   one with 4 layers) and returns a reference `bucket << 16 | layer`; `bucket(ref)` and `layer(ref)`
   unpack it.
-- A full bucket doubles: a new array texture, `glCopyImageSubData` of the used layers on the GPU,
-  the old one deleted. `generation()` increases so cached bindings refresh.
+- A full bucket doubles: a new array texture, `glCopyImageSubData` of the used layers on the GPU
+  (the sub-block mip levels, 2x2 and 1x1, are re-uploaded from a CPU copy instead, because one
+  driver rejects both copying and reading them back, D101), the old one deleted. `generation()`
+  increases so cached bindings refresh.
 - Freed layers are reused.
 
 `TextureLoader` uploads each plain 2D `.ktx2` texture into a bucket layer (`uploadLayer`), and gives
