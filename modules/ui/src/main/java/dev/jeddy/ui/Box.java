@@ -385,6 +385,12 @@ public final class Box {
         return this;
     }
 
+    /** Appends {@code a[from, to)} from a char array. */
+    public Box append(char[] a, int from, int to) {
+        ui.appendChars(cur, a, from, to);
+        return this;
+    }
+
     /** Appends a char. */
     public Box append(char c) {
         ui.appendChar(cur, c);

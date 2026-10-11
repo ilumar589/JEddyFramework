@@ -130,9 +130,6 @@ public final class UiRenderer implements AutoCloseable {
     private final int fontSampler;
     private final int spriteSampler;
     private final Arena arena = Arena.ofConfined();
-    private int lastFontBucket = -2;
-    private int lastSpriteBucket = -2;
-    private int lastGeneration = -1;
     private long lastDraws;
     private long lastQuads;
 
@@ -206,28 +203,25 @@ public final class UiRenderer implements AutoCloseable {
                 program, LOC_SCREEN, viewportWidth / displayScale, viewportHeight / displayScale);
         glProgramUniform2f(program, LOC_VIEWPORT, viewportWidth, viewportHeight);
         glProgramUniform1f(program, LOC_SCALE, displayScale);
-        if (arrays.generation() != lastGeneration) {
-            lastGeneration = arrays.generation();
-            lastFontBucket = -2;
-            lastSpriteBucket = -2;
-        }
+        // Bindings go through the state cache, which knows what the scene left on the units;
+        // a private "last bound" would miss that (the first demo frames drew speckles).
         state.bindSampler(0, fontSampler);
         state.bindSampler(1, spriteSampler);
         int n = list.commandCount();
+        int spriteSrgb = -1;
         for (int c = 0; c < n; c++) {
             int font = list.commandFontTexture(c);
-            if (font != UiDrawList.NO_TEXTURE && font != lastFontBucket) {
+            if (font != UiDrawList.NO_TEXTURE) {
                 state.bindTexture(0, arrays.glName(font));
-                lastFontBucket = font;
             }
             int sprite = list.commandSpriteTexture(c);
-            if (sprite != UiDrawList.NO_TEXTURE && sprite != lastSpriteBucket) {
+            if (sprite != UiDrawList.NO_TEXTURE) {
                 state.bindTexture(1, arrays.glName(sprite));
-                glProgramUniform1i(
-                        program,
-                        LOC_SPRITE_SRGB,
-                        GpuFormats.isSrgb(arrays.internalFormat(sprite)) ? 1 : 0);
-                lastSpriteBucket = sprite;
+                int srgb = GpuFormats.isSrgb(arrays.internalFormat(sprite)) ? 1 : 0;
+                if (srgb != spriteSrgb) {
+                    glProgramUniform1i(program, LOC_SPRITE_SRGB, srgb);
+                    spriteSrgb = srgb;
+                }
             }
             glDrawElements(
                     GL_TRIANGLES,

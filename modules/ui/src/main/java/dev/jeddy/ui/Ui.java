@@ -1123,6 +1123,23 @@ public final class Ui {
         textLength[e] += n;
     }
 
+    /** Appends {@code a[from, to)} to the current text element. */
+    void appendChars(int e, char[] a, int from, int to) {
+        if (e != lastText) {
+            throw new IllegalStateException("append() after another element was begun");
+        }
+        int n = to - from;
+        if (n <= 0) {
+            return;
+        }
+        if (charCount + n > chars.length) {
+            growChars(charCount + n);
+        }
+        System.arraycopy(a, from, chars, charCount, n);
+        charCount += n;
+        textLength[e] += n;
+    }
+
     private void growChars(int needed) {
         int n = Math.max(needed, chars.length * 2);
         chars = Arrays.copyOf(chars, n);

@@ -32,7 +32,8 @@ final class AllocProbe {
         "extract: effects",
         "extract: fog+debug",
         "extract: hud",
-        "update: animation"
+        "update: animation",
+        "ui"
     };
 
     static final int START = 0;
@@ -57,6 +58,7 @@ final class AllocProbe {
     static final int FOG = 19;
     static final int HUD = 20;
     static final int ANIMATION = 21;
+    static final int UI = 22;
 
     /** Allocations kept with their frame and system, for the report's second half. */
     static final int MAX_EVENTS = 256;

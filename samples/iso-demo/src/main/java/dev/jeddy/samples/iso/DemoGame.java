@@ -64,6 +64,11 @@ final class DemoGame implements Game {
     private final DemoRenderer renderer;
     private final DemoHud hud;
     private final PerfCapture perf;
+    private DemoUi demoUi;
+    private long uiNanos;
+    private int lastInstances;
+    private int lastLights;
+    private boolean menuPausedSimulation;
 
     private AssetType<SceneData> scenes;
     private AssetType<Bvh> collisionAssets;
@@ -175,6 +180,11 @@ final class DemoGame implements Game {
         navAssets = assets.register("navmesh", WorldAssets.navmeshes());
         occlusionAssets = assets.register("occlusion", WorldAssets.occlusion());
         files = assets.register("file", AssetLoaders.bytes());
+        demoUi = new DemoUi(ctx, assets, renderer.textures());
+        demoUi.vsync = options.vsync;
+        demoUi.profiler = profiler;
+        demoUi.inventoryOpen = options.showUi;
+        demoUi.menuOpen = options.showUi;
         levelScene = scenes.load(Level.SCENE);
         levelCollision = collisionAssets.load(Level.COLLISION);
         levelNav = navAssets.load(Level.NAVMESH);
@@ -312,6 +322,7 @@ final class DemoGame implements Game {
                         center[0],
                         center[2]);
         spells = new Spells(audio, characters);
+        enemies.log = demoUi.log;
         if (audio != null) {
             audioSync = new AudioSync(audio, world);
         }
@@ -405,6 +416,7 @@ final class DemoGame implements Game {
         a.mark(AllocProbe.THINK);
         party.tick();
         party.fight(dt, enemies);
+        party.regenerate(dt);
         a.mark(AllocProbe.PARTY);
         level.crowd.update(dt);
         a.mark(AllocProbe.CROWD);
@@ -435,6 +447,8 @@ final class DemoGame implements Game {
         probe.mark(AllocProbe.START);
         renderer.assets().update();
         probe.mark(AllocProbe.ASSETS);
+        demoUi.beginFrame(dt);
+        demoUi.log.setTime((float) time);
         Input in = ctx.input();
         if (!levelBuilt) {
             if (allReady()) {
@@ -483,15 +497,96 @@ final class DemoGame implements Game {
         if (options.quitAfterFirstFrame && renderer.firstFrameShown()) {
             ctx.quit();
         }
-        if (in.wasKeyPressed(Scancode.ESCAPE)) {
+        if (in.wasKeyPressed(Scancode.ESCAPE) && !demoUi.ui.wantsKeyboard()) {
             if (spells != null && spells.targeting) {
                 spells.targeting = false;
+            } else if (demoUi.inventoryOpen) {
+                demoUi.inventoryOpen = false;
             } else {
-                ctx.quit();
+                demoUi.menuOpen = !demoUi.menuOpen;
             }
+        }
+        if (demoUi.quitRequested) {
+            ctx.quit();
         }
         timers(ctx);
         probe.mark(AllocProbe.TIMERS);
+        fillUi(ctx);
+        demoUi.declare(party);
+        probe.mark(AllocProbe.UI);
+    }
+
+    /** Hands the frame's state to the UI and applies what the player changed in it. */
+    private void fillUi(AppContext ctx) {
+        DemoUi u = demoUi;
+        Input in = ctx.input();
+        CrpgGestures g = ctx.gestures();
+        u.loading = !ready;
+        int total = 0;
+        int done = 0;
+        if (!ready && world != null) {
+            total = 5 + partyModels.length + enemyModels.length;
+            done = (scenes.isReady(levelScene) ? 1 : 0) + (levelBuilt ? 4 + total - 5 : 0);
+            if (levelBuilt) {
+                total += world.renderableCount();
+                done += world.renderableCount() - world.loadingRenderables();
+            }
+        }
+        u.loadProgress = total == 0 ? 1 : (float) done / total;
+        // The menu pauses the simulation; closing it resumes unless Space paused it before.
+        if (u.menuOpen && !menuPausedSimulation && !ctx.simulation().isPaused()) {
+            ctx.simulation().setPaused(true);
+            menuPausedSimulation = true;
+        } else if (!u.menuOpen && menuPausedSimulation) {
+            ctx.simulation().setPaused(false);
+            menuPausedSimulation = false;
+        }
+        u.simulationPaused = ctx.simulation().isPaused();
+        u.perf = options.perf();
+        u.measuring = measuring;
+        u.perfRemaining =
+                (float)
+                        (measuring
+                                ? options.perfSeconds - (time - measureStart)
+                                : options.warmupSeconds - (loadedTime < 0 ? 0 : time - loadedTime));
+        u.gameMs = lastGameNanos * 1e-6;
+        u.mainMs = renderer.mainMs();
+        u.instances = lastInstances;
+        u.lights = lastLights;
+        u.profiler = profiler;
+        if (levelBuilt) {
+            u.targeting = spells.targeting;
+            u.turnBased = turnBasedOn;
+            u.moveCost = moveCost;
+            u.moveBudget = TURN_MOVEMENT;
+            u.selectedCount = party.selectionCount;
+            u.enemiesAlive = enemies.alive;
+            u.enemiesVisible = enemies.visibleCount;
+            u.formation = party.formation;
+            u.boxSelecting = g.isBoxSelecting() && !spells.targeting && !u.ui.wantsMouse();
+            u.boxX0 = g.boxMinX();
+            u.boxY0 = g.boxMinY();
+            u.boxX1 = g.boxMaxX();
+            u.boxY1 = g.boxMaxY();
+            if (u.clickedMember >= 0) {
+                party.select(u.clickedMember, u.shift);
+            }
+            if (u.formationChanged) {
+                party.setFormation(u.formation);
+                demoUi.log.start().add("Formation: ").add(Party.FORMATION_NAMES[u.formation]).end();
+            }
+            if (u.turnBasedChanged) {
+                turnBasedOn = u.turnBased;
+                floodMember = -1;
+            }
+        }
+        if (u.profilerChanged) {
+            profiler = u.profiler;
+        }
+        if (u.volumeChanged && audio != null) {
+            audio.setMasterGain(u.masterVolume);
+            audio.setBusGain(Audio.BUS_AMBIENT, u.ambience ? 1 : 0);
+        }
     }
 
     private void timers(AppContext ctx) {
@@ -542,6 +637,9 @@ final class DemoGame implements Game {
         float ww = Math.max(1, in.windowWidth());
         float wh = Math.max(1, in.windowHeight());
         boolean shift = in.isKeyDown(Scancode.LSHIFT) || in.isKeyDown(Scancode.RSHIFT);
+        // The UI consumed the pointer (a panel is under it) or the keyboard (a field has focus).
+        boolean uiMouse = demoUi.ui.wantsMouse();
+        boolean uiKeys = demoUi.ui.wantsKeyboard() || demoUi.menuOpen;
 
         // What is under the cursor.
         camera.screenRay(g.x() / ww * 2 - 1, 1 - g.y() / wh * 2, rayOrigin, rayDirection);
@@ -565,47 +663,22 @@ final class DemoGame implements Game {
             groundY = groundValid ? pickQuery.y : level.crowd.y(unit);
             groundZ = pickQuery.z;
         }
-        party.hovered = unit >= 0 ? party.memberOf(unit) : -1;
-        enemies.hovered = unit >= 0 ? enemies.enemyOf(unit) : -1;
+        party.hovered = unit >= 0 && !uiMouse ? party.memberOf(unit) : -1;
+        enemies.hovered = unit >= 0 && !uiMouse ? enemies.enemyOf(unit) : -1;
 
         // Keys.
-        if (in.wasKeyPressed(Scancode.SPACE)) {
-            ctx.simulation().setPaused(!ctx.simulation().isPaused());
-        }
-        if (in.wasKeyPressed(Scancode.TAB)) {
-            party.selectAll();
-        }
-        for (int i = 0; i < Party.SIZE; i++) {
-            if (in.wasKeyPressed(Scancode.DIGIT_1 + i)) {
-                party.select(i, shift);
-            }
-        }
-        if (in.wasKeyPressed(Scancode.G)) {
-            party.cycleFormation();
-        }
-        if (in.wasKeyPressed(Scancode.F)) {
-            spells.targeting = !spells.targeting;
-        }
-        if (in.wasKeyPressed(Scancode.T)) {
-            turnBasedOn = !turnBasedOn;
-            floodMember = -1;
-        }
-        if (in.wasKeyPressed(Scancode.C)) {
-            following = !following;
-        }
-        if (in.wasKeyPressed(Scancode.F3)) {
-            profiler = !profiler;
-        }
-        if (in.wasKeyPressed(Scancode.F12)) {
-            screenshotRequested = true;
+        if (!uiKeys) {
+            keys(ctx, in, shift);
         }
 
         // Mouse.
-        spells.aimValid = groundValid || enemies.hovered >= 0;
+        spells.aimValid = (groundValid || enemies.hovered >= 0) && !uiMouse;
         spells.aimX = groundX;
         spells.aimY = groundY;
         spells.aimZ = groundZ;
-        if (spells.targeting) {
+        if (uiMouse) {
+            // Nothing in the world reacts while the pointer is on a panel.
+        } else if (spells.targeting) {
             if (g.selectClicked() && spells.aimValid) {
                 castFireball(groundX, groundY, groundZ);
                 spells.targeting = shift;
@@ -639,6 +712,43 @@ final class DemoGame implements Game {
         }
     }
 
+    private void keys(AppContext ctx, Input in, boolean shift) {
+        if (in.wasKeyPressed(Scancode.SPACE)) {
+            ctx.simulation().setPaused(!ctx.simulation().isPaused());
+        }
+        if (in.wasKeyPressed(Scancode.TAB)) {
+            party.selectAll();
+        }
+        for (int i = 0; i < Party.SIZE; i++) {
+            if (in.wasKeyPressed(Scancode.DIGIT_1 + i)) {
+                party.select(i, shift);
+            }
+        }
+        if (in.wasKeyPressed(Scancode.G)) {
+            party.cycleFormation();
+            demoUi.log.start().add("Formation: ").add(Party.FORMATION_NAMES[party.formation]).end();
+        }
+        if (in.wasKeyPressed(Scancode.F)) {
+            spells.targeting = !spells.targeting;
+        }
+        if (in.wasKeyPressed(Scancode.T)) {
+            turnBasedOn = !turnBasedOn;
+            floodMember = -1;
+        }
+        if (in.wasKeyPressed(Scancode.C)) {
+            following = !following;
+        }
+        if (in.wasKeyPressed(Scancode.F3)) {
+            profiler = !profiler;
+        }
+        if (in.wasKeyPressed(Scancode.F12)) {
+            screenshotRequested = true;
+        }
+        if (in.wasKeyPressed(Scancode.I)) {
+            demoUi.inventoryOpen = !demoUi.inventoryOpen;
+        }
+    }
+
     private void order(float x, float y, float z) {
         party.order(x, y, z);
         markerX = x;
@@ -652,6 +762,7 @@ final class DemoGame implements Game {
         int a = party.agent[2];
         party.cast(2, x, z);
         spells.cast(level.crowd.x(a), level.crowd.y(a), level.crowd.z(a), x, y, z);
+        demoUi.log.start().add(Characters.PARTY_NAMES[2]).add(" casts Fireball").end();
     }
 
     /** Floods the leader's movement range when it moved, and prices the hovered point. */
@@ -842,62 +953,28 @@ final class DemoGame implements Game {
         if (ready) {
             framesSinceReady++;
         }
-        fillHud(ctx, index, p.count(), lights);
+        fillHud(index);
         probe.mark(AllocProbe.HUD);
+        demoUi.extract(p);
+        uiNanos = demoUi.buildNanos() + demoUi.layoutNanos();
+        probe.mark(AllocProbe.UI);
+        lastInstances = p.count();
+        lastLights = lights;
         long now = System.nanoTime();
         lastGameNanos = frameStart == 0 ? 0 : now - frameStart;
         frameStart = 0;
         if (measuring) {
-            perf.recordGame(lastGameNanos, p.count(), lights, animationNanos);
+            perf.recordGame(lastGameNanos, p.count(), lights, animationNanos, uiNanos);
         }
         hud.gameNanos[index] = lastGameNanos;
     }
 
-    private void fillHud(AppContext ctx, int index, int instances, int lights) {
+    private void fillHud(int index) {
         DemoHud h = hud;
-        Input in = ctx.input();
-        CrpgGestures g = ctx.gestures();
-        h.loading[index] = !ready;
-        int total = 0;
-        int done = 0;
-        if (!ready && world != null) {
-            total = 5 + partyModels.length + enemyModels.length;
-            done = (scenes.isReady(levelScene) ? 1 : 0) + (levelBuilt ? 4 + total - 5 : 0);
-            if (levelBuilt) {
-                total += world.renderableCount();
-                done += world.renderableCount() - world.loadingRenderables();
-            }
-        }
-        h.loadProgress[index] = total == 0 ? 1 : (float) done / total;
-        h.paused[index] = ctx.simulation().isPaused();
         h.profiler[index] = profiler;
-        h.instances[index] = instances;
-        h.lights[index] = lights;
-        h.perf[index] = options.perf();
         h.measuring[index] = measuring;
-        h.perfRemaining[index] =
-                (float)
-                        (measuring
-                                ? options.perfSeconds - (time - measureStart)
-                                : options.warmupSeconds - (loadedTime < 0 ? 0 : time - loadedTime));
         h.screenshot[index] = screenshotRequested;
         screenshotRequested = false;
-        h.pixelScale[index] = in.windowWidth() > 0 ? (float) in.pixelWidth() / in.windowWidth() : 1;
-        if (levelBuilt) {
-            h.targeting[index] = spells.targeting;
-            h.turnBased[index] = turnBasedOn;
-            h.moveCost[index] = moveCost;
-            h.moveBudget[index] = TURN_MOVEMENT;
-            h.selected[index] = party.selectionCount;
-            h.enemiesAlive[index] = enemies.alive;
-            h.enemiesVisible[index] = enemies.visibleCount;
-            h.formation[index] = party.formation;
-            h.box[index] = g.isBoxSelecting() && !spells.targeting;
-            h.boxRect[index * 4] = g.boxMinX();
-            h.boxRect[index * 4 + 1] = g.boxMinY();
-            h.boxRect[index * 4 + 2] = g.boxMaxX();
-            h.boxRect[index * 4 + 3] = g.boxMaxY();
-        }
     }
 
     @Override

@@ -21,6 +21,12 @@ final class Party {
     static final int SIZE = 6;
     static final float SIGHT = 14;
 
+    /** Hit points per member (the UI's health bars); they regenerate slowly and never reach 0. */
+    static final float MAX_HP = 100;
+
+    /** Hit points per member. */
+    final float[] hp = new float[SIZE];
+
     /** Formation names for the HUD, upper case for the debug font. */
     static final String[] FORMATION_NAMES = {"WEDGE", "BOX", "LINE", "COLUMN", "CIRCLE"};
 
@@ -81,6 +87,7 @@ final class Party {
             root[i] = Characters.spawn(world, models[i], p[0], p[1], p[2], Characters.FACE_PLUS_X);
             sync.bind(agent[i], root[i], Characters.FACE_PLUS_X);
             character[i] = animator.add(root[i], Animator.HEROES, agent[i], rng);
+            hp[i] = MAX_HP;
         }
         select(0, false);
     }
@@ -175,6 +182,11 @@ final class Party {
         formation = (formation + 1) % formations.length;
     }
 
+    /** Selects a formation by index ({@link #FORMATION_NAMES}). */
+    void setFormation(int index) {
+        formation = Math.clamp(index, 0, formations.length - 1);
+    }
+
     /** Sends the selection to {@code (x, y, z)}: one member walks there, a group forms up. */
     void order(float x, float y, float z) {
         if (selectionCount == 0) {
@@ -200,6 +212,18 @@ final class Party {
     /** Paces formation members (once per tick). */
     void tick() {
         mover.update();
+    }
+
+    /** Takes {@code amount} hit points from {@code member} (down to 1). */
+    void damage(int member, float amount) {
+        hp[member] = Math.max(1, hp[member] - amount);
+    }
+
+    /** Regenerates hit points (once per tick). */
+    void regenerate(float dt) {
+        for (int i = 0; i < SIZE; i++) {
+            hp[i] = Math.min(MAX_HP, hp[i] + 1.5f * dt);
+        }
     }
 
     /**

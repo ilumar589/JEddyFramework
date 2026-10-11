@@ -41,6 +41,13 @@ final class Enemies {
     final int[] character; // Animator index
     int alive;
     int visibleCount;
+
+    /** Where strikes and deaths are reported, or {@code null}. */
+    CombatLog log;
+
+    /** Skeletons slain so far. */
+    int kills;
+
     int hovered = -1;
 
     private final Level level;
@@ -260,6 +267,19 @@ final class Enemies {
                         sync.faceToward(a, crowd.x(best), crowd.z(best));
                         animator.action(character[i], Characters.ENEMY_ATTACK[model[i]]);
                         cooldown[i] = 1.4f + rng.nextFloat() * 1.2f;
+                        int member = party.memberOf(best);
+                        if (member >= 0) {
+                            int hit = 3 + rng.nextInt(6);
+                            party.damage(member, hit);
+                            if (log != null) {
+                                log.start()
+                                        .add("Skeleton hits ")
+                                        .add(Characters.PARTY_NAMES[member])
+                                        .add(" for ")
+                                        .add(hit)
+                                        .end();
+                            }
+                        }
                     }
                 }
                 default -> {}
@@ -299,6 +319,10 @@ final class Enemies {
         corpse[i] = CORPSE_SECONDS; // hidden once the body has lain a moment
         visible[i] = false;
         alive--;
+        kills++;
+        if (log != null) {
+            log.start().add("Skeleton slain by fireball (").add(alive).add(" left)").end();
+        }
     }
 
     private final float[] point = new float[3];
