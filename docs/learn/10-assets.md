@@ -130,8 +130,9 @@ public static List<Importer> defaultImporters() {
 }
 ```
 
-Order matters. `levels/crypt.physics.json` ends in `.json`, which the `CopyImporter` would accept,
-but the `PhysicsImporter` comes first and accepts `*.physics.json`. A `.hdr` file goes to the
+Order matters. A `<level>.physics.json` ends in `.json`, which the `CopyImporter` would accept,
+but the `PhysicsImporter` comes first and accepts `*.physics.json`; a `.jlevel` goes to the
+`LevelImporter` (M14, [chapter 14](14-editor.md)). A `.hdr` file goes to the
 `EnvironmentImporter` unless its settings give it another `kind`. Besides these, a *built-in*
 importer (`BrdfLutImporter`) runs once per cook without a source and writes
 `engine/brdf_lut.ktx2`.
@@ -1231,10 +1232,11 @@ itself, so one cooked tree serves every permutation.
 Levels need collision, navigation and visibility data, all derived from the same geometry.
 [`PhysicsImporter`](../../tools/cooker/src/main/java/dev/jeddy/cooker/physics/PhysicsImporter.java)
 reads a `<level>.physics.json` ([format](../formats/physics-json.md)) that points at the level's
-glTF and assigns triangle flags to node names by glob rules (first match wins). The demo's
-`levels/crypt.physics.json` marks `floor_*` walkable, `wall_*` blocking movement, sight and
-projectiles (and fading for the camera), `prop_*` blocking movement and projectiles, and leaves
-everything else out.
+glTF and assigns triangle flags to node names by glob rules (first match wins). The demo's crypt
+was such a level until M14; it is now a `.jlevel` composition of prefabs whose `LevelImporter`
+runs the same bake ([chapter 14](14-editor.md)), with the same rules by placement *layer*:
+`floor*` walkable, `wall` blocking movement, sight and projectiles (and fading for the camera),
+`prop` blocking movement and projectiles, and everything else left out.
 
 The importer flattens the node hierarchy into world-space triangles. It composes each node's
 column-major TRS matrix with its parent's (`worldMatrix`, memoized) and transforms every vertex.
@@ -1256,9 +1258,9 @@ A transform with a negative determinant (a mirror, for example scale $(-1, 1, 1)
 winding of every triangle, which would flip the computed normals. Swapping two indices restores
 it, so "walkable" floors still face up.
 
-Then it bakes three outputs (D58): `<level>.jcol` (the collision BVH), one
-`<level>.<size>.jnav` per agent size class (the navmesh), and `<level>.jocc` (the fog-of-war
-occlusion grid). How each is built is the subject of
+Then `PhysicsBake` (shared with the `LevelImporter`, D90) bakes three outputs (D58):
+`<level>.jcol` (the collision BVH), one `<level>.<size>.jnav` per agent size class (the navmesh),
+and `<level>.jocc` (the fog-of-war occlusion grid). How each is built is the subject of
 [11 Physics, navigation and crowds](11-physics-navigation-crowds.md). The glTF is a dependency, not
 a claim: the scene importer still cooks it for rendering.
 

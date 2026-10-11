@@ -90,7 +90,8 @@ public final class PhysicsBake {
      * Appends the triangles of every mesh node under {@code rootNode} of {@code scene} (every root
      * with -1) to {@code mesh}, transformed by {@code rootMatrix × (the chain of local transforms
      * from the subtree root down)} and flagged {@code flags} (a column-major 4×4; mirrored
-     * transforms flip the winding). This is how a placed prefab's geometry is gathered.
+     * transforms flip the winding). This is how a placed prefab's geometry is gathered. glTF nodes
+     * come in any order, so matrices are resolved through the parents on demand.
      */
     public static void collectSubtree(
             GltfImporter.Scene scene,
@@ -101,24 +102,53 @@ public final class PhysicsBake {
         List<GltfImporter.Node> nodes = scene.nodes();
         int n = nodes.size();
         float[][] rel = new float[n][];
-        boolean[] in = new boolean[n];
+        byte[] state = new byte[n]; // 0 unknown, 1 inside the subtree, 2 outside
         for (int i = 0; i < n; i++) {
-            GltfImporter.Node node = nodes.get(i);
-            int p = node.parent();
-            in[i] = rootNode < 0 ? true : i == rootNode || (p >= 0 && in[p]);
-            if (!in[i]) {
+            if (nodes.get(i).mesh() < 0) {
                 continue;
             }
-            float[] local = PhysicsImporter.trs(node.translation(), node.rotation(), node.scale());
-            boolean top = rootNode < 0 ? p < 0 : i == rootNode;
-            rel[i] =
-                    top
-                            ? PhysicsImporter.mul(rootMatrix, local)
-                            : PhysicsImporter.mul(rel[p], local);
-            if (node.mesh() < 0) {
-                continue;
+            float[] m = relative(nodes, i, rootNode, rootMatrix, rel, state);
+            if (m != null) {
+                PhysicsImporter.appendMesh(scene, nodes.get(i).mesh(), m, flags, mesh);
             }
-            PhysicsImporter.appendMesh(scene, node.mesh(), rel[i], flags, mesh);
         }
+    }
+
+    /**
+     * Node {@code i}'s matrix relative to the placement (memoized), or {@code null} when it is not
+     * under {@code rootNode}.
+     */
+    private static float[] relative(
+            List<GltfImporter.Node> nodes,
+            int i,
+            int rootNode,
+            float[] rootMatrix,
+            float[][] rel,
+            byte[] state) {
+        if (state[i] == 2) {
+            return null;
+        }
+        if (state[i] == 1) {
+            return rel[i];
+        }
+        GltfImporter.Node node = nodes.get(i);
+        int p = node.parent();
+        float[] local = PhysicsImporter.trs(node.translation(), node.rotation(), node.scale());
+        float[] parent;
+        if (rootNode < 0 ? p < 0 : i == rootNode) {
+            parent = rootMatrix; // a direct child of the placement
+        } else if (p < 0) {
+            state[i] = 2; // another root: not in the subtree
+            return null;
+        } else {
+            parent = relative(nodes, p, rootNode, rootMatrix, rel, state);
+            if (parent == null) {
+                state[i] = 2;
+                return null;
+            }
+        }
+        rel[i] = PhysicsImporter.mul(parent, local);
+        state[i] = 1;
+        return rel[i];
     }
 }

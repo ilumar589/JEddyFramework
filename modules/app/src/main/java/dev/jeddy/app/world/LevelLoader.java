@@ -294,11 +294,14 @@ public final class LevelLoader {
     /**
      * Adds the level's lights to {@code packet}: point lights (spot lights too, as spots), with
      * torches ({@link LevelData#LIGHT_FLICKER}) flickering on {@code time}. {@code gain} scales the
-     * intensities to the game's exposure. Allocates nothing.
+     * intensities to the game's exposure. Returns the packet index of the first light added (level
+     * light {@code i} is packet light {@code first + i}), so the game can give some of them
+     * shadows. Allocates nothing.
      */
-    public void extractLights(RenderPacket packet, float time, float gain) {
+    public int extractLights(RenderPacket packet, float time, float gain) {
+        int first = packet.lightCount;
         if (level == null) {
-            return;
+            return first;
         }
         float[] d = level.lightData();
         for (int i = 0, n = level.lightCount(); i < n; i++) {
@@ -318,5 +321,24 @@ public final class LevelLoader {
                         intensity);
             }
         }
+        return first;
+    }
+
+    /** Returns prefab {@code p}'s scene once loaded, else {@code null}. */
+    public SceneData prefabScene(int p) {
+        return scenes.isReady(sceneHandle[p]) ? scenes.get(sceneHandle[p]) : null;
+    }
+
+    /** Returns the index of prefab {@code p}'s root node in its scene (-1 for the whole scene). */
+    public int prefabRootNode(int p) {
+        if (rootNode[p] == -2) {
+            SceneData scene = prefabScene(p);
+            if (scene == null) {
+                return -1;
+            }
+            String node = level.prefabNode(p);
+            rootNode[p] = node.isEmpty() ? -1 : World.nodeNamed(scene, node);
+        }
+        return rootNode[p];
     }
 }

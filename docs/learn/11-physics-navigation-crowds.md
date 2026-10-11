@@ -47,7 +47,7 @@ in the `math` module ([02 Math foundations](02-math-foundations.md)).
 ```mermaid
 flowchart LR
   subgraph cook["Cook time (tools/cooker PhysicsImporter)"]
-    gltf["level glTF + physics.json"] --> tri["TriangleMesh<br/>world space + TriFlags"]
+    gltf["level glTF + physics.json<br/>or a .jlevel of prefabs"] --> tri["TriangleMesh<br/>world space + TriFlags"]
     tri --> bb["BvhBuilder"] --> jcol[".jcol"]
     tri --> nb["NavMeshBaker"] --> jnav[".size.jnav"]
     bb --> og["OcclusionGrid.bake"] --> jocc[".jocc"]
@@ -735,8 +735,8 @@ flowchart TD
 ```
 
 The settings are a [`NavBakeConfig`](../../modules/physics/src/main/java/dev/jeddy/physics/nav/bake/NavBakeConfig.java).
-The demo's crypt (`crypt.physics.json`) uses cell size 0.2 m, cell height 0.1 m, 32 m tiles
-(`PhysicsImporter` turns that into $32 / 0.2 = 160$ cells), the default 45° slope limit, and a
+The demo's crypt (the settings block of `crypt.jlevel`, written by `tools/kaykit.py`) uses cell
+size 0.2 m, cell height 0.1 m, 32 m tiles (`PhysicsBake` turns that into $32 / 0.2 = 160$ cells), the default 45° slope limit, and a
 Medium agent of radius 0.4 m, height 1.8 m, climb 0.4 m. In voxels: `walkableRadius` $= \lceil 0.4/0.2 \rceil = 2$
 cells, `walkableHeight` $= \lceil 1.8/0.1 \rceil = 18$, `walkableClimb`
 $= \lfloor 0.4/0.1 \rfloor = 4$.
@@ -847,7 +847,7 @@ ledge filter plus 0.4 m to erosion (0.6 m per side), the block grows by the radi
 
 Temporary obstacles from the [`TileCache`](../../modules/physics/src/main/java/dev/jeddy/physics/nav/bake/TileCache.java)
 are marked *before* erosion, so agents keep their radius from them too (D54). Then **area volumes**
-(`markVolume`, a polygon with a height range from the level's `physics.json`) relabel the spans
+(`markVolume`, a polygon with a height range from the level's `physics.json` or `.jlevel` areas) relabel the spans
 inside them: mud, water, hazards, doorways.
 
 ### Step 5: distance field and watershed regions
@@ -1697,8 +1697,8 @@ turn-based range.
 4. **See the navmesh.** In the demo, add a key (say `N`) that toggles drawing the whole navmesh with
    `level.nav.debugDraw(debugSink, debugThread, 0.05f)` and the crowd with
    `level.crowd.debugDraw(debugSink, debugThread)`, next to the existing `debugDrawPolygons` call in
-   the extract code. Find the portals between tiles and the area volume in the crypt
-   (`crypt.physics.json`).
+   the extract code. Find the portals between tiles and the area volume in the crypt (the
+   `areas` of `crypt.jlevel`, `LevelData.toJson` prints them).
    <details><summary>Hint</summary>
 
    Copy the `turnBasedOn` pattern: a boolean field toggled in

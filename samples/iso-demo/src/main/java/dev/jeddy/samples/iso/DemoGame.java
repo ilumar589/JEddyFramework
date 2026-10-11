@@ -6,12 +6,13 @@ import dev.jeddy.app.AppContext;
 import dev.jeddy.app.Game;
 import dev.jeddy.app.audio.AudioSync;
 import dev.jeddy.app.world.AgentSync;
+import dev.jeddy.app.world.LevelLoader;
 import dev.jeddy.app.world.World;
 import dev.jeddy.app.world.WorldAssets;
-import dev.jeddy.asset.AssetLoaders;
 import dev.jeddy.asset.AssetManager;
 import dev.jeddy.asset.AssetState;
 import dev.jeddy.asset.AssetType;
+import dev.jeddy.asset.format.LevelData;
 import dev.jeddy.asset.format.SceneData;
 import dev.jeddy.audio.Audio;
 import dev.jeddy.audio.SoundClip;
@@ -74,13 +75,13 @@ final class DemoGame implements Game {
     private AssetType<Bvh> collisionAssets;
     private AssetType<NavMeshData> navAssets;
     private AssetType<OcclusionGrid> occlusionAssets;
-    private AssetType<byte[]> files;
+    private AssetType<LevelData> levels;
+    private LevelLoader levelLoader;
     private AssetType<SoundClip> sounds;
-    private int levelScene;
+    private int levelAsset;
     private int levelCollision;
     private int levelNav;
     private int levelOcclusion;
-    private int levelSpawns;
     private final int[] partyModels = new int[Characters.PARTY.length];
     private final int[] enemyModels = new int[Characters.ENEMIES.length];
     private final int[] animationLibraries = new int[Animator.LIBRARIES.length];
@@ -179,17 +180,16 @@ final class DemoGame implements Game {
         collisionAssets = assets.register("collision", WorldAssets.collision());
         navAssets = assets.register("navmesh", WorldAssets.navmeshes());
         occlusionAssets = assets.register("occlusion", WorldAssets.occlusion());
-        files = assets.register("file", AssetLoaders.bytes());
+        levels = assets.register("level", WorldAssets.levels());
         demoUi = new DemoUi(ctx, assets, renderer.textures());
         demoUi.vsync = options.vsync;
         demoUi.profiler = profiler;
         demoUi.inventoryOpen = options.showUi;
         demoUi.menuOpen = options.showUi;
-        levelScene = scenes.load(Level.SCENE);
+        levelAsset = levels.load(Level.LEVEL);
         levelCollision = collisionAssets.load(Level.COLLISION);
         levelNav = navAssets.load(Level.NAVMESH);
         levelOcclusion = occlusionAssets.load(Level.OCCLUSION);
-        levelSpawns = files.load(Level.SPAWNS);
         for (int i = 0; i < partyModels.length; i++) {
             partyModels[i] = scenes.load(Characters.path(Characters.PARTY[i]));
         }
@@ -214,6 +214,7 @@ final class DemoGame implements Game {
                         8192 + characters * 16 + options.instanceCount(),
                         renderer.meshes(),
                         animations);
+        levelLoader = new LevelLoader(world, scenes);
         // Size the packets for the peak up front, so nothing grows mid-game (DESIGN §4.2).
         for (int i = 0; i < DemoHud.FRAMES; i++) {
             packets.packet(i)
@@ -241,12 +242,19 @@ final class DemoGame implements Game {
     // Loading ------------------------------------------------------------------------------------
 
     private boolean allReady() {
+        // The level's prefab scenes load through the loader once the level itself is in, and
+        // the loader instantiates the placements as they arrive.
+        if (ready(levels, levelAsset) && levelLoader.level() == null) {
+            levelLoader.load(levels.get(levelAsset));
+        }
+        if (levelLoader.level() != null) {
+            levelLoader.update();
+        }
         boolean ok =
-                ready(scenes, levelScene)
+                levelLoader.isReady()
                         && ready(collisionAssets, levelCollision)
                         && ready(navAssets, levelNav)
-                        && ready(occlusionAssets, levelOcclusion)
-                        && ready(files, levelSpawns);
+                        && ready(occlusionAssets, levelOcclusion);
         for (int h : partyModels) {
             ok &= ready(scenes, h);
         }
@@ -273,13 +281,12 @@ final class DemoGame implements Game {
         int characters = Party.SIZE + options.enemyCount();
         level =
                 new Level(
-                        world,
                         ctx.jobs(),
-                        scenes.get(levelScene),
+                        levelLoader.level(),
+                        levelLoader,
                         collisionAssets.get(levelCollision),
                         navAssets.get(levelNav),
                         occlusionAssets.get(levelOcclusion),
-                        files.get(levelSpawns),
                         characters,
                         options.seed);
         sync = new AgentSync(level.crowd, world);
@@ -349,31 +356,59 @@ final class DemoGame implements Game {
                         + " renderables, "
                         + characters
                         + " agents, "
-                        + level.torchCount
-                        + " torches");
+                        + level.data.lightCount()
+                        + " lights");
     }
 
     /**
-     * Scatters {@code n} static props (crates, barrels, rubble from the crypt's own meshes) over
+     * Whether scene node {@code i} is {@code root} or below it (any node when {@code root} is -1).
+     */
+    private static boolean underNode(SceneData s, int i, int root) {
+        while (i >= 0) {
+            if (root < 0 || i == root) {
+                return true;
+            }
+            i = s.parent(i);
+        }
+        return false;
+    }
+
+    /**
+     * Scatters {@code n} static props (crates, barrels, rubble from the crypt's own prefabs) over
      * the floor, for the perf scene's instance count.
      */
     private void scatterProps(int n) {
         if (n <= 0) {
             return;
         }
-        SceneData s = level.scene;
-        long[] props = new long[s.meshCount()];
+        // The meshes of the prefabs the level places as props and decor.
+        LevelData data = level.data;
+        long[] props = new long[64];
         int count = 0;
-        for (int i = 0; i < s.nodeCount(); i++) {
-            int m = s.mesh(i);
-            String name = s.nodeName(i);
-            if (m >= 0 && (name.startsWith("prop_") || name.startsWith("decor_"))) {
+        for (int p = 0; p < data.prefabCount(); p++) {
+            boolean prop = false;
+            for (int i = 0; i < data.placementCount() && !prop; i++) {
+                String layer = data.placementLayer(i);
+                prop =
+                        data.placementPrefab(i) == p
+                                && (layer.equals("prop") || layer.equals("decor"));
+            }
+            SceneData s = levelLoader.prefabScene(p);
+            if (!prop || s == null) {
+                continue;
+            }
+            int root = levelLoader.prefabRootNode(p);
+            for (int i = 0; i < s.nodeCount(); i++) {
+                int m = s.mesh(i);
+                if (m < 0 || !underNode(s, i, root)) {
+                    continue;
+                }
                 long id = s.meshId(m);
                 boolean seen = false;
                 for (int k = 0; k < count; k++) {
                     seen |= props[k] == id;
                 }
-                if (!seen) {
+                if (!seen && count < props.length) {
                     props[count++] = id;
                 }
             }
@@ -526,7 +561,7 @@ final class DemoGame implements Game {
         int done = 0;
         if (!ready && world != null) {
             total = 5 + partyModels.length + enemyModels.length;
-            done = (scenes.isReady(levelScene) ? 1 : 0) + (levelBuilt ? 4 + total - 5 : 0);
+            done = (levels.isReady(levelAsset) ? 1 : 0) + (levelBuilt ? 4 + total - 5 : 0);
             if (levelBuilt) {
                 total += world.renderableCount();
                 done += world.renderableCount() - world.loadingRenderables();
