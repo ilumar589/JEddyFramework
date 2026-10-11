@@ -102,6 +102,10 @@ final class EditorGame implements Game {
         }
         editor.attach(world, loader);
         editor.attachAssets(vfs, scenes);
+        Path rules = options.project.resolve("rules");
+        if (java.nio.file.Files.isDirectory(rules)) {
+            editor.attachRules(rules); // the Rules panel edits assets/rules/*.json
+        }
         editor.loadSettings(ctx.settings());
         loader.load(level);
         editor.open(level, levelFile);

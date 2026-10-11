@@ -13,4 +13,5 @@ module dev.jeddy.editor {
     exports dev.jeddy.editor;
     exports dev.jeddy.editor.command;
     exports dev.jeddy.editor.panel;
+    exports dev.jeddy.editor.rules;
 }

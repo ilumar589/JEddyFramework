@@ -21,7 +21,9 @@ import dev.jeddy.editor.panel.HistoryPanel;
 import dev.jeddy.editor.panel.InspectorPanel;
 import dev.jeddy.editor.panel.OutlinerPanel;
 import dev.jeddy.editor.panel.Panel;
+import dev.jeddy.editor.panel.RulesPanel;
 import dev.jeddy.editor.panel.SettingsPanel;
+import dev.jeddy.editor.rules.RulesSource;
 import dev.jeddy.input.Input;
 import dev.jeddy.input.Modifiers;
 import dev.jeddy.input.Scancode;
@@ -30,6 +32,7 @@ import dev.jeddy.render.RenderPacket;
 import dev.jeddy.ui.Ui;
 import dev.jeddy.ui.Widgets;
 
+import java.io.IOException;
 import java.nio.file.Path;
 
 /**
@@ -79,6 +82,7 @@ public final class Editor {
         dock.add(new InspectorPanel(), Dock.RIGHT);
         dock.add(new SettingsPanel(), Dock.RIGHT);
         dock.add(new EntitiesPanel(), Dock.HIDDEN);
+        dock.add(new RulesPanel(), Dock.HIDDEN);
         dock.add(consolePanel, Dock.BOTTOM);
         dock.add(new HistoryPanel(), Dock.HIDDEN);
     }
@@ -96,6 +100,39 @@ public final class Editor {
     /** Connects the cooked asset tree and scene loading for the Assets panel. */
     public void attachAssets(Vfs vfs, AssetType<SceneData> scenes) {
         ctx.setAssets(vfs, scenes);
+    }
+
+    /**
+     * Loads the rules content of {@code dir} ({@code assets/rules}: one JSON file per kind) for the
+     * Rules panel; edits go through the history and {@link #saveRules} writes the files back.
+     * Returns whether it loaded.
+     */
+    public boolean attachRules(Path dir) {
+        try {
+            RulesSource rules = RulesSource.load(dir);
+            ctx.setRules(rules);
+            ctx.console().info("rules " + dir.toAbsolutePath());
+            return true;
+        } catch (IOException | RuntimeException e) {
+            ctx.console().error("rules " + dir + ": " + e.getMessage());
+            return false;
+        }
+    }
+
+    /** Writes the rules content back to its JSON files; the cooker watcher re-cooks them. */
+    public boolean saveRules() {
+        RulesSource rules = ctx.rules();
+        if (rules == null) {
+            return false;
+        }
+        try {
+            rules.save(null);
+            ctx.console().info("saved rules to " + rules.directory());
+            return true;
+        } catch (IOException e) {
+            ctx.console().error("saving rules failed: " + e);
+            return false;
+        }
     }
 
     /** Returns the context (level, selection, history, settings, console). */
@@ -260,6 +297,9 @@ public final class Editor {
             if (w.menuItem(
                     ITEM + 2, "Dump JSON next to the level", null, level != null && file != null)) {
                 runCommand("dump");
+            }
+            if (w.menuItem(ITEM + 4, "Save rules", null, ctx.rules() != null)) {
+                saveRules();
             }
             if (w.menuItem(ITEM + 3, "Close editor", "F10", true)) {
                 setShown(false);

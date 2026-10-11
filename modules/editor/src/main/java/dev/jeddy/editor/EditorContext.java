@@ -6,6 +6,7 @@ import dev.jeddy.asset.AssetType;
 import dev.jeddy.asset.Vfs;
 import dev.jeddy.asset.format.LevelData;
 import dev.jeddy.asset.format.SceneData;
+import dev.jeddy.editor.rules.RulesSource;
 import dev.jeddy.math.IsoCamera;
 import dev.jeddy.ui.Ui;
 import dev.jeddy.ui.Widgets;
@@ -36,6 +37,7 @@ public final class EditorContext {
     private Viewport viewport;
     private Vfs vfs;
     private AssetType<SceneData> scenes;
+    private RulesSource rules;
 
     /** Creates a context editing {@code level} (may be {@code null} until one is opened). */
     public EditorContext(LevelData level, int undoCapacity) {
@@ -113,7 +115,16 @@ public final class EditorContext {
         return scenes;
     }
 
+    /** Returns the rules content being edited (the Rules panel), or {@code null}. */
+    public RulesSource rules() {
+        return rules;
+    }
+
     // ---- Wiring (the Editor) ------------------------------------------------------------------
+
+    void setRules(RulesSource rules) {
+        this.rules = rules;
+    }
 
     void setEditor(Editor editor, Viewport viewport) {
         this.editor = editor;

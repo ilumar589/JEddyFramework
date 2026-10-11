@@ -84,15 +84,15 @@ class PanelsTest {
         assertEquals(250, dock.size(Dock.LEFT), 1e-4);
         assertEquals(Dock.LEFT, dock.zone(2), "the Inspector moved left");
         assertEquals(Dock.RIGHT, dock.zone(0));
-        assertEquals(Dock.HIDDEN, dock.zone(5), "the Console is hidden");
+        assertEquals(Dock.HIDDEN, dock.zone(6), "the Console is hidden");
         assertEquals(1280 - 250 - 400 - 2 * split, dock.regionW(), 1e-4);
         assertEquals(800 - theme.widgetHeight, dock.regionH(), 1e-4, "no bottom zone");
         assertEquals("left=250:Inspector|right=400:Outliner,History|bottom=150:", dock.layout());
         // Toggling shows a hidden panel in its last zone, and hides a shown one.
-        dock.toggle(5);
-        assertEquals(Dock.BOTTOM, dock.zone(5));
-        dock.toggle(5);
-        assertEquals(Dock.HIDDEN, dock.zone(5));
+        dock.toggle(6);
+        assertEquals(Dock.BOTTOM, dock.zone(6));
+        dock.toggle(6);
+        assertEquals(Dock.HIDDEN, dock.zone(6));
         // Hidden: nothing is declared.
         editor.setShown(false);
         ui.beginFrame(in);

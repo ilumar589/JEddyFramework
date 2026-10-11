@@ -12,4 +12,7 @@ dependencies {
     api(project(":ui"))
     api(project(":physics"))
     api(project(":app"))
+    // The Rules panel tests cook what the panel saved, to prove the files it writes are the
+    // files the importer reads.
+    testImplementation(project(":cooker"))
 }

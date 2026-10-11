@@ -1,6 +1,7 @@
 package dev.jeddy.editor.panel;
 
 import dev.jeddy.asset.format.LevelData;
+import dev.jeddy.asset.format.RulesSchema;
 import dev.jeddy.editor.Console;
 import dev.jeddy.editor.EditorContext;
 import dev.jeddy.editor.LevelObjects;
@@ -84,7 +85,9 @@ public final class ConsolePanel extends Panel {
                 case "help" ->
                         out.info(
                                 "help | clear | select <id>... | deselect | delete | goto <id> |"
-                                        + " save [path] | dump | snap <step> | stats");
+                                        + " save [path] | dump | snap <step> | stats |"
+                                        + " panel <name> [left|right|bottom|hidden] |"
+                                        + " rules <kind> [id]");
                 case "clear" -> out.clear();
                 case "select" -> {
                     Selection sel = ctx.selection();
@@ -150,6 +153,72 @@ public final class ConsolePanel extends Panel {
                                         + ctx.undo().size()
                                         + " history entries, selection "
                                         + ctx.selection().size());
+                    }
+                }
+                case "panel" -> {
+                    Dock dock = ctx.editor().dock();
+                    int index = -1;
+                    for (int i = 0; i < dock.panels().size(); i++) {
+                        if (dock.panels().get(i).name().equalsIgnoreCase(args[1])) {
+                            index = i;
+                        }
+                    }
+                    if (index < 0) {
+                        out.warn("no panel " + args[1]);
+                    } else if (args.length > 2) {
+                        int zone =
+                                switch (args[2].toLowerCase(java.util.Locale.ROOT)) {
+                                    case "left" -> Dock.LEFT;
+                                    case "right" -> Dock.RIGHT;
+                                    case "bottom" -> Dock.BOTTOM;
+                                    default -> Dock.HIDDEN;
+                                };
+                        dock.setZone(index, zone);
+                    } else {
+                        dock.setZone(
+                                index,
+                                dock.zone(index) == Dock.HIDDEN ? Dock.RIGHT : dock.zone(index));
+                    }
+                }
+                case "rules" -> {
+                    Dock dock = ctx.editor().dock();
+                    RulesPanel panel = null;
+                    int index = -1;
+                    for (int i = 0; i < dock.panels().size(); i++) {
+                        if (dock.panels().get(i) instanceof RulesPanel r) {
+                            panel = r;
+                            index = i;
+                        }
+                    }
+                    if (panel == null || ctx.rules() == null) {
+                        out.warn("no rules content");
+                        break;
+                    }
+                    int k = 0;
+                    boolean found = false;
+                    for (RulesSchema.Kind kind : RulesSchema.KINDS) {
+                        if (!kind.hasId()) {
+                            continue;
+                        }
+                        if (kind.name().equalsIgnoreCase(args[1])) {
+                            panel.setKindIndex(k);
+                            found = true;
+                            if (args.length > 2) {
+                                int row = ctx.rules().find(kind.name(), args[2]);
+                                if (row < 0) {
+                                    out.warn("no " + kind.name() + " with id " + args[2]);
+                                }
+                                panel.select(row);
+                            }
+                        }
+                        k++;
+                    }
+                    if (!found) {
+                        out.warn("no kind " + args[1]);
+                    } else {
+                        dock.setZone(
+                                index,
+                                dock.zone(index) == Dock.HIDDEN ? Dock.RIGHT : dock.zone(index));
                     }
                 }
                 default -> out.warn("unknown command: " + cmd + " (try help)");

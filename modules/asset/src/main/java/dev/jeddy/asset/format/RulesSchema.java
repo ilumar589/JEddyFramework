@@ -76,6 +76,7 @@ public final class RulesSchema {
         private final String parent;
         private final String parentField;
         private final List<Field> fields = new ArrayList<>();
+        private final List<Field> fieldsView = Collections.unmodifiableList(fields);
         private int index;
         private int[] offsets;
         private int stride;
@@ -118,9 +119,9 @@ public final class RulesSchema {
             return index;
         }
 
-        /** The fields in column order. */
+        /** The fields in column order (one read-only view, so calling this allocates nothing). */
         public List<Field> fields() {
-            return Collections.unmodifiableList(fields);
+            return fieldsView;
         }
 
         /** Returns the index of field {@code name}, or -1. */
@@ -574,9 +575,12 @@ public final class RulesSchema {
         return k;
     }
 
-    /** Returns the kind named {@code name}, or {@code null}. */
+    /**
+     * Returns the kind named {@code name}, or {@code null}. Allocation-free (an editor hot path).
+     */
     public static Kind kind(String name) {
-        for (Kind k : KINDS) {
+        for (int i = 0; i < KINDS.size(); i++) {
+            Kind k = KINDS.get(i);
             if (k.name().equals(name)) {
                 return k;
             }
