@@ -5,9 +5,11 @@ import dev.jeddy.app.ui.UiBridge;
 import dev.jeddy.app.ui.UiFonts;
 import dev.jeddy.asset.AssetManager;
 import dev.jeddy.asset.AssetType;
+import dev.jeddy.asset.format.RulesSchema;
 import dev.jeddy.core.id.StrId;
 import dev.jeddy.render.RenderPacket;
 import dev.jeddy.render.material.GpuTexture;
+import dev.jeddy.rules.ActionBudget;
 import dev.jeddy.ui.Box;
 import dev.jeddy.ui.Theme;
 import dev.jeddy.ui.Ui;
@@ -49,6 +51,8 @@ final class DemoUi {
     private static final long PROFILER = StrId.of("profiler");
     private static final long FORMATION = StrId.of("formation");
     private static final long TURNS = StrId.of("turns");
+    private static final long END_TURN = StrId.of("endturn");
+    private static final long INITIATIVE = StrId.of("initiative");
     private static final long HELP = StrId.of("help");
 
     private static final int DRAG_ITEM = 1;
@@ -95,7 +99,8 @@ final class DemoUi {
     private static final CharSequence[] MODES = {"Windowed", "Borderless", "Fullscreen"};
     private static final String HELP_TEXT =
             "LMB select / move · RMB move · drag box · 1-6 Tab · G formation · F fireball"
-                    + " · T range · I inventory · Space pause · Esc menu · F3 profiler";
+                    + " · T turn-based · Enter end turn · I inventory · Space pause · Esc menu"
+                    + " · F3 profiler";
 
     final Ui ui = new Ui();
     final Theme theme = Theme.dark();
@@ -133,8 +138,12 @@ final class DemoUi {
     int windowMode;
     boolean shift;
 
+    /** The rules side of the fight (hit points, conditions, turns); set once the level is built. */
+    Combat combat;
+
     // Read back by the game.
     boolean menuOpen;
+    boolean endTurnClicked;
 
     /** The level editor is shown: the HUD stays out of its way. */
     boolean editorOpen;
@@ -185,6 +194,7 @@ final class DemoUi {
         }
         bridge.beginFrame(dt);
         clickedMember = -1;
+        endTurnClicked = false;
         formationChanged = false;
         profilerChanged = false;
         turnBasedChanged = false;
@@ -206,6 +216,9 @@ final class DemoUi {
             messages();
             portraits(party);
             combatLog();
+            if (combat != null && turnBased && combat.active()) {
+                turnPanel();
+            }
         }
         if (inventoryOpen) {
             inventory();
@@ -353,6 +366,80 @@ final class DemoUi {
         ui.close();
     }
 
+    /**
+     * The turn-based fight: the initiative order with the acting creature marked, its action budget
+     * and movement left, and End Turn.
+     */
+    private void turnPanel() {
+        ui.box(INITIATIVE)
+                .floatingOnScreen()
+                .anchor(Ui.TOP, Ui.TOP)
+                .offset(0, 36)
+                .column()
+                .gap(4)
+                .padding(8)
+                .background(theme.panel)
+                .border(theme.panelBorder, 1)
+                .radius(6)
+                .align(Ui.CENTER, Ui.START)
+                .hit()
+                .open();
+        w.small("").append("Round ").append(combat.rounds).color(theme.textDim);
+        ui.box().row().gap(4).open();
+        int current = combat.current();
+        for (int i = 0; i < combat.encounter.size(); i++) {
+            int c = combat.encounter.participant(i);
+            boolean acting = c == current;
+            boolean down = !combat.canAct(c);
+            boolean friend = combat.memberOf(c) >= 0;
+            ui.box()
+                    .padding(6, 3)
+                    .radius(theme.radius)
+                    .background(acting ? theme.accent : friend ? 0xFF2E4A36 : 0xFF4A2E2E)
+                    .noHit()
+                    .open();
+            w.small(combat.creatures.name(c))
+                    .color(down ? theme.textDim : acting ? 0xFF101114 : theme.text);
+            ui.close();
+        }
+        ui.close();
+        if (current >= 0 && combat.memberOf(current) >= 0) {
+            ui.box().row().gap(6).align(Ui.CENTER, Ui.CENTER).open();
+            budgetBadge("Standard", combat.encounter.hasAction(current, ActionBudget.STANDARD));
+            budgetBadge("Move", combat.encounter.hasAction(current, ActionBudget.MOVE));
+            budgetBadge("Swift", combat.encounter.hasAction(current, ActionBudget.SWIFT));
+            w.small("").append(combat.movementBudget(current), 1).append(" m").color(theme.textDim);
+            if (w.primaryButton(END_TURN, "End turn (Enter)")) {
+                endTurnClicked = true;
+            }
+            ui.close();
+        } else if (current >= 0) {
+            w.small("").append(combat.creatures.name(current)).append(" acts").color(theme.textDim);
+        }
+        ui.close();
+    }
+
+    private void budgetBadge(String label, boolean left) {
+        ui.box()
+                .padding(6, 2)
+                .radius(theme.radius)
+                .background(left ? theme.widget : 0)
+                .border(theme.panelBorder, 1)
+                .noHit()
+                .open();
+        w.small(label).color(left ? theme.text : theme.textDim);
+        ui.close();
+    }
+
+    /** The creature's conditions, one short line (dying, shaken...). */
+    private void conditions(int c) {
+        var list = combat.creatures.conditionHandles(c);
+        for (int k = 0; k < list.size() && k < 3; k++) {
+            int row = combat.rules.conditions().condition(list.get(k));
+            w.small(combat.content.name(RulesSchema.CONDITIONS, row)).color(0xFFE0A030);
+        }
+    }
+
     private void portraits(Party party) {
         ui.box()
                 .floatingOnScreen()
@@ -387,13 +474,15 @@ final class DemoUi {
             w.heading(Characters.PARTY_INITIALS[i]).color(0xFF101114);
             ui.close();
             w.small(Characters.PARTY_NAMES[i]);
-            float hp = party.hp[i] / Party.MAX_HP;
+            int c = combat == null ? -1 : combat.partyCreature(i);
+            int cur = c < 0 ? 0 : combat.hp(c);
+            int max = c < 0 ? 1 : combat.maxHp(c);
+            float hp = Math.max(0, cur) / (float) max;
             w.progress(hp, hp > 0.5f ? 0xFF4CC26A : hp > 0.25f ? 0xFFE0A030 : 0xFFE05A5A, 6);
-            w.small("")
-                    .append((int) party.hp[i])
-                    .append(" / ")
-                    .append((int) Party.MAX_HP)
-                    .color(theme.textDim);
+            w.small("").append(cur).append(" / ").append(max).color(theme.textDim);
+            if (c >= 0) {
+                conditions(c);
+            }
             ui.close();
             if (ui.clicked(PORTRAIT)) {
                 clickedMember = i;

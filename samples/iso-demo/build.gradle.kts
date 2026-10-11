@@ -6,6 +6,7 @@ plugins {
 dependencies {
     implementation(project(":app"))
     implementation(project(":editor"))
+    implementation(project(":rules"))
     implementation(project(":gl"))
 }
 

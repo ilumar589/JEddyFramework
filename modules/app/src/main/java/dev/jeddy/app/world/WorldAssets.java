@@ -2,6 +2,7 @@ package dev.jeddy.app.world;
 
 import dev.jeddy.asset.AssetLoader;
 import dev.jeddy.asset.format.LevelData;
+import dev.jeddy.asset.format.RulesData;
 import dev.jeddy.asset.format.SceneData;
 import dev.jeddy.physics.bvh.Bvh;
 import dev.jeddy.physics.nav.NavMeshData;
@@ -38,6 +39,14 @@ public final class WorldAssets {
     public static AssetLoader<NavMeshData> navmeshes() {
         return (id, data, context) ->
                 NavMeshData.read(data.asByteBuffer().order(ByteOrder.LITTLE_ENDIAN));
+    }
+
+    /**
+     * Loads {@code .jrules} rules content (DESIGN §20): the value is the raw column store; a game
+     * wraps it in {@code dev.jeddy.rules.Content} and rebuilds its creatures when it hot-reloads.
+     */
+    public static AssetLoader<RulesData> rules() {
+        return (id, data, context) -> RulesData.read(data);
     }
 
     /** Loads {@code .jocc} occlusion grids. */

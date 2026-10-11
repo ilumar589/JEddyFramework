@@ -2,6 +2,7 @@
 module dev.jeddy.samples.iso {
     requires dev.jeddy.app;
     requires dev.jeddy.editor;
+    requires dev.jeddy.rules;
     requires dev.jeddy.gl;
     requires jdk.management;
 }

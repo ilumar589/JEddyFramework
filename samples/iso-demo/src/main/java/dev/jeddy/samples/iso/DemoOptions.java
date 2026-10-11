@@ -57,6 +57,16 @@ final class DemoOptions {
     boolean headless;
     int warmupFrames = 600;
     boolean allocProbe;
+
+    /** Echo the combat log to the console log (scripted and headless runs). */
+    boolean echoCombat;
+
+    /** Start in turn-based mode. */
+    boolean turnBased;
+
+    /** Scripted runs: party turns end by themselves after a strike at whoever is in reach. */
+    boolean autoTurns;
+
     boolean quitAfterFirstFrame;
     java.util.List<String> failOn = java.util.List.of();
     boolean editor;
@@ -114,6 +124,9 @@ final class DemoOptions {
                 case "--show-ui" -> o.showUi = true;
                 case "--headless" -> o.headless = true;
                 case "--alloc-probe" -> o.allocProbe = true;
+                case "--echo-combat" -> o.echoCombat = true;
+                case "--turn-based" -> o.turnBased = true;
+                case "--auto-turns" -> o.autoTurns = true;
                 case "--quit-after-first-frame" -> o.quitAfterFirstFrame = true;
                 case "--warmup-frames" -> o.warmupFrames = Integer.parseInt(value(args, ++i, a));
                 case "--fail-on" -> o.failOn = java.util.List.of(value(args, ++i, a).split(","));

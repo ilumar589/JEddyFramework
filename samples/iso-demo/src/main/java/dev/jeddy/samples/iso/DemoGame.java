@@ -13,6 +13,7 @@ import dev.jeddy.asset.AssetManager;
 import dev.jeddy.asset.AssetState;
 import dev.jeddy.asset.AssetType;
 import dev.jeddy.asset.format.LevelData;
+import dev.jeddy.asset.format.RulesData;
 import dev.jeddy.asset.format.SceneData;
 import dev.jeddy.audio.Audio;
 import dev.jeddy.audio.SoundClip;
@@ -36,6 +37,8 @@ import dev.jeddy.physics.vis.OcclusionGrid;
 import dev.jeddy.render.RenderPacket;
 import dev.jeddy.render.RenderPackets;
 import dev.jeddy.render.camera.IsoCameraController;
+import dev.jeddy.rules.ActionBudget;
+import dev.jeddy.rules.Content;
 
 /**
  * The iso demo's game thread (TASKS M10-03 to M10-05, M12-07): loads the crypt, the characters and
@@ -77,6 +80,9 @@ final class DemoGame implements Game {
     private AssetType<NavMeshData> navAssets;
     private AssetType<OcclusionGrid> occlusionAssets;
     private AssetType<LevelData> levels;
+    private AssetType<RulesData> rulesAssets;
+    private int rulesAsset;
+    private int rulesVersion = -1;
     private LevelLoader levelLoader;
     private AssetType<SoundClip> sounds;
     private int levelAsset;
@@ -97,6 +103,7 @@ final class DemoGame implements Game {
     private Animator animator;
     private long animationNanos;
     private Spells spells;
+    private Combat combat;
     private AgentSync sync;
     private Audio audio;
     private AudioSync audioSync;
@@ -131,6 +138,7 @@ final class DemoGame implements Game {
     private int floodMember = -1;
     private float floodX;
     private float floodZ;
+    private float floodBudget;
     private float moveCost;
     private boolean profiler;
     private boolean screenshotRequested;
@@ -186,6 +194,7 @@ final class DemoGame implements Game {
         navAssets = assets.register("navmesh", WorldAssets.navmeshes());
         occlusionAssets = assets.register("occlusion", WorldAssets.occlusion());
         levels = assets.register("level", WorldAssets.levels());
+        rulesAssets = assets.register("rules", WorldAssets.rules());
         demoUi = new DemoUi(ctx, assets, renderer.textures());
         demoUi.vsync = options.vsync;
         demoUi.profiler = profiler;
@@ -195,6 +204,7 @@ final class DemoGame implements Game {
         levelCollision = collisionAssets.load(Level.COLLISION);
         levelNav = navAssets.load(Level.NAVMESH);
         levelOcclusion = occlusionAssets.load(Level.OCCLUSION);
+        rulesAsset = rulesAssets.load(Level.RULES);
         for (int i = 0; i < partyModels.length; i++) {
             partyModels[i] = scenes.load(Characters.path(Characters.PARTY[i]));
         }
@@ -260,7 +270,8 @@ final class DemoGame implements Game {
                 levelLoader.isReady()
                         && ready(collisionAssets, levelCollision)
                         && ready(navAssets, levelNav)
-                        && ready(occlusionAssets, levelOcclusion);
+                        && ready(occlusionAssets, levelOcclusion)
+                        && ready(rulesAssets, rulesAsset);
         for (int h : partyModels) {
             ok &= ready(scenes, h);
         }
@@ -347,7 +358,7 @@ final class DemoGame implements Game {
                         center[0],
                         center[2]);
         spells = new Spells(audio, characters);
-        enemies.log = demoUi.log;
+        buildCombat();
         if (audio != null) {
             audioSync = new AudioSync(audio, world);
         }
@@ -469,7 +480,14 @@ final class DemoGame implements Game {
         a.mark(AllocProbe.THINK);
         party.tick();
         party.fight(dt, enemies);
-        party.regenerate(dt);
+        combat.tick(dt);
+        party.updateDown();
+        if (options.autoTurns) {
+            autoTurn(dt);
+        }
+        if (options.echoCombat) {
+            echoCombatLog();
+        }
         a.mark(AllocProbe.PARTY);
         level.crowd.update(dt);
         a.mark(AllocProbe.CROWD);
@@ -477,7 +495,7 @@ final class DemoGame implements Game {
         a.mark(AllocProbe.SYNC);
         level.collision.update();
         a.mark(AllocProbe.COLLISION);
-        spells.tick(dt, level.collision, enemies);
+        spells.tick(dt, level.collision, combat);
         a.mark(AllocProbe.SPELLS);
         for (int i = 0; i < Party.SIZE; i++) {
             int m = party.agent[i];
@@ -526,6 +544,9 @@ final class DemoGame implements Game {
         if (levelBuilt) {
             if (audio != null && sounds.isReady(boomSound)) {
                 spells.setSound(sounds.get(boomSound));
+            }
+            if (rulesAssets.version(rulesAsset) != rulesVersion) {
+                buildCombat(); // the content was re-cooked (the editor saved it): fresh creatures
             }
             if (in.wasKeyPressed(Scancode.F10) && !demoUi.ui.wantsKeyboard()) {
                 toggleEditor();
@@ -644,7 +665,10 @@ final class DemoGame implements Game {
             u.targeting = spells.targeting;
             u.turnBased = turnBasedOn;
             u.moveCost = moveCost;
-            u.moveBudget = TURN_MOVEMENT;
+            u.moveBudget = moveBudget();
+            if (u.endTurnClicked) {
+                combat.endTurn();
+            }
             u.selectedCount = party.selectionCount;
             u.enemiesAlive = enemies.alive;
             u.enemiesVisible = enemies.visibleCount;
@@ -662,8 +686,7 @@ final class DemoGame implements Game {
                 demoUi.log.start().add("Formation: ").add(Party.FORMATION_NAMES[u.formation]).end();
             }
             if (u.turnBasedChanged) {
-                turnBasedOn = u.turnBased;
-                floodMember = -1;
+                setTurnBased(u.turnBased);
             }
         }
         if (u.profilerChanged) {
@@ -781,6 +804,8 @@ final class DemoGame implements Game {
                     g.boxMaxX(),
                     g.boxMaxY(),
                     shift);
+        } else if (turnBasedOn && combat.active()) {
+            turnOrders(g);
         } else if (g.selectClicked()) {
             if (party.hovered >= 0) {
                 party.select(party.hovered, shift);
@@ -818,8 +843,10 @@ final class DemoGame implements Game {
             spells.targeting = !spells.targeting;
         }
         if (in.wasKeyPressed(Scancode.T)) {
-            turnBasedOn = !turnBasedOn;
-            floodMember = -1;
+            setTurnBased(!turnBasedOn);
+        }
+        if (in.wasKeyPressed(Scancode.RETURN) || in.wasKeyPressed(Scancode.KP_ENTER)) {
+            combat.endTurn();
         }
         if (in.wasKeyPressed(Scancode.C)) {
             following = !following;
@@ -843,35 +870,217 @@ final class DemoGame implements Game {
         markerAge = 0;
     }
 
-    /** The party's caster (the first mage) throws a fireball at {@code (x, y, z)}. */
-    private void castFireball(float x, float y, float z) {
-        int a = party.agent[2];
-        party.cast(2, x, z);
-        spells.cast(level.crowd.x(a), level.crowd.y(a), level.crowd.z(a), x, y, z);
-        demoUi.log.start().add(Characters.PARTY_NAMES[2]).add(" casts Fireball").end();
+    private int echoedVersion;
+    private float autoTurnTimer;
+
+    private float marchTimer = 7;
+    private boolean spawnsLogged;
+
+    /**
+     * Scripted turn-based play ({@code --auto-turns}): the party marches on the nearest skeleton
+     * every few seconds while no fight is on; in a fight a member strikes whoever is in reach, then
+     * ends its turn.
+     */
+    private void autoTurn(float dt) {
+        if (!spawnsLogged) {
+            spawnsLogged = true;
+            StringBuilder sb = new StringBuilder("auto-turns: enemy spawns");
+            for (int i = 0; i + 2 < level.enemySpawns.length; i += 3) {
+                sb.append(' ')
+                        .append(level.enemySpawns[i])
+                        .append(',')
+                        .append(level.enemySpawns[i + 2]);
+            }
+            sb.append(" party ")
+                    .append(level.partySpawns[0])
+                    .append(',')
+                    .append(level.partySpawns[2]);
+            sb.append(" sight ").append(enemies.visibleCount);
+            LOG.info(sb.toString());
+        }
+        marchTimer += dt;
+        if (!combat.active() && marchTimer > 8) {
+            marchTimer = 0; // the perf tour's waypoints pass every post
+            float x = TOUR[tourIndex * 2];
+            float z = TOUR[tourIndex * 2 + 1];
+            tourIndex = (tourIndex + 1) % (TOUR.length / 2);
+            if (level.snap(x, 0, z, 3f, scratch)) {
+                if (System.getProperty("jeddy.debug.single") != null) {
+                    party.select(0, false);
+                    party.order(scratch[0], scratch[1], scratch[2]);
+                } else {
+                    party.orderAll(scratch[0], scratch[1], scratch[2]);
+                }
+            }
+            LOG.info(
+                    "auto-turns: party at "
+                            + level.crowd.x(party.agent[0])
+                            + ", "
+                            + level.crowd.z(party.agent[0])
+                            + " -> "
+                            + x
+                            + ", "
+                            + z
+                            + " seen "
+                            + enemies.visibleCount);
+        }
+        if (!turnBasedOn || !combat.active()) {
+            return;
+        }
+        int c = combat.current();
+        int member = combat.memberOf(c);
+        if (member < 0) {
+            autoTurnTimer = 0;
+            return;
+        }
+        autoTurnTimer += dt;
+        if (autoTurnTimer < 1) {
+            return;
+        }
+        autoTurnTimer = 0;
+        int a = party.agent[member];
+        int target = enemies.nearestAlive(level.crowd.x(a), level.crowd.z(a), Enemies.REACH + 0.4f);
+        if (target >= 0) {
+            party.strikeAt(member, enemies, enemies.enemyOf(target));
+        }
+        combat.endTurn();
     }
 
-    /** Floods the leader's movement range when it moved, and prices the hovered point. */
+    /** Prints new combat-log lines to the console log ({@code --echo-combat}; allocates). */
+    private void echoCombatLog() {
+        CombatLog log = demoUi.log;
+        if (log.version() == echoedVersion) {
+            return;
+        }
+        int added = Math.min(log.count(), log.version() - echoedVersion);
+        for (int i = log.count() - added; i < log.count(); i++) {
+            LOG.info("combat: " + new String(log.chars(i), 0, log.length(i)));
+        }
+        echoedVersion = log.version();
+    }
+
+    /** Builds (or rebuilds, after a content reload) the rules side of the fight. */
+    private void buildCombat() {
+        rulesVersion = rulesAssets.version(rulesAsset);
+        boolean turnBasedBefore = combat != null && combat.turnBasedMode;
+        combat =
+                new Combat(
+                        new Content(rulesAssets.get(rulesAsset)),
+                        options.seed,
+                        party,
+                        enemies,
+                        animator,
+                        level.crowd,
+                        demoUi.log);
+        combat.unlimitedSlots = options.perf();
+        combat.invulnerableParty = options.perf();
+        combat.turnBasedMode = turnBasedBefore;
+        party.combat = combat;
+        enemies.combat = combat;
+        demoUi.combat = combat;
+        if (!levelBuilt && options.turnBased) {
+            setTurnBased(true);
+        }
+        if (levelBuilt) {
+            demoUi.log.start().add("Rules reloaded: everyone is rebuilt from the content").end();
+        }
+    }
+
+    private void setTurnBased(boolean on) {
+        turnBasedOn = on;
+        floodMember = -1;
+        combat.setTurnBased(on);
+        demoUi.log.start().add(on ? "Turn-based mode (Enter ends a turn)" : "Real time").end();
+    }
+
+    /** The meters the acting creature may still walk, for the range display. */
+    private float moveBudget() {
+        if (turnBasedOn && combat.active()) {
+            int c = combat.current();
+            return c >= 0 ? combat.movementBudget(c) : 0;
+        }
+        return TURN_MOVEMENT;
+    }
+
+    /** The player's orders during a party member's turn: strike a skeleton in reach or walk. */
+    private void turnOrders(CrpgGestures g) {
+        int c = combat.current();
+        int member = combat.memberOf(c);
+        if (member < 0) {
+            return; // a skeleton's turn
+        }
+        if (g.selectClicked() && party.hovered >= 0) {
+            party.select(party.hovered, false); // looking, not acting
+            return;
+        }
+        boolean clicked = g.selectClicked() || g.commandClicked();
+        if (!clicked) {
+            return;
+        }
+        if (enemies.hovered >= 0) {
+            if (!party.strikeAt(member, enemies, enemies.hovered)) {
+                demoUi.log.start().add("Out of reach or no attack left").end();
+            }
+        } else if (groundValid) {
+            if (moveCost < 0 || !combat.move(c, groundX, groundY, groundZ, moveCost)) {
+                demoUi.log.start().add("Too far to walk this turn").end();
+            } else {
+                markerX = groundX;
+                markerY = groundY;
+                markerZ = groundZ;
+                markerAge = 0;
+            }
+        }
+    }
+
+    /** The party's caster (the first mage) throws a fireball at {@code (x, y, z)}. */
+    private void castFireball(float x, float y, float z) {
+        int caster = combat.partyCreature(2);
+        if (!combat.canAct(caster)) {
+            demoUi.log.start().add(Characters.PARTY_NAMES[2]).add(" is down").end();
+            return;
+        }
+        if (!combat.hasFireball(caster)) {
+            demoUi.log.start().add(Characters.PARTY_NAMES[2]).add(" has no fireball left").end();
+            return;
+        }
+        if (turnBasedOn
+                && combat.active()
+                && (combat.current() != caster
+                        || !combat.encounter.hasAction(caster, ActionBudget.STANDARD))) {
+            demoUi.log.start().add("Not ").add(Characters.PARTY_NAMES[2]).add("'s action").end();
+            return;
+        }
+        int a = party.agent[2];
+        party.cast(2, x, z);
+        spells.cast(caster, level.crowd.x(a), level.crowd.y(a), level.crowd.z(a), x, y, z);
+    }
+
+    /** Floods the acting member's movement range when it moved, and prices the hovered point. */
     private void updateTurnBased() {
-        int m = party.leader();
+        int m = combat.active() ? combat.memberOf(combat.current()) : party.leader();
         if (m < 0) {
             boundaryCount = 0;
+            moveCost = -1;
             return;
         }
         int a = party.agent[m];
         float x = level.crowd.x(a);
         float z = level.crowd.z(a);
-        if (m != floodMember || Math.abs(x - floodX) + Math.abs(z - floodZ) > 0.05f) {
+        float budget = moveBudget();
+        if (m != floodMember
+                || Math.abs(x - floodX) + Math.abs(z - floodZ) > 0.05f
+                || budget != floodBudget) {
             floodMember = m;
             floodX = x;
             floodZ = z;
+            floodBudget = budget;
             int ref =
                     level.query.findNearestPoly(
                             x, level.crowd.y(a), z, 0.5f, 2f, 0.5f, level.filter, scratch);
             boundaryCount = 0;
             if (ref != NavMesh.NULL_REF) {
-                turnBased.flood(
-                        ref, scratch[0], scratch[1], scratch[2], TURN_MOVEMENT, level.filter);
+                turnBased.flood(ref, scratch[0], scratch[1], scratch[2], budget, level.filter);
                 boundaryCount = turnBased.boundary(boundary);
             }
         }

@@ -13,7 +13,8 @@ import dev.jeddy.render.RenderPacket;
 /**
  * The player's six adventurers (TASKS M10-03): selection by click, box and keys, highlight
  * outlines, and move orders, alone or in one of a few formations with paced walking. Standing
- * members strike at skeletons within reach (an animation only: the demo has no melee rules).
+ * members strike at skeletons within reach when the rules give them an attack ({@link Combat},
+ * TASKS M15-07); a member the rules put down (dying, unconscious) takes no orders until healed.
  *
  * <p>Thread ownership: the game thread. Allocates nothing after construction.
  */
@@ -21,11 +22,11 @@ final class Party {
     static final int SIZE = 6;
     static final float SIGHT = 14;
 
-    /** Hit points per member (the UI's health bars); they regenerate slowly and never reach 0. */
-    static final float MAX_HP = 100;
+    /** Members that cannot act (dying, unconscious, dead); kept by {@link #updateDown}. */
+    final boolean[] down = new boolean[SIZE];
 
-    /** Hit points per member. */
-    final float[] hp = new float[SIZE];
+    /** The rules; set once the party and the skeletons exist. */
+    Combat combat;
 
     /** Formation names for the HUD, upper case for the debug font. */
     static final String[] FORMATION_NAMES = {"WEDGE", "BOX", "LINE", "COLUMN", "CIRCLE"};
@@ -87,7 +88,6 @@ final class Party {
             root[i] = Characters.spawn(world, models[i], p[0], p[1], p[2], Characters.FACE_PLUS_X);
             sync.bind(agent[i], root[i], Characters.FACE_PLUS_X);
             character[i] = animator.add(root[i], Animator.HEROES, agent[i], rng);
-            hp[i] = MAX_HP;
         }
         select(0, false);
     }
@@ -162,9 +162,27 @@ final class Party {
     private void rebuildSelection() {
         selectionCount = 0;
         for (int i = 0; i < SIZE; i++) {
-            if (selected[i]) {
+            if (selected[i] && !down[i]) {
                 selection[selectionCount++] = agent[i];
             }
+        }
+    }
+
+    /** Refreshes who is down (once per tick): the fallen stop walking and leave the orders. */
+    void updateDown() {
+        boolean changed = false;
+        for (int i = 0; i < SIZE; i++) {
+            boolean d = !combat.canAct(combat.partyCreature(i));
+            if (d != down[i]) {
+                down[i] = d;
+                changed = true;
+                if (d) {
+                    crowd.resetMoveTarget(agent[i]);
+                }
+            }
+        }
+        if (changed) {
+            rebuildSelection();
         }
     }
 
@@ -214,28 +232,21 @@ final class Party {
         mover.update();
     }
 
-    /** Takes {@code amount} hit points from {@code member} (down to 1). */
-    void damage(int member, float amount) {
-        hp[member] = Math.max(1, hp[member] - amount);
-    }
-
-    /** Regenerates hit points (once per tick). */
-    void regenerate(float dt) {
-        for (int i = 0; i < SIZE; i++) {
-            hp[i] = Math.min(MAX_HP, hp[i] + 1.5f * dt);
-        }
-    }
-
     /**
-     * Once per tick: members standing next to a living skeleton turn to it and strike every second
-     * or so; the mage only casts on order ({@link #cast}).
+     * Once per tick in real time: members standing next to a living skeleton turn to it and swing
+     * when the rules give them an attack this round; the casters only cast on order ({@link
+     * #cast}). In turn-based mode the player orders every strike ({@link #strikeAt}).
      */
     void fight(float dt, Enemies enemies) {
         for (int i = 0; i < SIZE; i++) {
             cooldown[i] -= dt;
             int c = character[i];
             int attack = Characters.PARTY_ATTACK[i];
-            if (attack == Animator.CAST || cooldown[i] > 0 || !animator.isFree(c)) {
+            if (attack == Animator.CAST
+                    || cooldown[i] > 0
+                    || down[i]
+                    || combat.turnBasedMode
+                    || !animator.isFree(c)) {
                 continue;
             }
             int a = agent[i];
@@ -245,12 +256,42 @@ final class Party {
                 continue;
             }
             int target = enemies.nearestAlive(crowd.x(a), crowd.z(a), Enemies.REACH + 0.4f);
-            if (target >= 0) {
+            if (target >= 0 && combat.canStrike(combat.partyCreature(i))) {
                 sync.faceToward(a, crowd.x(target), crowd.z(target));
                 animator.action(c, attack);
                 cooldown[i] = 0.9f + rng.nextFloat() * 0.8f;
+                combat.strike(
+                        combat.partyCreature(i), combat.enemyCreature(enemies.enemyOf(target)));
             }
         }
+    }
+
+    /**
+     * Member {@code i} strikes skeleton {@code enemy} on the player's order (turn-based mode):
+     * returns whether the rules allowed a swing.
+     */
+    boolean strikeAt(int i, Enemies enemies, int enemy) {
+        int pc = combat.partyCreature(i);
+        if (down[i] || !combat.canStrike(pc)) {
+            return false;
+        }
+        int a = agent[i];
+        int ea = enemies.agent[enemy];
+        float dx = crowd.x(ea) - crowd.x(a);
+        float dz = crowd.z(ea) - crowd.z(a);
+        if (dx * dx + dz * dz > (Enemies.REACH + 0.4f) * (Enemies.REACH + 0.4f)) {
+            return false;
+        }
+        sync.faceToward(a, crowd.x(ea), crowd.z(ea));
+        int attack = Characters.PARTY_ATTACK[i];
+        animator.action(character[i], attack == Animator.CAST ? Animator.ATTACK_1H : attack);
+        int ec = combat.enemyCreature(enemy);
+        int swings = 0;
+        while (combat.canStrike(pc) && swings < 6) {
+            combat.strike(pc, ec);
+            swings++;
+        }
+        return swings > 0;
     }
 
     /** Member {@code i} casts toward {@code (x, z)}. */

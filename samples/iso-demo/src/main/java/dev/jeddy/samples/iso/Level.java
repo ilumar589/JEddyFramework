@@ -29,6 +29,7 @@ final class Level {
     static final String COLLISION = "levels/crypt.jcol";
     static final String NAVMESH = "levels/crypt.medium.jnav";
     static final String OCCLUSION = "levels/crypt.jocc";
+    static final String RULES = "rules/core.jrules";
 
     /** Body layer of every crowd agent (party and enemies). */
     static final int UNITS = 1;

@@ -17,6 +17,14 @@ final class Characters {
     /** Display names of the party, for the portraits and the combat log. */
     static final String[] PARTY_NAMES = {"Aldric", "Brunhild", "Cassius", "Dara", "Ewan", "Fenna"};
 
+    /** The party's definitions in {@code rules/characters.json} (TASKS M15-07). */
+    static final String[] PARTY_IDS = {"aldric", "brunhild", "cassius", "dara", "ewan", "fenna"};
+
+    /** The stat block in {@code rules/monsters.json} per enemy model (see {@link #ENEMIES}). */
+    static final String[] ENEMY_IDS = {
+        "skeletalWarrior", "skeletalMinion", "skeletalAdept", "skeletalStalker"
+    };
+
     /** One letter per member for the portrait badge. */
     static final String[] PARTY_INITIALS = {"A", "B", "C", "D", "E", "F"};
 

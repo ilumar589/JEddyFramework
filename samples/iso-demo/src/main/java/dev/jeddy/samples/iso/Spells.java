@@ -9,8 +9,9 @@ import dev.jeddy.render.RenderPacket;
 
 /**
  * Fireball (TASKS M10-04): an area-of-effect template decal while aiming, a glowing projectile with
- * a particle trail, then an explosion that damages every unit in a vertical cylinder (one overlap
- * query), flashes a decaying point light, bursts particles, leaves a fading scorch ring and plays a
+ * a particle trail, then an explosion that catches every unit in a vertical cylinder (one overlap
+ * query) and hands them to the rules as the spell's targets (TASKS M15-07: a Reflex save halves),
+ * flashes a decaying point light, bursts particles, leaves a fading scorch ring and plays a
  * positional sound.
  *
  * <p>Thread ownership: the game thread. Allocates nothing after construction.
@@ -18,8 +19,6 @@ import dev.jeddy.render.RenderPacket;
 final class Spells {
     static final float RADIUS = 4f;
     static final float HEIGHT = 3f;
-    static final float CENTER_DAMAGE = 40;
-    static final float EDGE_DAMAGE = 18;
     static final float TRAVEL = 0.5f;
     static final float EXPLOSION = 1.1f;
     static final int MAX = 16;
@@ -41,6 +40,7 @@ final class Spells {
     private final boolean[] active = new boolean[MAX];
     private final boolean[] exploded = new boolean[MAX];
     private final boolean[] burstPending = new boolean[MAX];
+    private final int[] caster = new int[MAX]; // the creature whose spell it is
     private final IntList hits;
     private final QueryContext query;
     private final Audio audio;
@@ -65,10 +65,11 @@ final class Spells {
         boom = clip;
     }
 
-    /** Launches a fireball; returns false when too many are in flight. */
-    boolean cast(float sx, float sy, float sz, float tx, float ty, float tz) {
+    /** Launches creature {@code casterCreature}'s fireball; false when too many are in flight. */
+    boolean cast(int casterCreature, float sx, float sy, float sz, float tx, float ty, float tz) {
         for (int i = 0; i < MAX; i++) {
             if (!active[i]) {
+                caster[i] = casterCreature;
                 fromX[i] = sx;
                 fromY[i] = sy + 1.6f;
                 fromZ[i] = sz;
@@ -86,8 +87,8 @@ final class Spells {
         return false;
     }
 
-    /** Advances flights and explosions; explosions damage {@code enemies} through {@code world}. */
-    void tick(float dt, CollisionWorld world, Enemies enemies) {
+    /** Advances flights and explosions; an explosion resolves through {@code combat}. */
+    void tick(float dt, CollisionWorld world, Combat combat) {
         for (int i = 0; i < MAX; i++) {
             if (!active[i]) {
                 continue;
@@ -96,7 +97,7 @@ final class Spells {
             if (!exploded[i] && age[i] >= TRAVEL) {
                 exploded[i] = true;
                 burstPending[i] = true;
-                explode(i, world, enemies);
+                explode(i, world, combat);
             }
             if (age[i] >= TRAVEL + EXPLOSION) {
                 active[i] = false;
@@ -104,17 +105,11 @@ final class Spells {
         }
     }
 
-    private void explode(int i, CollisionWorld world, Enemies enemies) {
+    private void explode(int i, CollisionWorld world, Combat combat) {
         hits.clear();
         world.overlapCylinder(
                 toX[i], toY[i] - 0.5f, toZ[i], RADIUS, HEIGHT, Level.UNITS, hits, query);
-        for (int k = 0; k < hits.size(); k++) {
-            int a = hits.get(k);
-            float dx = world.bodies().x[world.bodies().indexOf(a)] - toX[i];
-            float dz = world.bodies().z[world.bodies().indexOf(a)] - toZ[i];
-            float t = Math.min(1, (float) Math.sqrt(dx * dx + dz * dz) / RADIUS);
-            enemies.damage(a, CENTER_DAMAGE + (EDGE_DAMAGE - CENTER_DAMAGE) * t);
-        }
+        combat.fireball(caster[i], hits, hits.size());
         if (audio != null && boom != null) {
             int e = emitters[nextEmitter];
             nextEmitter = (nextEmitter + 1) % emitters.length;
