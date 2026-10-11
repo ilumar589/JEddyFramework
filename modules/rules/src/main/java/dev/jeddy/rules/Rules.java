@@ -902,8 +902,14 @@ public final class Rules {
         }
     }
 
-    /** Returns how many attacks of opportunity {@code c} still has this round. */
+    /**
+     * Returns how many attacks of opportunity {@code c} still has this round; none while
+     * flat-footed (before its first turn of the fight) or unable to act.
+     */
     public int opportunityAttacksLeft(int c) {
+        if (!canAct(c) || creatures.hasFlag(c, Content.FLAG_FLAT_FOOTED)) {
+            return 0;
+        }
         return Math.max(0, creatures.stat(c, Stat.AOO) - creatures.aooUsed(c));
     }
 
