@@ -97,4 +97,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "$GITHUB_REF_NAME" --title "Jeddy $GITHUB_REF_NAME" --generate-notes dist/*
+          # The image artifacts keep their build/ subfolders (distributions/, jpackage/), so
+          # attach the files, not the folders (a folder makes gh release create fail).
+          gh release create "$GITHUB_REF_NAME" --title "Jeddy $GITHUB_REF_NAME" --generate-notes $(find dist -type f)
