@@ -67,11 +67,12 @@
 | `gl`* | `dev.jeddy.gl` | Generated GL 4.6 core bindings, function loader, capability detection | core | Keeps generated code out of `render` and makes it cacheable |
 | `window` | `dev.jeddy.window` | SDL video init, windows, displays/DPI, GL context, swap, frame pacing, cursors | core, sdl | Requested |
 | `input` | `dev.jeddy.input` | Event pump to lock-free ring, device state, action mapping, contexts, CRPG gestures, gamepads | core, math, sdl, window | Requested |
-| `render` | `dev.jeddy.render` | GL resources, frame graph, render packets, MDI submission, PBR, lights, shadows, post, decals, debug draw | core, math, gl, window, asset | Requested |
+| `render` | `dev.jeddy.render` | GL resources, frame graph, render packets, MDI submission, PBR, lights, shadows, post, decals, debug draw, the UI draw-list renderer | core, math, gl, window, asset, ui | Requested |
 | `asset` | `dev.jeddy.asset` | Runtime side of the pipeline: VFS, `.jpak` archives, async loader, format readers, hot reload | core, compress | Requested ("PBR asset pipeline") |
 | `audio` | `dev.jeddy.audio` | SDL3_mixer wrapper: voice pool, buses, 3D emitters, music and ambience | core, math, sdl, asset | Requested |
 | `physics` | `dev.jeddy.physics` | Collision BVH, broadphase grid, queries, navmesh runtime, pathfinding, crowd/formations, visibility, triggers | core, math | Added in kickoff |
 | `animation` | `dev.jeddy.animation` | Skeletons, baked clips, per-instance animation state (clip, synchronized 1D blend, crossfade), job-parallel pose and skinning-palette evaluation | core, math, asset | Added in M12: characters move like characters. Like `physics`, it knows neither `render` nor `scene`; `app` feeds its palettes and joint matrices to renderables |
+| `ui` | `dev.jeddy.ui` | Immediate-mode user interface: element tree, flex layout, SDF text measurement, widgets, draw lists (no GL) | core, math, asset | Added in M13: game screens and the editor from one widget set, in pure Java (§18) |
 | `scene`* | `dev.jeddy.scene` | Entity handles, sparse-set component stores, SoA transform hierarchy | core, math | Gameplay needs one authoritative transform store. `app` sync/extract systems copy from it into render, physics and audio, which never depend on `scene` |
 | `app`* | `dev.jeddy.app` | Application lifecycle, thread orchestration, main loop, world integration (scene→render, physics→scene, audio), settings, crash handling | everything above | Ties the leaf modules together so that they stay independent of each other |
 | `tools/cooker`* | `dev.jeddy.cooker` | Offline asset cooking: glTF, textures, materials, shaders, navmesh/BVH bake, pak building, CLI and Gradle plugin | core, math, compress, asset, physics + libktx/meshoptimizer bindings | The offline half of "PBR asset pipeline" |
@@ -98,6 +99,9 @@ graph TD
   render --> window
   render --> asset
   render --> math
+  render --> ui
+  ui[ui] --> asset
+  ui --> math
   audio[audio] --> sdl
   audio --> asset
   audio --> math
@@ -109,6 +113,7 @@ graph TD
   animation --> asset
   app[app*] --> render
   app --> animation
+  app --> ui
   app --> input
   app --> audio
   app --> physics
@@ -121,7 +126,7 @@ graph TD
 
 **Rules (enforced by `module-info.java`):**
 - No cycles, and leaf modules never depend on `app`.
-- `physics`, `scene`, `animation` and `render` don't know about each other. `app` (or the game) copies data between them in explicit *sync/extract* systems. This keeps every leaf testable alone and makes the data flow visible.
+- `physics`, `scene`, `animation` and `render` don't know about each other. `ui` is a leaf like `math`: it computes layouts and draw lists and knows nothing about GL or input devices; `render` draws its lists and `app` feeds it input. `app` (or the game) copies data between them in explicit *sync/extract* systems. This keeps every leaf testable alone and makes the data flow visible.
 - Raw binding packages (`dev.jeddy.sdl.ffi`, `dev.jeddy.gl.ffi`, `dev.jeddy.compress.ffi`) are **qualified exports** (`exports … to …`) or not exported. Games use the idiomatic wrappers.
 - Runtime modules have **no third-party dependencies**. `tools/cooker` may use some, but so far needs none: images decode through ImageIO plus built-in TGA and Radiance HDR readers, and JSON through `core.json` (D38).
 
@@ -609,12 +614,40 @@ JeddyFramework/
 
 ## 16. Future modules (not scheduled)
 - `animation` beyond M12 (§13.4): root-motion extraction, foot IK, additive layers, events, clip compression.
-- `ui`: game UI (inventory, dialogue, character sheet). The debug UI may use Dear ImGui through cimgui and FFM.
+- `editor` (M14, §19 to come): a level and content editor built from the `ui` widgets, running as a `Game`.
 - `rules`: Pathfinder-like stats, dice, conditions, initiative, turn-based combat flow.
 - `save`: SoA snapshotting, versioned binary save games.
 - `script`: dialogue and quest graphs.
 - `vfx`: authoring for GPU particles.
 - Tracy profiler integration, LZ4 for faster decompression if zstd becomes the bottleneck, BC6H through KTX v5.
+
+## 18. `ui`: immediate-mode interface (M13)
+
+**Roles.** One widget set serves the game's screens (portraits, inventory, dialogue, tooltips, a combat log) and the editor (M14): panels, trees, property grids, text editing. It is pure Java on top of `render` (D82): no Dear ImGui, no native toolkit, no second window system.
+
+**Model (D82).** The UI is *immediate mode*: every frame the game declares its interface again (`if (ui.button(id, "Save")) ...`) and the module keeps only what it must between frames (which element is hovered, pressed or focused; scroll offsets, open tree nodes, text carets). State lives in the game's own data, so an inspector that shows arbitrary components is a loop, not a mirror tree to keep in sync. Unlike Dear ImGui's cursor layout, elements go into a tree that is laid out at the end of the frame by a flex-like algorithm, as Clay does, so sizes depend on content and on the available space (fit, grow, percent, wrap) without the author computing them. The cost is one frame of latency for hit testing: interaction uses the previous frame's rectangles.
+
+**Elements.** `Ui.box(id)` returns the context's reusable builder; `open()` pushes an element and `close()` pops it. Each element has per-axis sizing (`FIXED`, `FIT` with min and max, `GROW` with a weight, `PERCENT`), padding, child gap, a layout direction, child alignment, an optional background and border with corner radius, a clip flag, scrolling, and for floating elements (popups, tooltips, drag previews) an anchor and a z-order. Text elements carry a span of the frame's character buffer (`CharSequence`s are copied in; numbers are formatted into it without boxing), a font, size, color, alignment and wrap mode. Everything is SoA in arrays sized at creation (grown only on a cold path), and ids are 64-bit hashes (`StrId`) combined with an id-scope stack for lists.
+
+**Layout (D82).** Six passes over the tree, each a loop over the SoA arrays in tree order (pre-order) or reverse (post-order):
+1. *Fit widths* (post-order): fixed widths are known; a `FIT` element's width is its padding plus, along its axis, the sum of its children plus gaps, or across its axis the largest child; text measures its longest unbreakable run (wrapping) or its whole line.
+2. *Grow and shrink widths* (pre-order): `PERCENT` children take their share of the parent's inner width; the remaining space goes to `GROW` children by weight (smallest first, so equal-weight children end up equal, capped by their maxima); if the children overflow, shrinkable ones (text that wraps, `FIT` with a minimum) give up space largest first.
+3. *Text wrapping*: with final widths, text elements break into lines (greedy, at spaces; a word longer than the line is broken mid-word) and learn their heights.
+4. *Fit heights* and 5. *grow heights*: the same with the axes swapped.
+6. *Positions* (pre-order): children placed along the axis from the padding edge with the alignment offset when they do not fill the parent, minus scroll offsets; floating elements attach to their parent's rectangle (or the screen) at an anchor plus an offset and sort by z.
+Then the *draw list* is emitted in tree order (floating subtrees after their parents, by z): a clip container pushes a clip rectangle, backgrounds, borders, images and glyphs become quads.
+
+**Interaction.** After layout, the frame records the topmost hit-testable element under the pointer, inside its clip chain, as next frame's *hovered* id. A press while hovered makes an element *active*; a release while active and still hovered is a *click*; a press that moves farther than a threshold on a drag source starts a *drag* with a payload (an int kind and an int value) that drop targets accept on release. Keyboard *focus* belongs to one element (text fields, and anything that opts in); Tab and the arrow keys or the gamepad move it along the frame's focusable elements in declaration order. `Ui.wantsMouse()` and `wantsKeyboard()` tell the game to ignore input the UI consumed; the pointer over an empty area of the screen does not count. Widgets are compositions of boxes plus this interaction state: a button is a box whose background depends on hover and active and that reports the click; a slider maps the active drag's x to its range; a text field edits a `TextBuffer` (a `char[]` with a caret and selection, owned by the game) from the frame's text events and keys.
+
+**Text (D83).** Fonts are signed-distance-field glyph atlases cooked from TTF or OTF by the cooker: glyphs are rasterized with the JDK's `java.desktop` at a reference size (48 px em by default) into a binary mask, an exact Euclidean distance transform (Felzenszwalb–Huttenlocher, separable) gives the signed distance per texel, refined at the outline with the antialiased coverage, and the distance is stored as `0.5 + d / (2R)` with range `R` = 8 px in an R8 KTX2 atlas (shelf packing). `.jfont` holds the line metrics, per-glyph advances, bearings, sizes and atlas rectangles, and the kerning pairs with non-zero adjustment (measured through `java.awt.font` with kerning on). One atlas serves every size: the fragment shader turns the sampled value back into a screen-space distance (`(s − 0.5) · 2R · size / em`) and antialiases it with its screen-space derivative. The default font is Inter (SIL Open Font License), bundled in the cooker and written as a built-in output (`engine/fonts/inter.jfont` and `.ktx2`) of every cook, like the BRDF LUT.
+
+**Draw list and rendering (D84).** The game thread builds the UI inside `extract`, into the render packet's own `UiDrawList`, so the list is triple-buffered with the packet and the main thread never waits. The list is plain arrays: vertices of 10 floats (position, local or atlas coordinates, a packed color, a packed word of kind, clip index and texture layer, and four parameters: rounded rectangles carry their half size, corner radius and border width; glyphs their screen-space distance range), `u32` indices, a clip-rectangle table and commands (an index range plus the font and sprite texture references). `UiRenderer` in `render` copies the list into a frame ring, binds the clip table as a storage buffer and the two texture arrays (font atlas, sprites), and issues one indexed draw per command, so a frame is usually one draw call. Clipping is a per-vertex clip index tested in the fragment shader (no scissor changes, no batch splits); rounded rectangles and borders are signed-distance boxes in the shader; colors are sRGB display values blended with premultiplied alpha, as CSS does. The UI draws after post-processing and before the debug overlay, in window pixels scaled by the display scale.
+
+**Threads.** `Ui` is owned by the game thread (declaration, layout, interaction); `UiRenderer` by the render thread. The glue in `app` copies the frame's input (`Input` → `UiInput`: pointer, buttons, wheel, keys, text, modifiers, window size and scale) before `beginFrame` and draws the packet's list after the scene.
+
+**Budgets.** Declaring, laying out and emitting 2,000 elements ≤ 0.3 ms on the game thread; drawing ≤ 0.3 ms of main-thread CPU; 0 B per frame after the first.
+
+**Not yet.** Rich text (inline styles, links), bidirectional and complex scripts (shaping), IME composition display beyond the caret, animations between layouts, a designer-facing layout file format.
 
 ## 17. Decision log
 | Date | ID | Decision |
@@ -696,3 +729,6 @@ JeddyFramework/
 | 2026-10-10 | D79 | Animation clips are resampled at load time into fixed-rate frames of joint-local TRS rather than sampled from glTF keys at run time: sampling becomes two frames and a lerp per joint, with no per-channel key search or cursor state, and the memory (about 1.2 KB per joint-second at 30 Hz) is small next to textures. Clips bind to skeletons by joint name, so a rig's clips live once in an animation library. Quantization waits for a measured need |
 | 2026-10-10 | D80 | GPU skinning with a skin stream parallel to the vertex space (one vertex array for every mesh; the 16 B per vertex slot is only allocated once a skinned mesh exists) and per-frame palettes in a storage buffer, addressed through flag bits 12–31 of the instance record, so the 64-byte record and the static scene path stay unchanged. Skinned draws are their own program slots (`SKINNED` variant) |
 | 2026-10-10 | D81 | Animated scenes are instantiated flat: only mesh nodes become entities (children of the root), joints live in `Animations` rather than in the transform hierarchy, and attachments are composed at extract time from the joint's model matrix. This keeps the transform store at a few entries per character instead of 50, avoids a per-frame joint → transform write-back, and lets attachments interpolate with the root between ticks while the pose itself advances per frame |
+| 2026-10-11 | D82 | The UI is immediate mode with an end-of-frame flex layout (elements declared each frame into SoA arrays, laid out by fit/grow/percent passes, hit-tested against the previous frame's rectangles), in pure Java on top of `render`. Rejected: a retained widget tree (needs data binding to mirror game state, and an inspector for arbitrary components becomes a synchronization problem); Dear ImGui through cimgui and FFM (a native library plus upcalls on the hot path, and two UI code paths, one of which could not be skinned for the game); Dear ImGui's single-pass cursor layout (authors compute sizes by hand) |
+| 2026-10-11 | D83 | Text is signed-distance-field glyph atlases cooked by the cooker from TTF/OTF with the JDK's `java.desktop` rasterizer and a pure-Java exact distance transform; one atlas per font serves every size. Rejected: bitmap atlases per size (crisp but a texture per size and no scaling for DPI), MSDF (sharper corners, but needs msdfgen or a port of its contour math), runtime rasterization (a TrueType parser and rasterizer in the runtime). Inter (OFL) ships as the default font, written by every cook as a built-in output |
+| 2026-10-11 | D84 | The UI draw list is built on the game thread into the render packet (triple-buffered with it) and drawn by `render` with one indexed draw per texture change, clipping by a per-vertex clip-rectangle index tested in the fragment shader. Rejected: scissor rectangles (a draw per clip region and GL state churn), building the UI on the main thread (the game owns the state the UI shows; the main thread must never wait on it), a separate UI vertex format per element kind (one 40-byte vertex with a kind field keeps one program and one buffer) |

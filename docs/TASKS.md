@@ -30,6 +30,8 @@ graph LR
   M9 --> M10
   M10 --> M11[M11 Hardening & distribution]
   M11 --> M12[M12 Animation]
+  M12 --> M13[M13 UI]
+  M13 --> M14[M14 Editor]
 ```
 
 **Parallel tracks after M1:** A: platform → GL → render (M2, M3, M5, M7) · B: physics/nav (M8) · C: assets (M4, M6) · D: audio (M9).
@@ -182,6 +184,19 @@ The tracks are *mostly* independent. Dotted edges are the few late cross-track d
 - [x] **M12-06** Content: `tools/kaykit.py` writes animation libraries (heroes and skeletons rigs with a clip subset); the cooker keeps them in `.jscene` · S · Deps: M12-02 · *`characters/anims/{heroes,skeletons}.glb`, 11 clips each, about 400 KB; constant channels reduced to one key; cooker test for mesh-less libraries*
 - [x] **M12-07** Iso demo: party and skeletons animated (idle, walk/run blended by crowd speed, attacks and casts, hit reactions, death), animations in the perf scene with its budgets in CI · M · Deps: M12-05, M12-06 · *the demo's `Animator`; `AgentSync.face` turns attackers to their target; the perf report's animation row (≤ 1 ms p99; 0.16 ms on 2 vCPUs, fog of war freezing hidden skeletons) is enforced by the nightly*
 - [x] **M12-08** Docs: `animation` README, getting-started section, Javadoc site · S · Deps: M12-07 · *plus the README modules table, the app README and a new demo screenshot*
+
+## M13: Game UI (§18)
+- [ ] **M13-01** Design and plan: DESIGN §18, D82–D84, the roadmap in next-milestones.md, this milestone · S
+- [ ] **M13-02** Cooker: `FontImporter` (TTF/OTF → SDF atlas as R8 KTX2 plus `.jfont` metrics and kerning, through `java.desktop`), the `.jfont` format in `asset`, Inter (OFL) as a built-in output; tests on glyph metrics and the distance field · M · Deps: M13-01
+- [ ] **M13-03** `ui` core: `Ui` context, SoA element tree, the six-pass flex layout (fit, grow and shrink, percent, wrap, positions, floating), text measurement, `UiDrawList`; layout tests against hand-computed rectangles, an allocation test · L · Deps: M13-02
+- [ ] **M13-04** Widgets: text, images and nine-slices, buttons, checkboxes, radio groups, sliders and drag values, text fields (`TextBuffer`), dropdowns, tree nodes, tabs, scroll regions with bars, progress bars, separators, tooltips, popups, drag and drop; interaction tests with scripted input · L · Deps: M13-03
+- [ ] **M13-05** Input and focus: `UiInput`, hover/active/click/drag resolution, keyboard focus and Tab/arrow navigation, gamepad navigation, `wantsMouse`/`wantsKeyboard`; the `app` glue from `Input` · M · Deps: M13-03
+- [ ] **M13-06** `render`: `UiRenderer` (frame-ring vertices, clip table SSBO, SDF text and rounded-rect shader, premultiplied blending, display scale), the packet's `UiDrawList`, `WorldRenderer` drawing it after post; GPU test reading back a rounded rectangle, a clipped quad and antialiased text · M · Deps: M13-03
+- [ ] **M13-07** Demo: party portraits with health bars, an inventory grid with drag and drop and tooltips, a combat log, a pause and options panel, the HUD text moved to the UI; the perf capture reports the UI build and draw times · M · Deps: M13-04, M13-05, M13-06 · AC: 2,000 elements built and laid out ≤ 0.3 ms, drawn ≤ 0.3 ms CPU, 0 B/frame; `UiBench`
+- [ ] **M13-08** Docs: learning chapter 13, `ui` README, DESIGN §18 final, README table, Javadoc site · S · Deps: M13-07
+
+## M14: Editor (§19)
+Planned after M13 (next-milestones.md): level editing with gizmos and undo, live entity inspector, asset browser and previews, in `tools/editor`.
 
 ## Backlog (unscheduled)
 Each item is described, with a draft task list, in [next-milestones.md](next-milestones.md).
