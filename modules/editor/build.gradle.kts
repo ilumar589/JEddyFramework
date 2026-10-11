@@ -1,5 +1,8 @@
 plugins {
-    id("jeddy.java-library")
+    // Pure Java, but its tests put a level into a headless world through the asset manager,
+    // which decompresses with zstd: the native-library convention puts the platform natives on
+    // the test runtime path.
+    id("jeddy.native-library")
 }
 
 dependencies {
@@ -9,6 +12,4 @@ dependencies {
     api(project(":ui"))
     api(project(":physics"))
     api(project(":app"))
-    // The tests put a level into a headless world through the asset manager, which needs zstd.
-    testRuntimeOnly(project(":natives-" + dev.jeddy.gradle.JeddyPlatforms.current()))
 }
