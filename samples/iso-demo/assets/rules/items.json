@@ -1,0 +1,21 @@
+[
+  {"id": "longsword", "name": "Longsword", "description": "The knight's blade.", "kind": "weapon", "damage": "1d8", "threat": 19, "critical": 2, "damageType": "slashing", "value": 15},
+  {"id": "greataxe", "name": "Greataxe", "description": "Two hands, one swing.", "kind": "weapon", "damage": "1d12", "threat": 20, "critical": 3, "damageType": "slashing", "hands": 2, "value": 20},
+  {"id": "dagger", "name": "Dagger", "description": "Quick and quiet.", "kind": "weapon", "damage": "1d4", "threat": 19, "critical": 2, "damageType": "piercing", "finesse": true, "range": 10, "value": 2},
+  {"id": "shortsword", "name": "Shortsword", "description": "A thrusting blade.", "kind": "weapon", "damage": "1d6", "threat": 19, "critical": 2, "damageType": "piercing", "finesse": true, "value": 10},
+  {"id": "mace", "name": "Mace", "description": "A heavy head on a short haft.", "kind": "weapon", "damage": "1d8", "threat": 20, "critical": 2, "damageType": "bludgeoning", "value": 12},
+  {"id": "quarterstaff", "name": "Quarterstaff", "description": "A length of hardwood.", "kind": "weapon", "damage": "1d6", "threat": 20, "critical": 2, "damageType": "bludgeoning", "hands": 2, "value": 0},
+  {"id": "shortbow", "name": "Shortbow", "description": "A hunter's bow.", "kind": "weapon", "damage": "1d6", "threat": 20, "critical": 3, "damageType": "piercing", "range": 60, "hands": 2, "value": 30},
+  {"id": "claw", "name": "Claw", "description": "Bony fingers.", "kind": "weapon", "damage": "1d4", "threat": 20, "critical": 2, "damageType": "slashing", "value": 0},
+  {"id": "rustedBlade", "name": "Rusted blade", "description": "What is left of a sword.", "kind": "weapon", "damage": "1d6", "threat": 19, "critical": 2, "damageType": "slashing", "value": 1},
+  {"id": "padded", "name": "Padded armor", "description": "Quilted cloth.", "kind": "armor", "armor": 1, "maxDex": 8, "value": 5},
+  {"id": "leather", "name": "Leather armor", "description": "Hardened leather.", "kind": "armor", "armor": 2, "maxDex": 6, "value": 10},
+  {"id": "chainShirt", "name": "Chain shirt", "description": "A shirt of mail.", "kind": "armor", "armor": 4, "maxDex": 4, "checkPenalty": -2, "value": 100},
+  {"id": "breastplate", "name": "Breastplate", "description": "A steel chest piece.", "kind": "armor", "armor": 6, "maxDex": 3, "checkPenalty": -4, "value": 200},
+  {"id": "halfPlate", "name": "Half plate", "description": "Plates over mail.", "kind": "armor", "armor": 8, "maxDex": 0, "checkPenalty": -7, "value": 600},
+  {"id": "heavyShield", "name": "Heavy shield", "description": "A wooden shield.", "kind": "shield", "armor": 2, "checkPenalty": -2, "value": 7},
+  {"id": "healingPotion", "name": "Potion of healing", "description": "Heals 1d8+1.", "kind": "consumable", "value": 50,
+   "use": [{"op": "heal", "dice": "1d8+1"}]},
+  {"id": "ringOfProtection", "name": "Ring of protection", "description": "+1 deflection bonus to AC.", "kind": "misc", "value": 2000,
+   "effects": [{"op": "modify", "stat": "ac", "type": "deflection", "value": 1}]}
+]

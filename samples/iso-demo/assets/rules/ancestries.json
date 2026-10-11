@@ -1,0 +1,16 @@
+[
+  {"id": "human", "name": "Human", "description": "Adaptable and quick to learn.", "size": "medium", "speed": 30, "cha": 2, "effects": []},
+  {"id": "stoneborn", "name": "Stoneborn", "description": "Hardy folk of the deep halls.", "size": "medium", "speed": 20, "con": 2, "wis": 2, "cha": -2,
+   "effects": [{"op": "modify", "stat": "fortitude", "type": "racial", "value": 2}]},
+  {"id": "sylvan", "name": "Sylvan", "description": "Slender people of the old forests.", "size": "medium", "speed": 30, "dex": 2, "int": 2, "con": -2,
+   "effects": [{"op": "modify", "stat": "will", "type": "racial", "value": 2}]},
+  {"id": "hearthkin", "name": "Hearthkin", "description": "Small, nimble and lucky.", "size": "small", "speed": 20, "dex": 2, "cha": 2, "str": -2,
+   "effects": [{"op": "modify", "stat": "ac", "type": "size", "value": 1},
+               {"op": "modify", "stat": "attack", "type": "size", "value": 1},
+               {"op": "modify", "stat": "fortitude", "type": "luck", "value": 1},
+               {"op": "modify", "stat": "reflex", "type": "luck", "value": 1},
+               {"op": "modify", "stat": "will", "type": "luck", "value": 1}]},
+  {"id": "ironblood", "name": "Ironblood", "description": "Big, strong and blunt.", "size": "medium", "speed": 30, "str": 2, "int": -2, "effects": []},
+  {"id": "undead", "name": "Undead", "description": "Animated bones: no Constitution to speak of, immune to fear.", "size": "medium", "speed": 30,
+   "effects": [{"op": "modify", "stat": "will", "type": "racial", "value": 2}]}
+]

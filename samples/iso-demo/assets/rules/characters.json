@@ -1,0 +1,16 @@
+[
+  {"id": "aldric", "name": "Aldric", "description": "A knight of the old order.", "ancestry": "human", "characterClass": "warden", "level": 3,
+   "str": 16, "dex": 12, "con": 14, "int": 10, "wis": 12, "cha": 10, "feats": ["weaponFocus", "toughness"], "weapon": "longsword", "armor": "breastplate", "shield": "heavyShield"},
+  {"id": "brunhild", "name": "Brunhild", "description": "A berserker from the north.", "ancestry": "ironblood", "characterClass": "berserker", "level": 3,
+   "str": 18, "dex": 12, "con": 16, "int": 8, "wis": 10, "cha": 8, "feats": ["powerAttack", "cleave"], "weapon": "greataxe", "armor": "chainShirt"},
+  {"id": "cassius", "name": "Cassius", "description": "An arcanist with a taste for fire.", "ancestry": "sylvan", "characterClass": "arcanist", "level": 3,
+   "str": 8, "dex": 14, "con": 12, "int": 18, "wis": 12, "cha": 10, "feats": ["spellFocus", "improvedInitiative"], "weapon": "quarterstaff",
+   "spells": ["rayOfFrost", "magicMissile", "shield", "fireball", "haste", "slow"]},
+  {"id": "dara", "name": "Dara", "description": "A shadow with two daggers.", "ancestry": "hearthkin", "characterClass": "shadow", "level": 3,
+   "str": 10, "dex": 18, "con": 12, "int": 12, "wis": 10, "cha": 14, "feats": ["twoWeaponFighting", "dodge"], "weapon": "dagger", "armor": "leather"},
+  {"id": "ewan", "name": "Ewan", "description": "A skirmisher who hunts the dead.", "ancestry": "human", "characterClass": "skirmisher", "level": 3,
+   "str": 14, "dex": 16, "con": 12, "int": 10, "wis": 14, "cha": 10, "feats": ["twoWeaponFighting", "lightningReflexes"], "weapon": "shortsword", "armor": "leather"},
+  {"id": "fenna", "name": "Fenna", "description": "A hierophant who keeps the party standing.", "ancestry": "stoneborn", "characterClass": "hierophant", "level": 3,
+   "str": 12, "dex": 10, "con": 14, "int": 10, "wis": 17, "cha": 12, "feats": ["toughness", "ironWill"], "weapon": "mace", "armor": "chainShirt", "shield": "heavyShield",
+   "spells": ["cureLight", "bless", "causeFear", "cureModerate", "holdPerson", "inflictLight"]}
+]

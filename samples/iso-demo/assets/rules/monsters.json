@@ -1,0 +1,20 @@
+[
+  {"id": "skeletalWarrior", "name": "Skeletal warrior", "description": "Bones in a hauberk, still holding a blade.", "ancestry": "undead", "size": "medium", "level": 2,
+   "str": 15, "dex": 14, "con": 10, "int": 1, "wis": 10, "cha": 10, "naturalArmor": 2, "bab": 2, "fortitude": 0, "reflex": 2, "will": 3, "hp": 16, "speed": 30,
+   "feats": ["improvedInitiative"],
+   "attacks": [{"name": "rusted blade", "bonus": 4, "damage": "1d6+2", "threat": 19, "critical": 2, "damageType": "slashing", "reach": 5}],
+   "effects": [{"op": "modify", "stat": "ac", "type": "armor", "value": 3}]},
+  {"id": "skeletalMinion", "name": "Skeletal minion", "description": "A rattling heap that still claws.", "ancestry": "undead", "size": "medium", "level": 1,
+   "str": 13, "dex": 13, "con": 10, "int": 1, "wis": 10, "cha": 10, "naturalArmor": 2, "bab": 0, "fortitude": 0, "reflex": 1, "will": 2, "hp": 8, "speed": 30,
+   "attacks": [{"name": "claw", "bonus": 1, "damage": "1d4+1", "threat": 20, "critical": 2, "damageType": "slashing", "reach": 5}],
+   "effects": []},
+  {"id": "skeletalAdept", "name": "Skeletal adept", "description": "A dead sorcerer who remembers one trick.", "ancestry": "undead", "size": "medium", "level": 3,
+   "str": 10, "dex": 14, "con": 10, "int": 12, "wis": 10, "cha": 12, "naturalArmor": 2, "bab": 1, "fortitude": 1, "reflex": 3, "will": 4, "hp": 14, "speed": 30,
+   "attacks": [{"name": "freezing touch", "bonus": 2, "damage": "1d6", "threat": 20, "critical": 2, "damageType": "cold", "reach": 5}],
+   "effects": []},
+  {"id": "skeletalStalker", "name": "Skeletal stalker", "description": "Quick bones with two knives.", "ancestry": "undead", "size": "medium", "level": 2,
+   "str": 12, "dex": 17, "con": 10, "int": 2, "wis": 10, "cha": 10, "naturalArmor": 2, "bab": 1, "fortitude": 0, "reflex": 4, "will": 2, "hp": 12, "speed": 40,
+   "feats": ["twoWeaponFighting", "dodge"],
+   "attacks": [{"name": "knife", "bonus": 4, "damage": "1d4+1", "threat": 19, "critical": 2, "damageType": "piercing", "reach": 5}],
+   "effects": []}
+]

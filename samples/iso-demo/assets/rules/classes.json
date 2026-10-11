@@ -1,0 +1,48 @@
+[
+  {"id": "warden", "name": "Warden", "description": "A trained fighter in heavy armor.", "hitDie": 10, "bab": "full", "fortitude": "good", "reflex": "poor", "will": "poor", "casting": "none",
+   "features": [
+     {"level": 1, "name": "Shield wall", "effects": [{"op": "modify", "stat": "ac", "type": "untyped", "value": 1}]},
+     {"level": 2, "name": "Bravery", "effects": [{"op": "modify", "stat": "will", "type": "untyped", "value": 1}]},
+     {"level": 3, "name": "Weapon training", "effects": [{"op": "modify", "stat": "attack", "type": "untyped", "value": 1}, {"op": "modify", "stat": "damage", "type": "untyped", "value": 1}]}
+   ]},
+  {"id": "berserker", "name": "Berserker", "description": "A wild warrior who fights in a rage.", "hitDie": 12, "bab": "full", "fortitude": "good", "reflex": "poor", "will": "poor", "casting": "none",
+   "features": [
+     {"level": 1, "name": "Ferocity", "effects": [{"op": "modify", "stat": "damage", "type": "untyped", "value": 2}]},
+     {"level": 2, "name": "Fast movement", "effects": [{"op": "modify", "stat": "speed", "type": "enhancement", "value": 10}]},
+     {"level": 3, "name": "Hardy", "effects": [{"op": "modify", "stat": "fortitude", "type": "untyped", "value": 1}]}
+   ]},
+  {"id": "shadow", "name": "Shadow", "description": "A quick blade from the alleys.", "hitDie": 8, "bab": "threeQuarters", "fortitude": "poor", "reflex": "good", "will": "poor", "casting": "none",
+   "features": [
+     {"level": 1, "name": "Finesse", "effects": [{"op": "modify", "stat": "attack", "type": "untyped", "value": 1}]},
+     {"level": 2, "name": "Evasion", "effects": [{"op": "modify", "stat": "reflex", "type": "untyped", "value": 2}]},
+     {"level": 3, "name": "Uncanny dodge", "effects": [{"op": "modify", "stat": "ac", "type": "dodge", "value": 1}]}
+   ]},
+  {"id": "skirmisher", "name": "Skirmisher", "description": "A hunter at home in the wild and the dark.", "hitDie": 10, "bab": "full", "fortitude": "good", "reflex": "good", "will": "poor", "casting": "none",
+   "features": [
+     {"level": 1, "name": "Favored enemy", "effects": [{"op": "modify", "stat": "damage", "type": "untyped", "value": 2}]},
+     {"level": 3, "name": "Endurance", "effects": [{"op": "modify", "stat": "fortitude", "type": "untyped", "value": 1}]}
+   ]},
+  {"id": "arcanist", "name": "Arcanist", "description": "A scholar of the arcane.", "hitDie": 6, "bab": "half", "fortitude": "poor", "reflex": "poor", "will": "good", "casting": "arcane", "castingAbility": "int",
+   "slots": [
+     {"level": 1, "slots": [3, 1]},
+     {"level": 2, "slots": [4, 2]},
+     {"level": 3, "slots": [4, 2, 1]},
+     {"level": 4, "slots": [4, 3, 2]},
+     {"level": 5, "slots": [4, 3, 2, 1]}
+   ],
+   "features": [
+     {"level": 1, "name": "Arcane bond", "effects": [{"op": "modify", "stat": "will", "type": "untyped", "value": 1}]}
+   ]},
+  {"id": "hierophant", "name": "Hierophant", "description": "A keeper of the old rites who heals and blesses.", "hitDie": 8, "bab": "threeQuarters", "fortitude": "good", "reflex": "poor", "will": "good", "casting": "divine", "castingAbility": "wis",
+   "slots": [
+     {"level": 1, "slots": [3, 1]},
+     {"level": 2, "slots": [4, 2]},
+     {"level": 3, "slots": [4, 2, 1]},
+     {"level": 4, "slots": [4, 3, 2]},
+     {"level": 5, "slots": [4, 3, 2, 1]}
+   ],
+   "features": [
+     {"level": 1, "name": "Channel", "effects": []},
+     {"level": 3, "name": "Steadfast", "effects": [{"op": "modify", "stat": "will", "type": "untyped", "value": 1}]}
+   ]}
+]

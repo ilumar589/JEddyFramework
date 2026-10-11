@@ -1,0 +1,4 @@
+{
+  "name": "core",
+  "description": "The crypt's rules set: a d20 core shaped like Pathfinder 1e with original names. One JSON file per kind next to this manifest; the cooker writes rules/core.jrules."
+}
