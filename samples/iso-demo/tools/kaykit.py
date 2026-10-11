@@ -3,16 +3,16 @@
 
 Fetches three KayKit asset packs (CC0 1.0, https://kaylousberg.com) at pinned commits, then:
 
-* assembles the "crypt" level from Dungeon Remastered pieces laid out on a 4 m grid
-  (assets/levels/crypt.glb), with node names the physics bake rules key on
-  (floor_*, wall_*, prop_*, decor_*, light_*);
+* writes a prefab library of the Dungeon Remastered pieces the crypt uses, one root node per
+  piece (assets/levels/dungeon.glb, DESIGN §19, D87), and assembles the "crypt" level as
+  placements of those prefabs laid out on a 4 m grid (assets/levels/crypt.jlevel, the binary
+  level format of docs/formats/jlevel.md), with the collision rules by layer (floor, wall, prop,
+  decor), the navmesh and occlusion settings, the torch lights and the party and skeleton spawns;
 * copies the party (Adventurers) and the enemies (Skeletons) without their 76 animations each,
   with textures embedded (assets/characters/*.glb);
 * writes one animation library per rig (assets/characters/anims/heroes.glb and skeletons.glb,
   TASKS M12-06): the rig's nodes without meshes and the subset of clips the demo plays, constant
   channels reduced to a single key (lossless);
-* writes assets/levels/crypt.physics.json (collision rules, navmesh, occlusion) and
-  assets/levels/crypt.spawns.json (party, enemies and torch lights for the demo).
 
 Run from the repository root:  python3 samples/iso-demo/tools/kaykit.py [--src DIR]
 Sources are cached in samples/iso-demo/build/kaykit-src (or DIR). The output is deterministic.
@@ -245,14 +245,16 @@ def yaw(deg):
 # --- level ----------------------------------------------------------------------------------
 
 class Pieces:
-    """Dungeon pieces loaded once and instanced: (meshes of each scene root) per piece name."""
+    """Dungeon pieces loaded once into a prefab library (one root node per piece) and placed."""
 
     def __init__(self, builder, directory):
         self.b = builder
         self.dir = directory
         self.loaded = {}
+        self.placements = []
 
     def get(self, name):
+        """Adds piece `name` to the library once (a root node named after it) and returns it."""
         if name in self.loaded:
             return self.loaded[name]
         path = os.path.join(self.dir, name + ".gltf.glb")
@@ -260,42 +262,172 @@ class Pieces:
             path = os.path.join(self.dir, name + ".glb")
         j, bin_ = read_glb(path)
         acc, mats = {}, {}
-        roots = []
+        count = [0]
 
         def visit(n):
             src = j["nodes"][n]
             out = {k: src[k] for k in ("translation", "rotation", "scale") if k in src}
+            out["name"] = f"{name}_{count[0]}"
+            count[0] += 1
             if "mesh" in src:
                 out["mesh"] = self.b.mesh(j, bin_, src["mesh"], acc, mats)
-            out["children"] = [visit(c) for c in src.get("children", [])]
-            return out
-
-        for n in j["scenes"][j.get("scene", 0)]["nodes"]:
-            roots.append(visit(n))
-        self.loaded[name] = roots
-        return roots
-
-    def place(self, name, prefix, x, z, deg=0.0, y=0.0):
-        roots = self.get(name)
-        index = len(self.b.j["nodes"])
-        parent = self.b.node({"name": f"{prefix}_{name}_{index}", "translation": [x, y, z],
-                              "rotation": yaw(deg)}, root=True)
-        kids = []
-        count = [0]
-
-        def emit(tmpl):
-            n = {k: tmpl[k] for k in ("translation", "rotation", "scale", "mesh") if k in tmpl}
-            n["name"] = f"{prefix}_{name}_{index}_{count[0]}"
-            count[0] += 1
-            k = self.b.node(n)
-            ch = [emit(c) for c in tmpl["children"]]
-            if ch:
-                self.b.j["nodes"][k]["children"] = ch
+            k = self.b.node(out)
+            children = [visit(c) for c in src.get("children", [])]
+            if children:
+                self.b.j["nodes"][k]["children"] = children
             return k
 
-        for r in roots:
-            kids.append(emit(r))
-        self.b.j["nodes"][parent]["children"] = kids
+        kids = [visit(n) for n in j["scenes"][j.get("scene", 0)]["nodes"]]
+        root = self.b.node({"name": name, "children": kids}, root=True)
+        self.loaded[name] = root
+        return root
+
+    def place(self, name, layer, x, z, deg=0.0, y=0.0):
+        self.get(name)
+        self.placements.append((name, layer, x, y, z, deg))
+
+
+# Triangle flags of docs/formats/jcol.md (physics.bvh.TriFlags).
+WALKABLE, BLOCKS_LOS, BLOCKS_PROJECTILE, CAMERA_FADE, BLOCKS_MOVEMENT = 1, 2, 4, 8, 16
+# Placement flags of docs/formats/jlevel.md.
+P_STATIC, P_CASTS_SHADOW, P_FADE_OCCLUDER = 1, 2, 4
+L_FLICKER = 2
+
+
+class JLevel:
+    """Writes a .jlevel (docs/formats/jlevel.md) from plain lists; the Java LevelData reads it."""
+
+    def __init__(self):
+        self.strings = bytearray()
+        self.prefabs = []       # (scene, node)
+        self.placements = []    # (prefab, name, layer, flags, x, y, z, qx, qy, qz, qw, sx, sy, sz)
+        self.lights = []        # (type, name, flags, 13 floats)
+        self.spawns = []        # (name, kind, x, y, z, yaw)
+        self.triggers = []
+        self.areas = []         # (area, yMin, yMax, [x, z, ...])
+        self.links = []
+        self.rules = []         # (layer glob, flags, surface, area)
+        self.sizes = []         # (name, radius, height, climb)
+        self.settings = {"navCellSize": 0.15, "navCellHeight": 0.1, "navTileSize": 32.0,
+                         "navMaxSlope": 45.0, "occlusionCellSize": 0.5, "occlusionYMin": 0.3,
+                         "occlusionYMax": 2.0, "occlusionEnabled": 1, "sun": [-0.4, -0.8, -0.45],
+                         "sunColor": [3.0, 2.9, 2.7], "exposure": 1.0, "envSpecular": 1.0,
+                         "envDiffuse": 1.0, "environment": "", "gridStep": 0.5}
+
+    def prefab(self, scene, node):
+        key = (scene, node)
+        if key not in self.prefabs:
+            self.prefabs.append(key)
+        return self.prefabs.index(key)
+
+    def string(self, s):
+        if not s:
+            return (0, 0)
+        data = s.encode("utf-8")
+        off = len(self.strings)
+        self.strings += data
+        return (off, len(data))
+
+    @staticmethod
+    def align(n):
+        return (n + 15) & ~15
+
+    def write(self, path):
+        sizes = (16, 96, 80, 48, 64, 32, 48, 24, 32)
+        counts = (len(self.prefabs), len(self.placements), len(self.lights), len(self.spawns),
+                  len(self.triggers), len(self.areas), len(self.links), len(self.rules), len(self.sizes))
+        offsets = []
+        at = 160
+        for size, count in zip(sizes, counts):
+            offsets.append(at)
+            at = self.align(at + size * count)
+        settings_at = at
+        polygons_at = self.align(at + 128)
+        polygon_floats = sum(len(a[3]) for a in self.areas)
+        strings_at = self.align(polygons_at + 4 * polygon_floats)
+        out = bytearray(strings_at)
+        ids = iter(range(1, 1 << 30))
+        next_id = 1
+
+        def put(fmt, off, *values):
+            struct.pack_into("<" + fmt, out, off, *values)
+
+        def put_string(off, s):
+            put("II", off, *self.string(s))
+
+        for i, (scene, node) in enumerate(self.prefabs):
+            at = offsets[0] + 16 * i
+            put_string(at, scene)
+            put_string(at + 8, node)
+        for i, p in enumerate(self.placements):
+            at = offsets[1] + 96 * i
+            next_id = next(ids)
+            put("II", at, next_id, p[0])
+            put_string(at + 8, p[1])
+            put_string(at + 16, p[2])
+            put("Ii", at + 24, p[3], -1)
+            put("10f", at + 32, *p[4:14])
+        for i, l in enumerate(self.lights):
+            at = offsets[2] + 80 * i
+            next_id = next(ids)
+            put("II", at, next_id, l[0])
+            put_string(at + 8, l[1])
+            put("13f", at + 16, *l[3])
+            put("I", at + 68, l[2])
+        for i, sp in enumerate(self.spawns):
+            at = offsets[3] + 48 * i
+            next_id = next(ids)
+            put("I", at, next_id)
+            put_string(at + 4, sp[0])
+            put_string(at + 12, sp[1])
+            put("4f", at + 20, *sp[2:6])
+        for i, t in enumerate(self.triggers):  # (name, kind, payload, flags, cx, cy, cz, sx, sy, sz, yaw)
+            at = offsets[4] + 64 * i
+            next_id = next(ids)
+            put("I", at, next_id)
+            put_string(at + 4, t[0])
+            put_string(at + 12, t[1])
+            put_string(at + 20, t[2])
+            put("7f", at + 28, *t[4:11])
+            put("I", at + 56, t[3])
+        for i, l in enumerate(self.links):  # (sx, sy, sz, ex, ey, ez, radius, flags, area, userId)
+            at = offsets[6] + 48 * i
+            put("7f", at, *l[0:7])
+            put("III", at + 28, l[7], l[8], l[9])
+        first = 0
+        for i, a in enumerate(self.areas):
+            at = offsets[5] + 32 * i
+            put("IffII", at, a[0], a[1], a[2], len(a[3]) // 2, first)
+            put("%df" % len(a[3]), polygons_at + 8 * first, *a[3])
+            first += len(a[3]) // 2
+        for i, r in enumerate(self.rules):
+            at = offsets[7] + 24 * i
+            put_string(at, r[0])
+            put("III", at + 8, r[1], r[2], r[3])
+        for i, c in enumerate(self.sizes):
+            at = offsets[8] + 32 * i
+            put_string(at, c[0])
+            put("3f", at + 8, c[1], c[2], c[3])
+        s = self.settings
+        put("7fI", settings_at, s["navCellSize"], s["navCellHeight"], s["navTileSize"], s["navMaxSlope"],
+            s["occlusionCellSize"], s["occlusionYMin"], s["occlusionYMax"], s["occlusionEnabled"])
+        put("3f", settings_at + 32, *s["sun"])
+        put("3f", settings_at + 44, *s["sunColor"])
+        put("3f", settings_at + 56, s["exposure"], s["envSpecular"], s["envDiffuse"])
+        put_string(settings_at + 68, s["environment"])
+        put("f", settings_at + 76, s["gridStep"])
+        file_size = self.align(strings_at + len(self.strings))
+        put("IHH", 0, 0x4C564C4A, 1, 0)
+        put("9I", 8, *counts)
+        put("I", 44, next_id + 1)
+        put("9Q", 48, *offsets)
+        put("QQQQQ", 120, settings_at, polygons_at, strings_at, len(self.strings), file_size)
+        out += self.strings
+        out += bytes(file_size - len(out))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as f:
+            f.write(out)
+        return len(out)
 
 
 def build_level(src, out_dir):
@@ -306,7 +438,7 @@ def build_level(src, out_dir):
     def solid(cx, cz):
         return cx < 0 or cz < 0 or cx >= cols or cz >= rows or LAYOUT[cz][cx] == "#"
 
-    spawns = {"party": [], "enemies": [], "lights": [], "cell": CELL}
+    level = JLevel()
     for cz in range(rows):
         for cx in range(cols):
             c = LAYOUT[cz][cx]
@@ -325,27 +457,26 @@ def build_level(src, out_dir):
             elif c == "T":
                 pieces.place("table_long", "prop", x, z, 90)
                 pieces.place("candle_triple", "decor", x + 0.6, z, 0, 1.0)
-                spawns["lights"].append({"x": x + 0.6, "y": 1.6, "z": z, "color": [1.0, 0.7, 0.4], "radius": 7, "intensity": 6})
+                level.lights.append((1, "candles", L_FLICKER, [x + 0.6, 1.6, z, 0, -1, 0, 1.0, 0.7, 0.4, 6, 7, 0.4, 0.6]))
             elif c == "K":
                 pieces.place("chest", "prop", x, z + 1.0, 180)
             elif c == "R":
                 pieces.place("rubble_half", "prop", x, z, 45)
             elif c == "H":
-                spawns["party"].append([x, 0.0, z])
+                level.spawns.append(("party", "party", x, 0.0, z, 0.0))
             elif c == "S":
-                spawns["enemies"].append([x, 0.0, z])
+                level.spawns.append(("skeleton", "enemy", x, 0.0, z, 0.0))
             # Walls on edges to rock; a door frame where a doorway cell meets rock on two sides.
             for dx, dz, deg in ((0, -1, 0), (0, 1, 180), (-1, 0, 90), (1, 0, 270)):
                 if not solid(cx + dx, cz + dz):
                     continue
                 wx, wz = x + dx * CELL / 2, z + dz * CELL / 2
-                along = dz != 0
                 name = "wall" if (cx * 5 + cz * 3 + dx + dz) % 6 else "wall_cracked"
                 pieces.place(name, "wall", wx, wz, deg)
                 # Torches on every third north-facing wall, as lights.
                 if dz == -1 and (cx + cz) % 3 == 0:
                     pieces.place("torch_mounted", "decor", wx, wz + 0.5, 0, 2.2)
-                    spawns["lights"].append({"x": wx, "y": 2.8, "z": wz + 0.9, "color": [1.0, 0.55, 0.25], "radius": 9, "intensity": 8})
+                    level.lights.append((1, "torch", L_FLICKER, [wx, 2.8, wz + 0.9, 0, -1, 0, 1.0, 0.55, 0.25, 8, 9, 0.4, 0.6]))
             if c == "D":
                 horizontal = not solid(cx - 1, cz) and not solid(cx + 1, cz)
                 pieces.place("wall_doorway", "wall", x, z, 90 if horizontal else 0)
@@ -357,29 +488,28 @@ def build_level(src, out_dir):
             # Corners (one or three rock cells) and diagonal pinches; straight runs meet cleanly.
             if n in (1, 3) or (n == 2 and around[0] == around[3]):
                 pieces.place("pillar", "wall", vx * CELL, vz * CELL)
-    size = b.write(os.path.join(out_dir, "levels", "crypt.glb"))
-    with open(os.path.join(out_dir, "levels", "crypt.spawns.json"), "w", newline="\n") as f:
-        json.dump(spawns, f, indent=1)
-        f.write("\n")
-    return size, len(b.j["nodes"]), len(b.j["meshes"])
+    size = b.write(os.path.join(out_dir, "levels", "dungeon.glb"))
 
-
-PHYSICS = {
-    "scene": "crypt.glb",
-    "collision": [
-        {"nodes": "floor_*", "flags": ["WALKABLE"], "surface": 1},
-        {"nodes": "wall_*", "flags": ["BLOCKS_MOVEMENT", "BLOCKS_LOS", "BLOCKS_PROJECTILE", "CAMERA_FADE"], "surface": 2},
-        {"nodes": "prop_*", "flags": ["BLOCKS_MOVEMENT", "BLOCKS_PROJECTILE"], "surface": 3},
-        {"nodes": "*", "flags": []},
-    ],
-    "navmesh": {
-        "cellSize": 0.2, "cellHeight": 0.1, "tileSize": 32,
-        "sizes": {"medium": {"radius": 0.4, "height": 1.8, "climb": 0.4}},
-        # The grates in the west room are difficult terrain (area 5, cost x2 in the demo's filter).
-        "areas": [{"polygon": [12, 40, 20, 40, 20, 48, 12, 48], "yMin": -1, "yMax": 1, "area": 5}],
-    },
-    "occlusion": {"cellSize": 0.5, "yMin": 0.5, "yMax": 2.0},
-}
+    # The level: placements of the library's prefabs, by layer.
+    flags = {"floor": P_STATIC, "wall": P_STATIC | P_CASTS_SHADOW | P_FADE_OCCLUDER,
+             "prop": P_STATIC | P_CASTS_SHADOW, "decor": P_STATIC | P_CASTS_SHADOW}
+    for name, layer, x, y, z, deg in pieces.placements:
+        q = yaw(deg)
+        level.placements.append((level.prefab("levels/dungeon.jscene", name), name, layer, flags[layer],
+                                 x, y, z, q[0], q[1], q[2], q[3], 1.0, 1.0, 1.0))
+    level.rules = [("floor*", WALKABLE, 1, 0),
+                   ("wall", BLOCKS_MOVEMENT | BLOCKS_LOS | BLOCKS_PROJECTILE | CAMERA_FADE, 2, 0),
+                   ("prop", BLOCKS_MOVEMENT | BLOCKS_PROJECTILE, 3, 0),
+                   ("*", 0, 0, 0)]
+    level.sizes = [("medium", 0.4, 1.8, 0.4)]
+    # The grates in the west room are difficult terrain (area 5, cost x2 in the demo's filter).
+    level.areas = [(5, -1.0, 1.0, [12, 40, 20, 40, 20, 48, 12, 48])]
+    level.settings.update({"navCellSize": 0.2, "navCellHeight": 0.1, "navTileSize": 32.0,
+                           "occlusionCellSize": 0.5, "occlusionYMin": 0.5, "occlusionYMax": 2.0,
+                           "sun": [-0.35, -0.85, -0.4], "sunColor": [0.22, 0.27, 0.4],
+                           "exposure": 1.1, "envSpecular": 0.15, "envDiffuse": 0.12, "gridStep": 0.5})
+    level_size = level.write(os.path.join(out_dir, "levels", "crypt.jlevel"))
+    return size, len(b.j["nodes"]), len(b.j["meshes"]), level_size, len(level.placements)
 
 
 # --- characters -------------------------------------------------------------------------------
@@ -491,7 +621,7 @@ def write_animation_library(src_path, out_path, clips):
     return size, len(clips), keys, kept
 
 
-LICENSE = """KayKit content in this folder (levels/crypt.glb, characters/*.glb and
+LICENSE = """KayKit content in this folder (levels/dungeon.glb, characters/*.glb and
 characters/anims/*.glb) is built by samples/iso-demo/tools/kaykit.py from:
 
   KayKit : Dungeon Remastered 1.0
@@ -512,11 +642,13 @@ def main():
     src = os.path.abspath(args.src)
     fetch(src)
     out = os.path.abspath(ASSETS)
-    size, nodes, meshes = build_level(src, out)
-    print(f"levels/crypt.glb: {size} bytes, {nodes} nodes, {meshes} meshes")
-    with open(os.path.join(out, "levels", "crypt.physics.json"), "w", newline="\n") as f:
-        json.dump(PHYSICS, f, indent=1)
-        f.write("\n")
+    size, nodes, meshes, level_size, placements = build_level(src, out)
+    print(f"levels/dungeon.glb: {size} bytes, {nodes} nodes, {meshes} meshes")
+    print(f"levels/crypt.jlevel: {level_size} bytes, {placements} placements")
+    for stale in ("crypt.glb", "crypt.physics.json", "crypt.spawns.json"):
+        path = os.path.join(out, "levels", stale)
+        if os.path.exists(path):
+            os.remove(path)
     heroes = {"knight": "Knight", "barbarian": "Barbarian", "mage": "Mage", "rogue": "Rogue",
               "rogue_hooded": "Rogue_Hooded"}
     for out_name, src_name in heroes.items():

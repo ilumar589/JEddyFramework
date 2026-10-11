@@ -8,6 +8,7 @@ import dev.jeddy.core.collections.SparseSet;
 import dev.jeddy.core.handle.Handles;
 import dev.jeddy.core.job.JobSystem;
 import dev.jeddy.math.AffineOps;
+import dev.jeddy.math.Intersect;
 import dev.jeddy.render.RenderPacket;
 import dev.jeddy.render.mesh.GpuMesh;
 import dev.jeddy.scene.EntityPool;
@@ -243,8 +244,11 @@ public final class World {
     /** Sets the outline style of {@code entity} ({@code RenderPacket.HIGHLIGHT_*}, 0 for none). */
     public void setHighlight(int entity, int highlightStyle) {
         int i = renderables.indexOf(Handles.index(entity));
-        if (i >= 0 && entityOf[i] == entity) {
+        if (i >= 0 && entityOf[i] == entity && style[i] != highlightStyle) {
             style[i] = highlightStyle;
+            if ((flags[i] & RenderPacket.FLAG_STATIC) != 0) {
+                staticStructure++; // the cached static set carries the outline style (D49)
+            }
         }
     }
 
@@ -270,8 +274,11 @@ public final class World {
     /** Sets the outline style of every renderable of a group (see {@link #setGroupHidden}). */
     public void setGroupHighlight(int groupEntity, int highlightStyle) {
         for (int i = 0, n = renderables.size(); i < n; i++) {
-            if (group[i] == groupEntity) {
+            if (group[i] == groupEntity && style[i] != highlightStyle) {
                 style[i] = highlightStyle;
+                if ((flags[i] & RenderPacket.FLAG_STATIC) != 0) {
+                    staticStructure++;
+                }
             }
         }
     }
@@ -318,14 +325,67 @@ public final class World {
             int renderFlags,
             NodeFlags nodeFlags,
             boolean flatten) {
-        int root = create(Handles.NULL, x, y, z, yaw);
+        float h = yaw * 0.5f;
+        float[] trs = rootTrs;
+        trs[0] = x;
+        trs[1] = y;
+        trs[2] = z;
+        trs[3] = 0;
+        trs[4] = (float) Math.sin(h);
+        trs[5] = 0;
+        trs[6] = (float) Math.cos(h);
+        trs[7] = 1;
+        trs[8] = 1;
+        trs[9] = 1;
+        return instantiateNode(scene, -1, trs, 0, renderFlags, nodeFlags, flatten);
+    }
+
+    private final float[] rootTrs = new float[10];
+    private boolean[] subtree = new boolean[64];
+
+    /**
+     * Instantiates the subtree of scene node {@code rootNode} (or the whole scene with -1) under a
+     * new root entity whose transform is {@code trs[offset .. +10)} (position, rotation quaternion,
+     * scale), as {@link #instantiate(SceneData, float, float, float, float, int, NodeFlags,
+     * boolean)} does. This is how a level places a <em>prefab</em> (DESIGN §19, D87): a named root
+     * of a library scene, with the placement's full transform. Returns the root entity; the subtree
+     * root keeps its own local transform under it. Cold path.
+     *
+     * @throws IllegalArgumentException if {@code rootNode} is not a node of the scene
+     */
+    public int instantiateNode(
+            SceneData scene,
+            int rootNode,
+            float[] trs,
+            int offset,
+            int renderFlags,
+            NodeFlags nodeFlags,
+            boolean flatten) {
+        int n = scene.nodeCount();
+        if (rootNode >= n) {
+            throw new IllegalArgumentException("node " + rootNode + " of " + n);
+        }
+        int root = pool.create();
+        transforms.add(root, Handles.NULL);
+        transforms.setPosition(root, trs[offset], trs[offset + 1], trs[offset + 2]);
+        transforms.setRotation(
+                root, trs[offset + 3], trs[offset + 4], trs[offset + 5], trs[offset + 6]);
+        transforms.setScale(root, trs[offset + 7], trs[offset + 8], trs[offset + 9]);
         boolean isStatic = (renderFlags & RenderPacket.FLAG_STATIC) != 0;
         transforms.setStatic(root, isStatic);
-        int n = scene.nodeCount();
+        if (subtree.length < n) {
+            subtree = new boolean[Math.max(n, subtree.length * 2)];
+        }
+        boolean[] in = subtree;
         int[] entity = new int[n];
         float[] composed = flatten ? new float[n * 10] : null;
         for (int i = 0; i < n; i++) {
             int p = scene.parent(i); // always a smaller index: parents come first
+            in[i] = rootNode < 0 || i == rootNode || (p >= 0 && in[p]);
+            if (!in[i]) {
+                continue;
+            }
+            boolean top = rootNode < 0 ? p < 0 : i == rootNode; // a child of the new root
             int m = scene.mesh(i);
             int f = -1;
             if (m >= 0) {
@@ -336,7 +396,7 @@ public final class World {
             }
             int e;
             if (flatten) {
-                compose(scene, i, p, composed);
+                compose(scene, i, top ? -1 : p, composed);
                 if (f < 0) {
                     continue;
                 }
@@ -349,7 +409,7 @@ public final class World {
                 transforms.setScale(e, composed[o + 7], composed[o + 8], composed[o + 9]);
             } else {
                 e = pool.create();
-                transforms.add(e, p < 0 ? root : entity[p]);
+                transforms.add(e, top ? root : entity[p]);
                 transforms.setPosition(e, scene.trs(i, 0), scene.trs(i, 1), scene.trs(i, 2));
                 transforms.setRotation(
                         e, scene.trs(i, 3), scene.trs(i, 4), scene.trs(i, 5), scene.trs(i, 6));
@@ -363,6 +423,96 @@ public final class World {
             }
         }
         return root;
+    }
+
+    /** Returns the index of the node named {@code name} in {@code scene}, or -1. */
+    public static int nodeNamed(SceneData scene, String name) {
+        if (name == null || name.isEmpty()) {
+            return -1;
+        }
+        for (int i = 0, n = scene.nodeCount(); i < n; i++) {
+            if (name.equals(scene.nodeName(i))) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Destroys an instantiated scene: the root, every entity under it and their renderables. Cold
+     * path (a pass over the transform store).
+     */
+    public void destroyGroup(int root) {
+        // Renderables first (they may belong to entities below the root); destroying an entity
+        // removes its transform (the pool tells its stores).
+        for (int i = renderables.size() - 1; i >= 0; i--) {
+            if (group[i] == root && entityOf[i] != root) {
+                int e = entityOf[i];
+                removeRenderable(e);
+                pool.destroy(e);
+            }
+        }
+        // Then any remaining descendants (non-flattened intermediate nodes).
+        boolean again = true;
+        while (again) {
+            again = false;
+            for (int s = transforms.size() - 1; s >= 0; s--) {
+                int e = transforms.entityAt(s);
+                if (e != root && isUnder(e, root)) {
+                    pool.destroy(e);
+                    again = true;
+                    break; // the store compacts; restart the scan
+                }
+            }
+        }
+        destroy(root);
+    }
+
+    private boolean isUnder(int entity, int root) {
+        int p = transforms.parent(entity);
+        while (p != Handles.NULL) {
+            if (p == root) {
+                return true;
+            }
+            p = transforms.parent(p);
+        }
+        return false;
+    }
+
+    /**
+     * Moves an instantiated scene's root to {@code trs[offset .. +10)}; its entities follow through
+     * the hierarchy. Static groups invalidate the renderer's static set (D49), so this is for
+     * editors and one-off placement, not per-frame motion.
+     */
+    public void setGroupTransform(int root, float[] trs, int offset) {
+        transforms.setPosition(root, trs[offset], trs[offset + 1], trs[offset + 2]);
+        transforms.setRotation(
+                root, trs[offset + 3], trs[offset + 4], trs[offset + 5], trs[offset + 6]);
+        transforms.setScale(root, trs[offset + 7], trs[offset + 8], trs[offset + 9]);
+        if (transforms.isStatic(root)) {
+            staticStructure++;
+        }
+    }
+
+    /** Returns the group root of {@code entity}'s renderable, or {@code entity} itself. */
+    public int groupOf(int entity) {
+        int i = renderables.indexOf(Handles.index(entity));
+        return i >= 0 && entityOf[i] == entity ? group[i] : entity;
+    }
+
+    /** Sets the render flags of every renderable of a group (static-ness included). */
+    public void setGroupFlags(int groupEntity, int renderFlags) {
+        for (int i = 0, n = renderables.size(); i < n; i++) {
+            if (group[i] == groupEntity) {
+                if (flags[i] != renderFlags) {
+                    flags[i] = renderFlags;
+                    transforms.setStatic(
+                            entityOf[i], (renderFlags & RenderPacket.FLAG_STATIC) != 0);
+                    staticStructure++;
+                }
+            }
+        }
+        transforms.setStatic(groupEntity, (renderFlags & RenderPacket.FLAG_STATIC) != 0);
     }
 
     /**
@@ -769,6 +919,71 @@ public final class World {
         float sz = m[o + 2] * m[o + 2] + m[o + 6] * m[o + 6] + m[o + 10] * m[o + 10];
         return (float) Math.sqrt(Math.max(sx, Math.max(sy, sz)));
     }
+
+    /**
+     * Casts a ray against the oriented bounding boxes of every renderable whose mesh is ready and
+     * whose group is not hidden (an editor's click, a unit under the cursor): each mesh's local box
+     * tested in its own space, with the ray brought there by the inverse of its world transform, so
+     * a turned wall is picked by its real outline and not a sphere around it. Returns the entity of
+     * the closest hit, or {@link Handles#NULL}; {@code outT[0]} receives the hit distance along
+     * {@code (dx, dy, dz)} (the same parameter in world and local space because the direction is
+     * transformed linearly, not normalized). Allocates nothing.
+     */
+    public int pick(
+            float ox, float oy, float oz, float dx, float dy, float dz, float maxT, float[] outT) {
+        float[] world = transforms.world();
+        float best = maxT;
+        int bestEntity = Handles.NULL;
+        for (int i = 0, n = renderables.size(); i < n; i++) {
+            int h = meshAsset[i];
+            if (!meshes.isReady(h)) {
+                continue;
+            }
+            int g = Handles.index(group[i]);
+            if (g < hiddenGroup.length && hiddenGroup[g]) {
+                continue;
+            }
+            GpuMesh mesh = meshes.get(h);
+            int s = transforms.indexOf(entityOf[i]);
+            // A sphere test first: it rejects almost everything for the price of a few multiplies.
+            AffineOps.transformPoint(
+                    world, s * 12, mesh.sphere(0), mesh.sphere(1), mesh.sphere(2), point, 0);
+            float r = mesh.sphere(3) * maxScale(world, s * 12);
+            float ts = Intersect.raySphere(ox, oy, oz, dx, dy, dz, point[0], point[1], point[2], r);
+            if (ts == Intersect.MISS || ts > best) {
+                continue;
+            }
+            if (!AffineOps.invert(world, s * 12, pickInverse, 0)) {
+                continue;
+            }
+            AffineOps.transformPoint(pickInverse, 0, ox, oy, oz, pickLocal, 0);
+            AffineOps.transformDirection(pickInverse, 0, dx, dy, dz, pickLocal, 3);
+            float t =
+                    Intersect.rayAabb(
+                            pickLocal[0],
+                            pickLocal[1],
+                            pickLocal[2],
+                            pickLocal[3],
+                            pickLocal[4],
+                            pickLocal[5],
+                            mesh.bounds(0),
+                            mesh.bounds(1),
+                            mesh.bounds(2),
+                            mesh.bounds(3),
+                            mesh.bounds(4),
+                            mesh.bounds(5),
+                            best);
+            if (t < best) {
+                best = t;
+                bestEntity = entityOf[i];
+            }
+        }
+        outT[0] = best;
+        return bestEntity;
+    }
+
+    private final float[] pickInverse = new float[12];
+    private final float[] pickLocal = new float[6];
 
     /** Returns the world position of {@code entity} into {@code out} (after the last update). */
     public void position(int entity, float[] out) {

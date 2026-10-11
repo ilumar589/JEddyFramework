@@ -131,6 +131,13 @@ public final class RenderPacket {
     /** Number of debug lines. */
     public int debugLineCount;
 
+    /**
+     * Index of the first debug line drawn <em>without</em> depth testing (an editor's gizmo must
+     * show through walls), or -1 for none: lines from here to {@link #debugLineCount} are an
+     * overlay, those before are depth-tested against the scene.
+     */
+    public int debugOverlayStart = -1;
+
     /** Light type: point. */
     public static final int LIGHT_POINT = 0;
 
@@ -213,6 +220,7 @@ public final class RenderPacket {
         count = 0;
         ui.reset();
         debugLineCount = 0;
+        debugOverlayStart = -1;
         lightCount = 0;
         decalCount = 0;
         emitterCount = 0;
@@ -798,6 +806,27 @@ public final class RenderPacket {
         if (lines > debugColors.length) {
             debugLines = Arrays.copyOf(debugLines, lines * 6);
             debugColors = Arrays.copyOf(debugColors, lines);
+        }
+    }
+
+    /** Appends a debug line (grows the arrays only past their capacity). */
+    public void addDebugLine(float x0, float y0, float z0, float x1, float y1, float z1, int argb) {
+        int i = debugLineCount;
+        resizeDebugLines(i + 1);
+        int o = i * 6;
+        debugLines[o] = x0;
+        debugLines[o + 1] = y0;
+        debugLines[o + 2] = z0;
+        debugLines[o + 3] = x1;
+        debugLines[o + 4] = y1;
+        debugLines[o + 5] = z1;
+        debugColors[i] = argb;
+    }
+
+    /** Marks every debug line added from now on as overlay (see {@link #debugOverlayStart}). */
+    public void beginDebugOverlay() {
+        if (debugOverlayStart < 0) {
+            debugOverlayStart = debugLineCount;
         }
     }
 

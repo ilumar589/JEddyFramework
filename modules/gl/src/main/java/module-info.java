@@ -10,5 +10,6 @@ module dev.jeddy.gl {
             dev.jeddy.render,
             dev.jeddy.app,
             dev.jeddy.samples.triangle,
-            dev.jeddy.samples.iso;
+            dev.jeddy.samples.iso,
+            dev.jeddy.editortool;
 }

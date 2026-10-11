@@ -1,4 +1,4 @@
-KayKit content in this folder (levels/crypt.glb, characters/*.glb and
+KayKit content in this folder (levels/dungeon.glb, characters/*.glb and
 characters/anims/*.glb) is built by samples/iso-demo/tools/kaykit.py from:
 
   KayKit : Dungeon Remastered 1.0

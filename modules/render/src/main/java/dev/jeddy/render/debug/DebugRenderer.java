@@ -16,7 +16,8 @@ import java.nio.ByteOrder;
 
 /**
  * Draws a packet's debug lines (TASKS M5-10): vertices pulled from the frame ring by {@code
- * gl_VertexID}, depth-tested against the scene without writing depth.
+ * gl_VertexID}, depth-tested against the scene without writing depth; lines from {@code
+ * RenderPacket.debugOverlayStart} on are drawn without the depth test (an editor's gizmo).
  *
  * <p>Thread ownership: the GL thread.
  */
@@ -87,12 +88,23 @@ public final class DebugRenderer implements AutoCloseable {
             m.set(I32, o + 28, c[i]);
         }
         MemorySegment.copy(packet.viewProjection, 0, matrix, ValueLayout.JAVA_FLOAT, 0, 16);
-        state.apply(PipelineState.withDepthWrite(PipelineState.TRANSPARENT, false));
         state.useProgram(program);
         state.bindVertexArray(vao);
         state.bindStorage(2, ring.glName(), at, bytes);
         glProgramUniformMatrix4fv(program, 0, 1, false, matrix);
-        glDrawArrays(GL_LINES, 0, lines * 2);
+        int overlay =
+                packet.debugOverlayStart < 0 ? lines : Math.min(packet.debugOverlayStart, lines);
+        if (overlay > 0) {
+            state.apply(PipelineState.withDepthWrite(PipelineState.TRANSPARENT, false));
+            glDrawArrays(GL_LINES, 0, overlay * 2);
+        }
+        if (overlay < lines) {
+            // The overlay (an editor's gizmo) ignores the scene's depth so it shows through walls.
+            state.apply(
+                    PipelineState.withDepth(
+                            PipelineState.TRANSPARENT, false, false, PipelineState.DEPTH_ALWAYS));
+            glDrawArrays(GL_LINES, overlay * 2, (lines - overlay) * 2);
+        }
     }
 
     @Override

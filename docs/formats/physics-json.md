@@ -1,8 +1,10 @@
 # `<level>.physics.json` physics bake description
 
-Source file of the cooker's physics importer (`dev.jeddy.cooker.physics.PhysicsImporter`). It
-points at the level's glTF and says how to turn its nodes into collision, navigation and
-visibility data. Outputs, next to the description (`levels/town.physics.json` → `levels/town.*`):
+Source file of the cooker's physics importer (`dev.jeddy.cooker.physics.PhysicsImporter`) for a
+level that is a single glTF. It points at the level's glTF and says how to turn its nodes into
+collision, navigation and visibility data. Levels composed in the editor ([`.jlevel`](jlevel.md))
+carry the same settings themselves and are baked by `LevelImporter` through the shared
+`PhysicsBake` (D90). Outputs, next to the description (`levels/town.physics.json` → `levels/town.*`):
 [`.jcol`](jcol.md), one [`.jnav`](jnav.md) per size class, [`.jocc`](jocc.md). The glTF is a
 dependency (edits re-bake); it is still cooked for rendering on its own.
 

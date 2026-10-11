@@ -66,6 +66,12 @@ public final class Widgets {
     private static final long OPTION = 0x0971L;
     private static final long TAB = 0x7AB1L;
 
+    private static final long FIELD = 0xF1E1DL;
+    private static final long SWATCH = 0x5A7CL;
+    private static final long ROW = 0x0A0L;
+    private long openMenu; // the menu button whose popup is open, for hover switching
+
+    private final TextBuffer numberEdit = new TextBuffer(32);
     private int lastFrame = -1;
     private float prevMouseX;
     private float prevMouseY;
@@ -1091,6 +1097,512 @@ public final class Widgets {
     /** Closes a window's contents. */
     public void endWindow() {
         ui.close();
+        ui.close();
+    }
+
+    // ---- Menus ------------------------------------------------------------------------------
+
+    /**
+     * A menu bar across the parent's width; declare {@link #menu}s inside and call {@link
+     * #endMenuBar()}.
+     */
+    public void beginMenuBar(long id) {
+        ui.box(id)
+                .row()
+                .widthGrow()
+                .height(theme.widgetHeight)
+                .padding(4, 0)
+                .gap(2)
+                .align(Ui.START, Ui.CENTER)
+                .background(theme.panel)
+                .border(theme.panelBorder, 1)
+                .hit()
+                .open();
+    }
+
+    /** Closes a menu bar. */
+    public void endMenuBar() {
+        ui.close();
+    }
+
+    /**
+     * A menu button in a menu bar whose popup opens on click and switches to a neighbour when the
+     * pointer moves onto it while one is open. Returns whether the popup is open; when it is,
+     * declare {@link #menuItem(long, CharSequence)} entries and call {@link #endMenu()}.
+     */
+    public boolean menu(long id, CharSequence label) {
+        long popup = Ui.combine(id, POPUP);
+        long me = ui.resolve(id);
+        if (ui.clicked(id)) {
+            if (popupOpen(popup)) {
+                closePopup(popup);
+                openMenu = 0;
+            } else {
+                openPopup(popup);
+                openMenu = me;
+            }
+        } else if (openMenu != 0 && openMenu != me && ui.hovered(id)) {
+            closePopup(Ui.combine(openMenu, POPUP));
+            openPopup(popup);
+            openMenu = me;
+        }
+        boolean on = popupOpen(popup);
+        ui.box(id)
+                .height(theme.widgetHeight - 4)
+                .padding(theme.padding, 0)
+                .align(Ui.CENTER, Ui.CENTER)
+                .radius(theme.radius)
+                .background(on ? theme.widgetActive : ui.hovered(id) ? theme.widgetHover : 0)
+                .hit()
+                .open();
+        ui.text(label);
+        ui.close();
+        if (!beginPopup(popup, id, Ui.BOTTOM_LEFT, Ui.TOP_LEFT)) {
+            if (openMenu == me) {
+                openMenu = 0;
+            }
+            return false;
+        }
+        return true;
+    }
+
+    /** Closes a menu's popup contents. */
+    public void endMenu() {
+        endPopup();
+    }
+
+    /** A menu entry in the open {@link #menu}; returns whether it was clicked (closes the menu). */
+    public boolean menuItem(long id, CharSequence label) {
+        return menuItem(id, label, null, true);
+    }
+
+    /**
+     * A menu entry with a shortcut hint at its right ({@code "Ctrl+S"}) that can be disabled;
+     * returns whether it was clicked.
+     */
+    public boolean menuItem(long id, CharSequence label, CharSequence shortcut, boolean enabled) {
+        ui.box(id)
+                .row()
+                .gap(theme.gap * 3)
+                .widthGrow()
+                .minWidth(160)
+                .height(theme.widgetHeight - 4)
+                .padding(theme.padding, 0)
+                .align(Ui.START, Ui.CENTER)
+                .radius(theme.radius)
+                .background(enabled && ui.hovered(id) ? theme.widgetHover : 0)
+                .hit()
+                .open();
+        ui.text(label).color(enabled ? theme.text : theme.textDim);
+        if (shortcut != null) {
+            spacer();
+            ui.text(shortcut).fontSize(theme.fontSizeSmall).color(theme.textDim);
+        }
+        ui.close();
+        if (enabled && ui.clicked(id)) {
+            closeOpenMenu();
+            return true;
+        }
+        return false;
+    }
+
+    /** A menu entry showing a check mark when {@code checked}; returns whether it was clicked. */
+    public boolean menuCheck(long id, CharSequence label, boolean checked) {
+        ui.box(id)
+                .row()
+                .gap(theme.gap)
+                .widthGrow()
+                .minWidth(160)
+                .height(theme.widgetHeight - 4)
+                .padding(theme.padding * 0.5f, 0, theme.padding, 0)
+                .align(Ui.START, Ui.CENTER)
+                .radius(theme.radius)
+                .background(ui.hovered(id) ? theme.widgetHover : 0)
+                .hit()
+                .open();
+        ui.box().size(14, 14).align(Ui.CENTER, Ui.CENTER).noHit().open();
+        if (checked) {
+            ui.text(CHECK).fontSize(theme.fontSizeSmall);
+        }
+        ui.close();
+        ui.text(label);
+        ui.close();
+        if (ui.clicked(id)) {
+            closeOpenMenu();
+            return true;
+        }
+        return false;
+    }
+
+    private void closeOpenMenu() {
+        if (openMenu != 0) {
+            closePopup(Ui.combine(openMenu, POPUP));
+            openMenu = 0;
+        }
+    }
+
+    // ---- Docking ----------------------------------------------------------------------------
+
+    /**
+     * A splitter bar between two regions: a thin strip the pointer can drag. {@code vertical} bars
+     * stand between side-by-side regions and are dragged left and right; horizontal ones lie
+     * between stacked regions. Returns how far it was dragged this frame along its axis, in pixels
+     * (0 when idle); the caller applies it to the size it controls.
+     */
+    public float splitter(long id, boolean vertical) {
+        sync();
+        Box b =
+                ui.box(id)
+                        .background(
+                                ui.active(id)
+                                        ? theme.accent
+                                        : ui.hovered(id) ? theme.accentHover : theme.separator)
+                        .hit();
+        if (vertical) {
+            b.width(theme.splitterWidth).heightGrow();
+        } else {
+            b.widthGrow().height(theme.splitterWidth);
+        }
+        return ui.active(id) ? (vertical ? mouseDX : mouseDY) : 0;
+    }
+
+    // ---- Fields -----------------------------------------------------------------------------
+
+    /**
+     * A number that drags like {@link #dragValue} and, on a double click, turns into a text field
+     * to type into (Enter or a click elsewhere commits, Escape cancels). Returns the value after
+     * this frame's input. It grows to its parent's width.
+     */
+    public float numberField(long id, float value, float step, float min, float max, int decimals) {
+        sync();
+        int slot = ui.state(id);
+        boolean editing = ui.stateI(slot, 1) != 0;
+        if (editing) {
+            boolean cancel = ui.input().pressed(UiKey.ESCAPE);
+            ui.pushId(id);
+            textField(FIELD, numberEdit);
+            boolean enter = submitted(FIELD);
+            boolean focused = ui.focused(FIELD);
+            ui.popId();
+            if (cancel) {
+                ui.setStateI(slot, 1, 0);
+            } else if (enter || !focused) {
+                float parsed = parseFloat(numberEdit);
+                if (!Float.isNaN(parsed)) {
+                    value = Math.clamp(parsed, min, max);
+                }
+                ui.setStateI(slot, 1, 0);
+                if (enter) {
+                    ui.focus(0);
+                }
+            }
+            return value;
+        }
+        if (ui.doubleClicked(id)) {
+            numberEdit.clear();
+            appendFloat(numberEdit, value, decimals);
+            numberEdit.selectAll();
+            ui.setStateI(slot, 1, 1);
+            ui.pushId(id);
+            ui.focus(FIELD);
+            ui.popId();
+        }
+        if (ui.active(id)) {
+            value += mouseDX * step;
+        }
+        if (ui.focused(id)) {
+            UiInput in = ui.input();
+            if (in.pressed(UiKey.LEFT) || in.pressed(UiKey.DOWN)) {
+                value -= step;
+            }
+            if (in.pressed(UiKey.RIGHT) || in.pressed(UiKey.UP)) {
+                value += step;
+            }
+        }
+        value = Math.clamp(value, min, max);
+        Box b =
+                ui.box(id)
+                        .widthGrow()
+                        .height(theme.widgetHeight)
+                        .minWidth(48)
+                        .padding(theme.padding * 0.5f, 0)
+                        .align(Ui.END, Ui.CENTER)
+                        .radius(theme.radius)
+                        .background(widgetColor(id, true))
+                        .hit()
+                        .focusable()
+                        .captureKeys();
+        focusRing(b, id);
+        b.open();
+        ui.text().append(value, decimals).noKerning();
+        ui.close();
+        return value;
+    }
+
+    /** Appends {@code v} with {@code decimals} places to {@code out} without allocating. */
+    public static void appendFloat(TextBuffer out, float v, int decimals) {
+        if (Float.isNaN(v) || Float.isInfinite(v)) {
+            out.insert('0');
+            return;
+        }
+        if (v < 0) {
+            out.insert('-');
+            v = -v;
+        }
+        long scale = 1;
+        for (int i = 0; i < decimals; i++) {
+            scale *= 10;
+        }
+        long r = Math.round((double) v * scale);
+        long whole = r / scale;
+        if (whole == 0) {
+            out.insert('0');
+        } else {
+            long p = 1;
+            while (p <= whole / 10) {
+                p *= 10;
+            }
+            for (; p > 0; p /= 10) {
+                out.insert((char) ('0' + whole / p % 10));
+            }
+        }
+        if (decimals > 0) {
+            out.insert('.');
+            long frac = r % scale;
+            for (long p = scale / 10; p > 0; p /= 10) {
+                out.insert((char) ('0' + frac / p % 10));
+            }
+        }
+    }
+
+    /**
+     * Parses a decimal number ({@code -12.5}, {@code .75}, {@code 3e2}) without allocating; returns
+     * {@code NaN} when {@code s} is not one.
+     */
+    public static float parseFloat(CharSequence s) {
+        int n = s.length();
+        int i = 0;
+        while (i < n && s.charAt(i) == ' ') {
+            i++;
+        }
+        boolean negative = false;
+        if (i < n && (s.charAt(i) == '-' || s.charAt(i) == '+')) {
+            negative = s.charAt(i) == '-';
+            i++;
+        }
+        double value = 0;
+        int digits = 0;
+        while (i < n && Character.isDigit(s.charAt(i))) {
+            value = value * 10 + (s.charAt(i) - '0');
+            i++;
+            digits++;
+        }
+        if (i < n && s.charAt(i) == '.') {
+            i++;
+            double place = 0.1;
+            while (i < n && Character.isDigit(s.charAt(i))) {
+                value += (s.charAt(i) - '0') * place;
+                place *= 0.1;
+                i++;
+                digits++;
+            }
+        }
+        if (digits == 0) {
+            return Float.NaN;
+        }
+        if (i < n && (s.charAt(i) == 'e' || s.charAt(i) == 'E')) {
+            i++;
+            boolean expNegative = false;
+            if (i < n && (s.charAt(i) == '-' || s.charAt(i) == '+')) {
+                expNegative = s.charAt(i) == '-';
+                i++;
+            }
+            int exp = 0;
+            int expDigits = 0;
+            while (i < n && Character.isDigit(s.charAt(i))) {
+                exp = exp * 10 + (s.charAt(i) - '0');
+                i++;
+                expDigits++;
+            }
+            if (expDigits == 0) {
+                return Float.NaN;
+            }
+            value *= Math.pow(10, expNegative ? -exp : exp);
+        }
+        while (i < n && s.charAt(i) == ' ') {
+            i++;
+        }
+        if (i != n) {
+            return Float.NaN;
+        }
+        return (float) (negative ? -value : value);
+    }
+
+    /**
+     * Three {@link #numberField}s in a row labelled X, Y and Z, editing {@code v[o..o+2]} in place.
+     * Returns a mask of the components that changed this frame (bit 0 x, 1 y, 2 z).
+     */
+    public int vector3Field(long id, float[] v, int o, float step, int decimals) {
+        return vectorField(id, v, o, 3, step, -1e9f, 1e9f, decimals);
+    }
+
+    /**
+     * {@code n} (1 to 4) number fields in a row labelled X, Y, Z and W, editing {@code v[o..]} in
+     * place within {@code [min, max]}. Returns a mask of the components that changed.
+     */
+    public int vectorField(
+            long id, float[] v, int o, int n, float step, float min, float max, int decimals) {
+        int changed = 0;
+        ui.box(id).row().gap(4).widthGrow().align(Ui.START, Ui.CENTER).open();
+        ui.pushId(id); // the component fields live in the row's scope
+        for (int k = 0; k < n; k++) {
+            ui.pushId(k);
+            ui.text(AXIS_LABELS[k]).fontSize(theme.fontSizeSmall).color(AXIS_COLORS[k]);
+            float before = v[o + k];
+            float after = numberField(FIELD, before, step, min, max, decimals);
+            if (after != before) {
+                v[o + k] = after;
+                changed |= 1 << k;
+            }
+            ui.popId();
+        }
+        ui.popId();
+        ui.close();
+        return changed;
+    }
+
+    private static final String[] AXIS_LABELS = {"X", "Y", "Z", "W"};
+    private static final int[] AXIS_COLORS = {0xFFE06060, 0xFF70D070, 0xFF6090FF, 0xFFC0C0C0};
+
+    /**
+     * A color: a swatch showing {@code rgb[o..o+2]} (linear, clamped for display) next to three
+     * number fields for the channels (0 to {@code max}; sun colors go above 1). Returns a mask of
+     * the channels that changed.
+     */
+    public int colorField(long id, float[] rgb, int o, float max) {
+        int changed = 0;
+        ui.box(id).row().gap(4).widthGrow().align(Ui.START, Ui.CENTER).open();
+        int packed =
+                0xFF000000 | channel(rgb[o]) << 16 | channel(rgb[o + 1]) << 8 | channel(rgb[o + 2]);
+        ui.box(SWATCH)
+                .size(theme.widgetHeight, theme.widgetHeight)
+                .radius(theme.radius)
+                .background(packed)
+                .border(theme.panelBorder, 1)
+                .noHit();
+        ui.pushId(id);
+        for (int k = 0; k < 3; k++) {
+            ui.pushId(k);
+            float before = rgb[o + k];
+            float after = numberField(FIELD, before, 0.005f, 0, max, 2);
+            if (after != before) {
+                rgb[o + k] = after;
+                changed |= 1 << k;
+            }
+            ui.popId();
+        }
+        ui.popId();
+        ui.close();
+        return changed;
+    }
+
+    /** Linear 0..1 to an sRGB byte (the swatch is drawn in the UI's sRGB space). */
+    private static int channel(float linear) {
+        float c = Math.clamp(linear, 0, 1);
+        float s = c <= 0.0031308f ? c * 12.92f : 1.055f * (float) Math.pow(c, 1 / 2.4) - 0.055f;
+        return Math.round(s * 255);
+    }
+
+    // ---- Lists ------------------------------------------------------------------------------
+
+    /**
+     * A scrolling list of {@code count} rows of {@code items}, {@code height} pixels tall, with one
+     * selected; returns the selected index after this frame's clicks.
+     */
+    public int listBox(long id, int selected, CharSequence[] items, int count, float height) {
+        ui.box(id)
+                .column()
+                .widthGrow()
+                .height(height)
+                .padding(2)
+                .gap(1)
+                .background(theme.inset)
+                .border(theme.panelBorder, 1)
+                .radius(theme.radius)
+                .scroll(false, true)
+                .open();
+        ui.pushId(id);
+        for (int i = 0; i < count; i++) {
+            ui.pushId(i);
+            if (selectableRow(ROW, items[i], i == selected, 0)) {
+                selected = i;
+            }
+            ui.popId();
+        }
+        ui.popId();
+        ui.close();
+        return selected;
+    }
+
+    /**
+     * A selectable row (an Outliner entry, a list item): a label with a selected or hovered
+     * background, indented by {@code indent} pixels; returns whether it was clicked.
+     */
+    public boolean selectableRow(long id, CharSequence label, boolean selected, float indent) {
+        ui.box(id)
+                .widthGrow()
+                .height(theme.widgetHeight - 6)
+                .padding(theme.padding * 0.5f + indent, 0, theme.padding * 0.5f, 0)
+                .align(Ui.START, Ui.CENTER)
+                .radius(theme.radius)
+                .background(selected ? theme.accent : ui.hovered(id) ? theme.widgetHover : 0)
+                .hit()
+                .open();
+        ui.text(label).color(selected ? 0xFFFFFFFF : theme.text);
+        ui.close();
+        return ui.clicked(id);
+    }
+
+    /**
+     * Opens a selectable row whose label the caller declares (several texts, numbers appended
+     * without allocating); close it with {@link #endSelectableRow}, which returns whether it was
+     * clicked.
+     */
+    public void beginSelectableRow(long id, boolean selected, float indent) {
+        ui.box(id)
+                .row()
+                .gap(4)
+                .widthGrow()
+                .height(theme.widgetHeight - 6)
+                .padding(theme.padding * 0.5f + indent, 0, theme.padding * 0.5f, 0)
+                .align(Ui.START, Ui.CENTER)
+                .radius(theme.radius)
+                .background(selected ? theme.accent : ui.hovered(id) ? theme.widgetHover : 0)
+                .hit()
+                .open();
+    }
+
+    /** Closes a selectable row; returns whether it was clicked this frame. */
+    public boolean endSelectableRow(long id) {
+        ui.close();
+        return ui.clicked(id);
+    }
+
+    // ---- Property rows ----------------------------------------------------------------------
+
+    /**
+     * Opens a property row: a dim label of the theme's label width, then whatever value widgets the
+     * caller declares; close it with {@link #endProperty()}.
+     */
+    public void beginProperty(CharSequence label) {
+        ui.box().row().gap(theme.gap).widthGrow().align(Ui.START, Ui.CENTER).open();
+        ui.box().width(theme.labelWidth).align(Ui.START, Ui.CENTER).noHit().open();
+        ui.text(label).color(theme.textDim).fontSize(theme.fontSizeSmall);
+        ui.close();
+    }
+
+    /** Closes a property row. */
+    public void endProperty() {
         ui.close();
     }
 }

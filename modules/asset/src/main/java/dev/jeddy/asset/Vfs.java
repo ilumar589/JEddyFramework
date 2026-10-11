@@ -434,6 +434,26 @@ public final class Vfs implements AutoCloseable {
         }
     }
 
+    /**
+     * Adds the path of every asset whose name is known to {@code out} (loose files always, pak
+     * entries when the pak carries a name table), visible mounts first; assets only known by id are
+     * left out. For editors and tools: allocates, and takes the mount lock.
+     */
+    public synchronized void paths(List<String> out) {
+        for (Mount m : mounts) {
+            if (m instanceof PakMount p) {
+                for (int i = 0, n = p.pak.size(); i < n; i++) {
+                    String name = p.pak.name(i);
+                    if (name != null) {
+                        out.add(name);
+                    }
+                }
+            } else if (m instanceof DirectoryMount d) {
+                out.addAll(Arrays.asList(d.listing.paths));
+            }
+        }
+    }
+
     /** Returns a readable description of where {@code id} comes from (diagnostics; allocates). */
     public String describe(long id) {
         Index ix = index;

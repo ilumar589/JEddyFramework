@@ -59,6 +59,9 @@ final class DemoOptions {
     boolean allocProbe;
     boolean quitAfterFirstFrame;
     java.util.List<String> failOn = java.util.List.of();
+    boolean editor;
+    Path levelSource;
+    java.util.List<String> editorCommands = new java.util.ArrayList<>();
 
     boolean perf() {
         return perfSeconds > 0;
@@ -114,6 +117,9 @@ final class DemoOptions {
                 case "--quit-after-first-frame" -> o.quitAfterFirstFrame = true;
                 case "--warmup-frames" -> o.warmupFrames = Integer.parseInt(value(args, ++i, a));
                 case "--fail-on" -> o.failOn = java.util.List.of(value(args, ++i, a).split(","));
+                case "--editor" -> o.editor = true;
+                case "--editor-command" -> o.editorCommands.add(value(args, ++i, a));
+                case "--level-source" -> o.levelSource = Path.of(value(args, ++i, a));
                 case "--help", "-h" -> {
                     System.out.println(usage());
                     System.exit(0);
@@ -127,6 +133,9 @@ final class DemoOptions {
         }
         if (o.assets == null) {
             o.assets = findAssets();
+        }
+        if (o.levelSource == null) {
+            o.levelSource = findLevelSource();
         }
         return o;
     }
@@ -164,6 +173,20 @@ final class DemoOptions {
                 "no cooked assets found: run ./gradlew :iso-demo:packAssets, or pass --assets DIR");
     }
 
+    /**
+     * The source {@code .jlevel} the editor saves to: the sample's asset tree when running from the
+     * repository, else {@code build/crypt.jlevel} next to the cooked assets.
+     */
+    private static Path findLevelSource() {
+        for (String base : new String[] {"assets", "samples/iso-demo/assets"}) {
+            Path p = Path.of(base, "levels", "crypt.jlevel");
+            if (Files.isRegularFile(p)) {
+                return p;
+            }
+        }
+        return Path.of("build", "crypt.jlevel");
+    }
+
     static String usage() {
         return """
         usage: iso-demo [options]
@@ -187,6 +210,10 @@ final class DemoOptions {
           --alloc-probe         perf: game-thread allocation by system in the report
           --fail-on KEYS        perf: exit 4 if these budgets fail
                                 (game,animation,main,gpu,alloc,flags,gc,load)
+          --editor              start with the level editor open (F10 toggles it)
+          --editor-command CMD  run an editor console command at start (repeatable)
+          --level-source FILE   the .jlevel the editor saves (default: the sample's
+                                assets/levels/crypt.jlevel, else build/crypt.jlevel)
         controls:
           left click        select a party member / move the selection
           left drag         box select          right click   move the selection
@@ -196,7 +223,7 @@ final class DemoOptions {
           G                 cycle formations    F             fireball (click to cast)
           T                 turn-based movement range of the selection
           Space             pause               F3            profiler      F12  screenshot
-          Esc               cancel / quit
+          F10               level editor        Esc           cancel / quit
         """;
     }
 }

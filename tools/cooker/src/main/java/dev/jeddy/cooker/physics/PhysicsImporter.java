@@ -8,14 +8,10 @@ import dev.jeddy.cooker.gltf.GltfImporter;
 import dev.jeddy.cooker.pak.Glob;
 import dev.jeddy.core.json.Json;
 import dev.jeddy.physics.bvh.Bvh;
-import dev.jeddy.physics.bvh.BvhBuilder;
 import dev.jeddy.physics.bvh.TriFlags;
 import dev.jeddy.physics.bvh.TriangleMesh;
-import dev.jeddy.physics.nav.NavMeshData;
-import dev.jeddy.physics.nav.NavTile;
 import dev.jeddy.physics.nav.bake.NavBakeConfig;
 import dev.jeddy.physics.nav.bake.NavMeshBaker;
-import dev.jeddy.physics.vis.OcclusionGrid;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -84,11 +80,7 @@ public final class PhysicsImporter implements Importer {
         }
         String base = ctx.outputBase();
 
-        Bvh bvh = BvhBuilder.build(mesh, ctx.jobs());
-        ctx.output(base + ".jcol", bvh.toBytes());
-        ctx.stat("triangles", mesh.triangleCount());
-        ctx.stat("bvhNodes", bvh.nodeCount());
-
+        Bvh bvh = PhysicsBake.bakeCollision(ctx, mesh, base);
         Map<String, Object> nav = optObject(json, "navmesh");
         if (nav != null) {
             bakeNavmeshes(ctx, nav, mesh, base);
@@ -98,22 +90,7 @@ public final class PhysicsImporter implements Importer {
             float cell = occ == null ? 0.5f : (float) Json.number(occ, "cellSize", 0.5);
             float yMin = occ == null ? 0.3f : (float) Json.number(occ, "yMin", 0.3);
             float yMax = occ == null ? 2.0f : (float) Json.number(occ, "yMax", 2.0);
-            float[] b = new float[6];
-            bvh.bounds(b);
-            OcclusionGrid grid =
-                    OcclusionGrid.bake(
-                            bvh,
-                            b[0],
-                            b[2],
-                            b[3] - b[0],
-                            b[5] - b[2],
-                            cell,
-                            yMin,
-                            yMax,
-                            TriFlags.BLOCKS_LOS);
-            ctx.output(base + ".jocc", grid.toBytes());
-            ctx.stat("occlusionCells", grid.width() * grid.height());
-            ctx.stat("occlusionBlocked", grid.blockedCount());
+            PhysicsBake.bakeOcclusion(ctx, bvh, cell, yMin, yMax, base);
         }
     }
 
@@ -170,33 +147,39 @@ public final class PhysicsImporter implements Importer {
                 continue; // not collision
             }
             float[] m = worldMatrix(nodes, i, world);
-            boolean flip = det3(m) < 0;
-            for (GltfImporter.Primitive p : scene.meshes().get(node.mesh()).primitives()) {
-                float[] pos = p.positions;
-                int baseVertex = mesh.vertexCount();
-                for (int v = 0; v < pos.length / 3; v++) {
-                    float x = pos[v * 3];
-                    float y = pos[v * 3 + 1];
-                    float z = pos[v * 3 + 2];
-                    mesh.addVertex(
-                            m[0] * x + m[4] * y + m[8] * z + m[12],
-                            m[1] * x + m[5] * y + m[9] * z + m[13],
-                            m[2] * x + m[6] * y + m[10] * z + m[14]);
-                }
-                int[] idx = p.indices;
-                for (int t = 0; t + 2 < idx.length; t += 3) {
-                    int a = baseVertex + idx[t];
-                    int b = baseVertex + idx[t + 1];
-                    int c = baseVertex + idx[t + 2];
-                    if (flip) {
-                        mesh.addTriangle(a, c, b, flags);
-                    } else {
-                        mesh.addTriangle(a, b, c, flags);
-                    }
+            appendMesh(scene, node.mesh(), m, flags, mesh);
+        }
+        return mesh;
+    }
+
+    /** Appends glTF mesh {@code meshIndex}'s triangles transformed by {@code m} (column-major). */
+    static void appendMesh(
+            GltfImporter.Scene scene, int meshIndex, float[] m, int flags, TriangleMesh mesh) {
+        boolean flip = det3(m) < 0;
+        for (GltfImporter.Primitive p : scene.meshes().get(meshIndex).primitives()) {
+            float[] pos = p.positions;
+            int baseVertex = mesh.vertexCount();
+            for (int v = 0; v < pos.length / 3; v++) {
+                float x = pos[v * 3];
+                float y = pos[v * 3 + 1];
+                float z = pos[v * 3 + 2];
+                mesh.addVertex(
+                        m[0] * x + m[4] * y + m[8] * z + m[12],
+                        m[1] * x + m[5] * y + m[9] * z + m[13],
+                        m[2] * x + m[6] * y + m[10] * z + m[14]);
+            }
+            int[] idx = p.indices;
+            for (int t = 0; t + 2 < idx.length; t += 3) {
+                int a = baseVertex + idx[t];
+                int b = baseVertex + idx[t + 1];
+                int c = baseVertex + idx[t + 2];
+                if (flip) {
+                    mesh.addTriangle(a, c, b, flags);
+                } else {
+                    mesh.addTriangle(a, b, c, flags);
                 }
             }
         }
-        return mesh;
     }
 
     private static int nodeFlags(GltfDocument doc, int node, String name, List<Rule> rules)
@@ -226,7 +209,8 @@ public final class PhysicsImporter implements Importer {
         return m;
     }
 
-    static float[] trs(float[] t, float[] q, float[] s) {
+    /** A column-major 4×4 from a translation, rotation quaternion and scale. */
+    public static float[] trs(float[] t, float[] q, float[] s) {
         float x = q[0];
         float y = q[1];
         float z = q[2];
@@ -248,7 +232,8 @@ public final class PhysicsImporter implements Importer {
         return m;
     }
 
-    static float[] mul(float[] a, float[] b) {
+    /** Column-major 4×4 product {@code a × b}. */
+    public static float[] mul(float[] a, float[] b) {
         float[] r = new float[16];
         for (int c = 0; c < 4; c++) {
             for (int row = 0; row < 4; row++) {
@@ -276,19 +261,15 @@ public final class PhysicsImporter implements Importer {
         float tileMeters = (float) Json.number(nav, "tileSize", 32);
         float slope = (float) Json.number(nav, "maxSlope", 45);
         NavBakeConfig cfg =
-                new NavBakeConfig(
+                navConfig(
                         cell,
                         cellHeight,
-                        1.8f,
-                        0.4f,
-                        0.4f,
+                        tileMeters,
                         slope,
-                        Math.max(16, Math.round(tileMeters / cell)),
                         Json.integer(nav, "minRegionArea", 8),
                         Json.integer(nav, "mergeRegionArea", 20),
                         (float) Json.number(nav, "maxEdgeLength", 12),
-                        (float) Json.number(nav, "maxSimplificationError", 1.3),
-                        6);
+                        (float) Json.number(nav, "maxSimplificationError", 1.3));
         List<NavMeshBaker.AreaVolume> areas = new ArrayList<>();
         Object areaList = nav.get("areas");
         if (areaList != null) {
@@ -328,26 +309,45 @@ public final class PhysicsImporter implements Importer {
             sizes = new LinkedHashMap<>();
             sizes.put("medium", Map.of());
         }
+        List<PhysicsBake.SizeClass> classes = new ArrayList<>();
         for (Map.Entry<String, Object> size : sizes.entrySet()) {
             Map<String, Object> s = Json.asObject(size.getValue(), "size class");
-            NavBakeConfig agent =
-                    cfg.forAgent(
+            classes.add(
+                    new PhysicsBake.SizeClass(
+                            size.getKey(),
                             (float) Json.number(s, "radius", 0.4),
                             (float) Json.number(s, "height", 1.8),
-                            (float) Json.number(s, "climb", 0.4));
-            NavMeshData data = NavMeshBaker.bake(mesh, agent, areas, links, ctx.jobs());
-            String name = CookContext.sanitize(size.getKey().toLowerCase(Locale.ROOT));
-            ctx.output(base + "." + name + ".jnav", data.toBytes());
-            int polys = 0;
-            for (NavTile t : data.tiles()) {
-                polys += t.polyCount;
-            }
-            ctx.stat("navmesh." + name + ".tiles", data.tiles().size());
-            ctx.stat("navmesh." + name + ".polygons", polys);
-            if (polys == 0) {
-                ctx.warn("size class " + name + ": the navmesh is empty");
-            }
+                            (float) Json.number(s, "climb", 0.4)));
         }
+        PhysicsBake.bakeNavmeshes(ctx, cfg, areas, links, classes, mesh, base);
+    }
+
+    /**
+     * The voxel, region and tile settings shared by every size class (the agent fields are filled
+     * per class by {@code forAgent}).
+     */
+    public static NavBakeConfig navConfig(
+            float cell,
+            float cellHeight,
+            float tileMeters,
+            float slope,
+            int minRegionArea,
+            int mergeRegionArea,
+            float maxEdgeLength,
+            float maxSimplificationError) {
+        return new NavBakeConfig(
+                cell,
+                cellHeight,
+                1.8f,
+                0.4f,
+                0.4f,
+                slope,
+                Math.max(16, Math.round(tileMeters / cell)),
+                minRegionArea,
+                mergeRegionArea,
+                maxEdgeLength,
+                maxSimplificationError,
+                6);
     }
 
     private static float[] floats(Object v, String what) {

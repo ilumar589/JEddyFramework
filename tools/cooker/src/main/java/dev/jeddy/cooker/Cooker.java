@@ -11,6 +11,7 @@ import dev.jeddy.cooker.env.EnvironmentImporter;
 import dev.jeddy.cooker.font.DefaultFontImporter;
 import dev.jeddy.cooker.font.FontImporter;
 import dev.jeddy.cooker.gltf.GltfSceneImporter;
+import dev.jeddy.cooker.level.LevelImporter;
 import dev.jeddy.cooker.lut.CubeLutImporter;
 import dev.jeddy.cooker.material.MaterialImporter;
 import dev.jeddy.cooker.physics.PhysicsImporter;
@@ -116,6 +117,7 @@ public final class Cooker implements AutoCloseable {
         return List.of(
                 new GltfSceneImporter(),
                 new PhysicsImporter(),
+                new LevelImporter(),
                 new MaterialImporter(),
                 new EnvironmentImporter(),
                 new CubeLutImporter(),

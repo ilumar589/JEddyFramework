@@ -1,6 +1,6 @@
 # Next milestones: the roadmap
 
-Milestones M0 to M12 are done (see [TASKS.md](TASKS.md)). This page is the plan for what comes
+Milestones M0 to M14 are done (see [TASKS.md](TASKS.md)). This page is the plan for what comes
 next, decided with the owner on 2026-10-11, and the reference for every option.
 
 **How the work goes.** Claude implements the milestones in the order below and asks the owner
@@ -81,7 +81,13 @@ text format (JSON, through `core.json`) that the cooker turns into the scene and
 game already loads. The editor lives in `tools/editor`, a `jeddy.application` like the demo, and
 the demo's crypt becomes its first project.
 
-**Draft tasks.** Written when M14 starts, after the UI module's shape is known.
+**Done (2026-10-11).** Shipped as planned with three changes decided with the owner when it
+started: the level file is a binary `.jlevel` of record rather than JSON (D86, the JSON is a dump
+for review), the editor is a *library* any game embeds behind F10 plus a thin `tools/editor`
+application (D88), and the panels dock over the scene rendered full-window instead of into a
+viewport texture (D88). Previews in the asset browser and the graph editor wait for M17. The
+tasks are M14-01 to M14-09 in [TASKS.md](TASKS.md); the chapter is
+[14 The level editor](learn/14-editor.md).
 
 **What you learn.** Gizmo math (ray–plane and ray–axis intersection for dragging in 3D, rotation
 by projected angles), command pattern with undo, docking layouts, rendering into a viewport, the

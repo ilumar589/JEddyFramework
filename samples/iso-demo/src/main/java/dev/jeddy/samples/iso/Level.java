@@ -1,10 +1,9 @@
 package dev.jeddy.samples.iso;
 
 import dev.jeddy.app.physics.FogOfWarFeed;
-import dev.jeddy.app.world.World;
-import dev.jeddy.asset.format.SceneData;
+import dev.jeddy.app.world.LevelLoader;
+import dev.jeddy.asset.format.LevelData;
 import dev.jeddy.core.job.JobSystem;
-import dev.jeddy.core.json.Json;
 import dev.jeddy.math.Rng;
 import dev.jeddy.physics.bvh.Bvh;
 import dev.jeddy.physics.crowd.Crowd;
@@ -18,38 +17,31 @@ import dev.jeddy.physics.vis.OcclusionGrid;
 import dev.jeddy.physics.vis.Visibility;
 import dev.jeddy.render.RenderPacket;
 
-import java.nio.charset.StandardCharsets;
-import java.util.List;
-import java.util.Map;
-
 /**
- * The crypt once its cooked data is in: the static scene in the {@link World}, collision, navmesh,
- * crowd, fog-of-war visibility, torch lights and spawn points (TASKS M10-03, M10-04).
+ * The crypt once its cooked data is in: collision, navmesh, crowd, fog-of-war visibility, and the
+ * level's lights and spawn points (TASKS M10-03, M10-04, M14-03). The placements themselves are in
+ * the world through the {@link LevelLoader}.
  *
  * <p>Thread ownership: the game thread.
  */
 final class Level {
-    static final String SCENE = "levels/crypt.jscene";
+    static final String LEVEL = "levels/crypt.jlevel";
     static final String COLLISION = "levels/crypt.jcol";
     static final String NAVMESH = "levels/crypt.medium.jnav";
     static final String OCCLUSION = "levels/crypt.jocc";
-    static final String SPAWNS = "levels/crypt.spawns.json";
 
     /** Body layer of every crowd agent (party and enemies). */
     static final int UNITS = 1;
 
-    /** Scales the cooked torch intensities (candela) to the demo's exposure. */
+    /** Scales the level's torch intensities (candela) to the demo's exposure. */
     static final float TORCH_GAIN = 2.5f;
 
-    /** Floats per torch: x, y, z, radius, r, g, b, intensity. */
-    static final int TORCH_FLOATS = 8;
-
-    final SceneData scene;
+    final LevelData data;
+    final LevelLoader loader;
     final float minX;
     final float minZ;
     final float sizeX;
     final float sizeZ;
-    final int root;
     final NavMesh nav;
     final NavMeshQuery query;
     final QueryFilter filter;
@@ -59,8 +51,6 @@ final class Level {
     final FogOfWarFeed fog;
     final float[] partySpawns;
     final float[] enemySpawns;
-    final float[] torches;
-    final int torchCount;
 
     /** Random walkable points (x, y, z each) for wandering and props. */
     final float[] walkable;
@@ -69,24 +59,25 @@ final class Level {
 
     private final float[] point = new float[3];
 
+    /**
+     * Builds the crypt's physics and systems around {@code data}, whose placements {@code loader}
+     * has put into the world (TASKS M14-03: the level is a {@code .jlevel} of prefab placements).
+     */
     Level(
-            World world,
             JobSystem jobs,
-            SceneData scene,
+            LevelData data,
+            LevelLoader loader,
             Bvh bvh,
             NavMeshData navData,
             OcclusionGrid occlusion,
-            byte[] spawnsJson,
             int maxAgents,
             long seed) {
-        this.scene = scene;
+        this.data = data;
+        this.loader = loader;
         minX = occlusion.minX();
         minZ = occlusion.minZ();
         sizeX = occlusion.width() * occlusion.cellSize();
         sizeZ = occlusion.height() * occlusion.cellSize();
-        root =
-                world.instantiate(
-                        scene, 0, 0, 0, 0, RenderPacket.FLAG_STATIC, Level::nodeFlags, true);
 
         nav = new NavMesh(navData);
         query = new NavMeshQuery(nav, 4096);
@@ -102,26 +93,8 @@ final class Level {
         visibility.setMoveThreshold(0.5f);
         fog = new FogOfWarFeed(visibility);
 
-        Map<String, Object> spawns =
-                Json.asObject(Json.parse(new String(spawnsJson, StandardCharsets.UTF_8)), "spawns");
-        partySpawns = points(spawns.get("party"));
-        enemySpawns = points(spawns.get("enemies"));
-        List<Object> lights = Json.asArray(spawns.get("lights"), "lights");
-        torchCount = lights.size();
-        torches = new float[torchCount * TORCH_FLOATS];
-        for (int i = 0; i < torchCount; i++) {
-            Map<String, Object> l = Json.asObject(lights.get(i), "light");
-            List<Object> c = Json.asArray(l.get("color"), "color");
-            int o = i * TORCH_FLOATS;
-            torches[o] = (float) Json.number(l, "x", 0);
-            torches[o + 1] = (float) Json.number(l, "y", 2);
-            torches[o + 2] = (float) Json.number(l, "z", 0);
-            torches[o + 3] = (float) Json.number(l, "radius", 8);
-            torches[o + 4] = ((Double) c.get(0)).floatValue();
-            torches[o + 5] = ((Double) c.get(1)).floatValue();
-            torches[o + 6] = ((Double) c.get(2)).floatValue();
-            torches[o + 7] = (float) Json.number(l, "intensity", 5);
-        }
+        partySpawns = spawns(data, "party");
+        enemySpawns = spawns(data, "enemy");
 
         // Sample walkable ground: random points snapped to the navmesh (wander goals, props).
         Rng rng = new Rng(seed);
@@ -141,6 +114,27 @@ final class Level {
         walkableCount = count;
     }
 
+    /** The positions (x, y, z each) of the level's spawn points of {@code kind}. */
+    private static float[] spawns(LevelData data, String kind) {
+        int n = 0;
+        for (int i = 0; i < data.spawnCount(); i++) {
+            if (kind.equals(data.spawnKind(i))) {
+                n++;
+            }
+        }
+        float[] out = new float[n * 3];
+        int k = 0;
+        for (int i = 0; i < data.spawnCount(); i++) {
+            if (kind.equals(data.spawnKind(i))) {
+                out[k * 3] = data.spawnFloat(i, 0);
+                out[k * 3 + 1] = data.spawnFloat(i, 1);
+                out[k * 3 + 2] = data.spawnFloat(i, 2);
+                k++;
+            }
+        }
+        return out;
+    }
+
     /**
      * Snaps {@code (x, y, z)} to the navmesh within {@code reach} meters horizontally; returns
      * {@code false} if there is no walkable ground that close.
@@ -153,8 +147,8 @@ final class Level {
     }
 
     /**
-     * Adds the torches, flickering with {@code time}; the {@code shadowed} torches nearest to
-     * {@code (x, z)} cast shadows (keyed by torch, so their shadow tiles persist).
+     * Adds the level's lights (torches flicker); the {@code shadowed} ones nearest to {@code (x,
+     * z)} cast shadows (keyed by light, so their shadow tiles persist).
      */
     void extractLights(RenderPacket p, float time, float x, float z, int shadowed) {
         int n = Math.min(shadowed, nearest.length);
@@ -162,10 +156,11 @@ final class Level {
             nearest[k] = -1;
             nearestD2[k] = Float.MAX_VALUE;
         }
-        for (int i = 0; i < torchCount; i++) {
-            int o = i * TORCH_FLOATS;
-            float dx = torches[o] - x;
-            float dz = torches[o + 2] - z;
+        float[] d = data.lightData();
+        for (int i = 0; i < data.lightCount(); i++) {
+            int o = i * LevelData.LIGHT_FLOATS;
+            float dx = d[o] - x;
+            float dz = d[o + 2] - z;
             float d2 = dx * dx + dz * dz;
             for (int k = 0; k < n; k++) {
                 if (d2 < nearestD2[k]) {
@@ -179,26 +174,10 @@ final class Level {
                 }
             }
         }
-        for (int i = 0; i < torchCount; i++) {
-            int o = i * TORCH_FLOATS;
-            float flicker =
-                    0.85f
-                            + 0.1f * (float) Math.sin(time * 9.1f + i * 1.7f)
-                            + 0.05f * (float) Math.sin(time * 23.3f + i * 4.1f);
-            int light =
-                    p.addPointLight(
-                            torches[o],
-                            torches[o + 1],
-                            torches[o + 2],
-                            torches[o + 3],
-                            torches[o + 4],
-                            torches[o + 5],
-                            torches[o + 6],
-                            torches[o + 7] * TORCH_GAIN * flicker);
-            for (int k = 0; k < n; k++) {
-                if (nearest[k] == i) {
-                    p.setLightShadow(light, SHADOW_KEY_TORCHES + i);
-                }
+        int first = loader.extractLights(p, time, TORCH_GAIN);
+        for (int k = 0; k < n; k++) {
+            if (nearest[k] >= 0) {
+                p.setLightShadow(first + nearest[k], SHADOW_KEY_TORCHES + nearest[k]);
             }
         }
     }
@@ -208,32 +187,4 @@ final class Level {
 
     private final int[] nearest = new int[4];
     private final float[] nearestD2 = new float[4];
-
-    /**
-     * Render flags per crypt node: floors only receive, walls and pillars cast shadows and fade
-     * when they hide the party, props cast shadows.
-     */
-    private static int nodeFlags(String name, int flags) {
-        if (name.startsWith("floor_")) {
-            return RenderPacket.FLAG_STATIC;
-        }
-        if (name.startsWith("wall_")) {
-            return RenderPacket.FLAG_STATIC
-                    | RenderPacket.FLAG_CASTS_SHADOW
-                    | RenderPacket.FLAG_FADE_OCCLUDER;
-        }
-        return RenderPacket.FLAG_STATIC | RenderPacket.FLAG_CASTS_SHADOW;
-    }
-
-    private static float[] points(Object value) {
-        List<Object> list = Json.asArray(value, "points");
-        float[] out = new float[list.size() * 3];
-        for (int i = 0; i < list.size(); i++) {
-            List<Object> p = Json.asArray(list.get(i), "point");
-            for (int k = 0; k < 3; k++) {
-                out[i * 3 + k] = ((Double) p.get(k)).floatValue();
-            }
-        }
-        return out;
-    }
 }

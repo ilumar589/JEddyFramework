@@ -33,6 +33,7 @@ background loading) and the app loop (30 Hz simulation, interpolated rendering, 
 | Space | pause (simulation stops; orders can still be given) |
 | F3 | profiler overlay (CPU threads, GPU passes) |
 | F12 | screenshot to `build/screenshots` |
+| F10 | the level editor over the running game (click selects, W/E/R gizmos, right drag orbits, Ctrl+Z, Ctrl+S saves `assets/levels/crypt.jlevel`; `--editor` opens it at start) |
 | Esc | cancel aiming, else quit |
 
 ## Performance capture
@@ -54,15 +55,19 @@ in [docs/perf/m10.md](../../docs/perf/m10.md).
 
 ## Assets
 
-- `assets/levels/crypt.glb`, `assets/characters/*.glb` and the animation libraries
+- `assets/levels/dungeon.glb` (the prefab library: one root node per dungeon piece),
+  `assets/levels/crypt.jlevel` (the level: placements of those prefabs, torches, spawn points,
+  collision rules and navmesh settings, [format](../../docs/formats/jlevel.md)),
+  `assets/characters/*.glb` and the animation libraries
   `assets/characters/anims/{heroes,skeletons}.glb` (each rig's nodes and the clips the demo plays)
   are built by `tools/kaykit.py` from the
   [KayKit](https://github.com/KayKit-Game-Assets) Dungeon Remastered, Adventurers and Skeletons packs by Kay
   Lousberg (CC0), fetched at pinned commits (`KAYKIT-LICENSE.txt`). The level layout is the ASCII
-  map at the top of the script; node-name prefixes (`floor_`, `wall_`, `prop_`, `decor_`) drive
-  collision, navmesh, camera fading and shadows (`crypt.physics.json`).
+  map at the top of the script; placement layers (`floor`, `wall`, `prop`, `decor`) drive
+  collision, navmesh, camera fading and shadows through the level's rules. The editor (M14) edits
+  the `.jlevel` in place.
 - `assets/audio/*.wav` are synthesized by `tools/sounds.py`.
 - `assets/models/yard.*`, `textures/`, `materials/` and `shaders/` are the procedural assets of the
   asset pipeline checks (`tools/generate_assets.py`).
 
-Characters stand in their bind pose: there is no animation module yet (backlog).
+Characters are animated by the `animation` module (M12): idle, walk, run, attack and hit clips from the KayKit libraries, blended per character.
