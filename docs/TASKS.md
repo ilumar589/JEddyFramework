@@ -32,6 +32,7 @@ graph LR
   M11 --> M12[M12 Animation]
   M12 --> M13[M13 UI]
   M13 --> M14[M14 Editor]
+  M14 --> M15[M15 Rules]
 ```
 
 **Parallel tracks after M1:** A: platform → GL → render (M2, M3, M5, M7) · B: physics/nav (M8) · C: assets (M4, M6) · D: audio (M9).
@@ -196,7 +197,17 @@ The tracks are *mostly* independent. Dotted edges are the few late cross-track d
 - [x] **M13-08** Docs: learning chapter 13, `ui` README, DESIGN §18 final, README table, Javadoc site · S · Deps: M13-07 · *[docs/learn/13-ui.md](learn/13-ui.md), the getting-started section, the game template's substitution list*
 
 ## M14: Editor (§19)
-Planned after M13 (next-milestones.md): level editing with gizmos and undo, live entity inspector, asset browser and previews, in `tools/editor`.
+The editor as a library any game embeds, plus a standalone tool; levels become `.jlevel` compositions of prefabs the cooker bakes physics from.
+
+- [ ] **M14-01** Design and plan: DESIGN §19, D86–D90, [formats/jlevel.md](formats/jlevel.md), this milestone · S
+- [ ] **M14-02** `.jlevel`: `LevelData` in `asset` (mutable SoA store with stable ids: prefabs, placements, lights, spawns, triggers, nav areas and links, collision rules, size classes, settings; `read`, `toBytes`, a JSON dump); round-trip, validation and id tests · M · Deps: M14-01
+- [ ] **M14-03** Runtime: `World.instantiateNode` (a named root's subtree), `LevelLoader` in `app` (loads the level and its prefab scenes, instantiates placements, maps ids to entities, exposes lights, spawns and triggers, feeds the packet); `kaykit.py` writes `levels/dungeon.glb` (one root per piece) and `levels/crypt.jlevel`; the demo loads the crypt from it; tests · L · Deps: M14-02
+- [ ] **M14-04** Cooker: `PhysicsBake` shared by `PhysicsImporter` and the new `LevelImporter` (prefab triangles composed with placement transforms, flags from the level's rules by layer, dependencies on the prefab glTFs, the `.jlevel` copied through); tests on a two-placement level · M · Deps: M14-02
+- [ ] **M14-05** `editor` core: `Editor` controller, `EditorContext`, `UndoStack` and the commands (move/rotate/scale, add, delete, duplicate, rename, set field), `Selection`, world sync (a moved placement moves its entities), save and load; command tests with undo/redo and an allocation test of an idle frame · L · Deps: M14-03
+- [ ] **M14-06** Viewport: picking (renderable bounding spheres, light and spawn markers, box selection), translate/rotate/scale gizmos drawn with debug lines and solved by ray–axis, ray–plane and projected angles, snapping, the editor camera (orbit, pan, zoom, frame selection) in the uncovered region, keyboard shortcuts; math tests against hand-computed drags · L · Deps: M14-05
+- [ ] **M14-07** Panels: `Dock` (edge zones, tabs, splitters, persisted layout), Outliner, Inspector (property grid; multi-selection), Entities (live world), Assets (cooked tree, filter, prefab and texture previews), Console (log and commands), Settings; the `ui` additions (menu bar, splitter, number/vector/color fields, list box, property rows) with tests · L · Deps: M14-05
+- [ ] **M14-08** Apps: the iso demo embeds the editor behind F10; `tools/editor` (project = assets dir + cooked output, open/save level, the cooker's watch mode in a thread, console report), packaged like the demo; CI opens the crypt headless for a few frames · M · Deps: M14-06, M14-07
+- [ ] **M14-09** Docs: learning chapter 14 (the level format, commands with undo, picking and gizmo math derived, docking), `editor` README, DESIGN §19 final, getting-started section, README table · S · Deps: M14-08
 
 ## Backlog (unscheduled)
 Each item is described, with a draft task list, in [next-milestones.md](next-milestones.md).
