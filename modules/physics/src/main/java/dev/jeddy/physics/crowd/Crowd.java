@@ -1,6 +1,8 @@
 package dev.jeddy.physics.crowd;
 
 import dev.jeddy.core.collections.IntList;
+import dev.jeddy.core.io.ByteReader;
+import dev.jeddy.core.io.ByteWriter;
 import dev.jeddy.core.job.JobKernel;
 import dev.jeddy.core.job.JobSystem;
 import dev.jeddy.core.pool.PerWorker;
@@ -301,8 +303,14 @@ public final class Crowd {
         if (i < 0) {
             return -1;
         }
-        active[i] = true;
         setParams(i, p);
+        place(i, x, y, z);
+        return i;
+    }
+
+    /** Activates slot {@code i} at the navmesh point nearest {@code (x, y, z)}; params are set. */
+    private void place(int i, float x, float y, float z) {
+        active[i] = true;
         Scratch s = scratch.get(0);
         int ref =
                 s.query.findNearestPoly(
@@ -323,7 +331,6 @@ public final class Crowd {
         cornerCount[i] = 0;
         queued[i] = false;
         bodies.addCylinder(i, x, y, z, radius[i], height[i], 1);
-        return i;
     }
 
     /** Copies new settings to agent {@code i}. */
@@ -417,6 +424,109 @@ public final class Crowd {
     public void resetMoveTarget(int i) {
         targetState[i] = TARGET_NONE;
         corridors[i].reset(corridors[i].firstPoly(), px[i], py[i], pz[i]);
+    }
+
+    // ---- Saves (DESIGN §21) -------------------------------------------------------------------
+
+    /**
+     * Writes every active agent in its slot: position, velocity, parameters and the move target
+     * (saves). The corridor is not written: {@link #read} re-requests the target and the path is
+     * solved again. Allocates nothing.
+     */
+    public void write(ByteWriter w) {
+        int n = 0;
+        for (int i = 0; i < capacity; i++) {
+            if (active[i]) {
+                n++;
+            }
+        }
+        w.int32(capacity);
+        w.int32(n);
+        for (int i = 0; i < capacity; i++) {
+            if (!active[i]) {
+                continue;
+            }
+            w.int32(i);
+            w.float32(px[i]);
+            w.float32(py[i]);
+            w.float32(pz[i]);
+            w.float32(vx[i]);
+            w.float32(vz[i]);
+            w.float32(radius[i]);
+            w.float32(height[i]);
+            w.float32(maxSpeed[i]);
+            w.float32(maxAccel[i]);
+            w.float32(queryRange[i]);
+            w.float32(optRange[i]);
+            w.float32(sepWeight[i]);
+            w.float32(arrival[i]);
+            w.int32(flags[i]);
+            w.int32(filterIndex[i]);
+            w.int32(targetState[i]);
+            w.float32(tx[i]);
+            w.float32(ty[i]);
+            w.float32(tz[i]);
+            w.float32(reqVx[i]);
+            w.float32(reqVz[i]);
+        }
+    }
+
+    /**
+     * Reads what {@link #write} wrote: every current agent is removed, the saved ones are placed in
+     * their slots (so the indices the game holds stay valid) and their targets are requested again.
+     * A slot past this crowd's capacity is skipped. Allocates nothing.
+     */
+    public void read(ByteReader r) {
+        for (int i = 0; i < capacity; i++) {
+            removeAgent(i);
+            queued[i] = false;
+        }
+        queueHead = 0; // pending requests belonged to the agents just removed
+        queueCount = 0;
+        r.int32(); // the saved capacity, informative
+        int n = r.int32();
+        for (int k = 0; k < n; k++) {
+            int i = r.int32();
+            float x = r.float32();
+            float y = r.float32();
+            float z = r.float32();
+            float velX = r.float32();
+            float velZ = r.float32();
+            boolean fits = i >= 0 && i < capacity;
+            if (fits) {
+                radius[i] = r.float32();
+                height[i] = r.float32();
+                maxSpeed[i] = r.float32();
+                maxAccel[i] = r.float32();
+                queryRange[i] = r.float32();
+                optRange[i] = r.float32();
+                sepWeight[i] = r.float32();
+                arrival[i] = r.float32();
+                flags[i] = r.int32();
+                filterIndex[i] = Math.clamp(r.int32(), 0, filters.length - 1);
+                filter(filterIndex[i]);
+                place(i, x, y, z);
+                vx[i] = velX;
+                vz[i] = velZ;
+            } else {
+                r.skip(8 * 4 + 2 * 4);
+            }
+            int target = r.int32();
+            float targetX = r.float32();
+            float targetY = r.float32();
+            float targetZ = r.float32();
+            float requestedVx = r.float32();
+            float requestedVz = r.float32();
+            if (!fits) {
+                continue;
+            }
+            switch (target) {
+                case TARGET_VALID, TARGET_REQUESTING, TARGET_ARRIVED, TARGET_FAILED ->
+                        requestMoveTarget(i, targetX, targetY, targetZ);
+                case TARGET_VELOCITY -> requestMoveVelocity(i, requestedVx, requestedVz);
+                default -> {}
+            }
+        }
     }
 
     /** Returns whether slot {@code i} holds an agent. */

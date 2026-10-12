@@ -2,6 +2,10 @@ package dev.jeddy.rules;
 
 import dev.jeddy.asset.format.RulesSchema;
 import dev.jeddy.core.collections.IntList;
+import dev.jeddy.core.io.ByteReader;
+import dev.jeddy.core.io.ByteWriter;
+import dev.jeddy.core.log.Log;
+import dev.jeddy.core.log.Logger;
 import dev.jeddy.math.Dice;
 import dev.jeddy.math.Rng;
 
@@ -18,6 +22,8 @@ import dev.jeddy.math.Rng;
  * <p>Thread ownership: the game thread.
  */
 public final class Rules {
+    private static final Logger LOG = Log.logger("rules");
+
     /** Saving throws, as {@link RulesSchema#SAVES} and the {@code saveKind} parameters: 1, 2, 3. */
     public static final int SAVE_FORTITUDE = 1;
 
@@ -113,6 +119,12 @@ public final class Rules {
      */
     public int buildCharacter(int characterRow, int team) {
         int c = creatures.create(content.name(RulesSchema.CHARACTERS, characterRow), team);
+        fillCharacter(c, characterRow);
+        return c;
+    }
+
+    /** Fills a freshly created creature {@code c} from character template {@code characterRow}. */
+    public void fillCharacter(int c, int characterRow) {
         creatures.setCharacterRow(c, characterRow);
         for (int a = 0; a < 6; a++) {
             creatures.setBaseAbility(c, a, content.characterAbility(characterRow, a));
@@ -148,12 +160,17 @@ public final class Rules {
                 c,
                 false);
         creatures.setHp(c, creatures.stat(c, Stat.MAX_HP));
-        return c;
     }
 
     /** Creates a creature from a monster stat block; it dies at 0 hit points. */
     public int buildMonster(int monsterRow, int team) {
         int c = creatures.create(content.name(RulesSchema.MONSTERS, monsterRow), team);
+        fillMonster(c, monsterRow);
+        return c;
+    }
+
+    /** Fills a freshly created creature {@code c} from monster stat block {@code monsterRow}. */
+    public void fillMonster(int c, int monsterRow) {
         creatures.setMonsterRow(c, monsterRow);
         for (int a = 0; a < 6; a++) {
             creatures.setBaseAbility(c, a, content.monsterAbility(monsterRow, a));
@@ -199,7 +216,6 @@ public final class Rules {
                 false);
         creatures.setDiesAtZero(c, true);
         creatures.setHp(c, creatures.stat(c, Stat.MAX_HP));
-        return c;
     }
 
     private void applyAncestry(int c, int row) {
@@ -935,5 +951,274 @@ public final class Rules {
     /** Rolls initiative for {@code c}: {@code d20 + initiative}. */
     public int rollInitiative(int c) {
         return rng.d20() + creatures.stat(c, Stat.INITIATIVE);
+    }
+
+    // ---- Saves (DESIGN §21, D115) -------------------------------------------------------------
+
+    private static final int SAVED_BLANK = 0;
+    private static final int SAVED_CHARACTER = 1;
+    private static final int SAVED_MONSTER = 2;
+    private final long[] rngState = new long[4];
+
+    /**
+     * Writes the generator and every live creature at its handle: its team and name, the id of the
+     * character or monster it was built from (or, for a creature made by hand, its base fields),
+     * and the dynamic state a rebuild would not recreate: hit points, temporary hit points, spell
+     * slots used, attacks of opportunity used, whether it acted, the feats and spells it knows and
+     * its equipment (as ids), the active conditions (id and rounds) and the modifiers whose source
+     * is not rebuilt (spells, the game's own, and everything but conditions on a creature made by
+     * hand). Content rows are never written: a rulebook edit renumbers them.
+     */
+    public void write(ByteWriter w) {
+        rng.saveState(rngState);
+        w.longs(rngState);
+        w.int32(creatures.liveCount());
+        int top = creatures.highWaterMark();
+        for (int c = 0; c < top; c++) {
+            if (!creatures.isAlive(c)) {
+                continue;
+            }
+            w.int32(c);
+            w.int32(creatures.team(c));
+            w.string(creatures.name(c));
+            int characterRow = creatures.characterRow(c);
+            int monsterRow = creatures.monsterRow(c);
+            boolean content = characterRow >= 0 || monsterRow >= 0;
+            if (characterRow >= 0) {
+                w.int8(SAVED_CHARACTER);
+                w.string(this.content.id(RulesSchema.CHARACTERS, characterRow));
+            } else if (monsterRow >= 0) {
+                w.int8(SAVED_MONSTER);
+                w.string(this.content.id(RulesSchema.MONSTERS, monsterRow));
+            } else {
+                w.int8(SAVED_BLANK);
+                for (int a = 0; a < 6; a++) {
+                    w.int32(creatures.baseAbility(c, a));
+                }
+                w.int32(creatures.level(c));
+                w.int32(creatures.baseAttackBonus(c));
+                for (int k = 0; k < 3; k++) {
+                    w.int32(creatures.baseSave(c, k));
+                }
+                w.int32(creatures.baseMaxHp(c));
+                w.int32(creatures.size(c));
+                w.int32(creatures.baseSpeed(c));
+                w.int32(creatures.casting(c));
+                w.int32(creatures.castingAbility(c));
+                w.bool(creatures.diesAtZero(c));
+            }
+            w.int32(creatures.hp(c));
+            w.int32(creatures.tempHp(c));
+            w.int32(creatures.tempHpRounds(c));
+            for (int l = 0; l < Creatures.SPELL_LEVELS; l++) {
+                w.int32(creatures.slotsUsed(c, l));
+            }
+            w.int32(creatures.aooUsed(c));
+            w.bool(creatures.acted(c));
+            writeIds(w, RulesSchema.FEATS, creatures.feats(c));
+            writeIds(w, RulesSchema.SPELLS, creatures.spells(c));
+            for (int slot = 0; slot < Creatures.SLOTS; slot++) {
+                int item = creatures.equipment(c, slot);
+                w.string(item < 0 ? "" : this.content.id(RulesSchema.ITEMS, item));
+            }
+            IntList conds = creatures.conditionHandles(c);
+            w.int32(conds.size());
+            for (int i = 0; i < conds.size(); i++) {
+                int h = conds.get(i);
+                w.string(this.content.id(RulesSchema.CONDITIONS, conditions.condition(h)));
+                w.int32(conditions.rounds(h));
+            }
+            IntList mods = creatures.modifierHandles(c);
+            int kept = 0;
+            for (int i = 0; i < mods.size(); i++) {
+                if (keptInSave(mods.get(i), content)) {
+                    kept++;
+                }
+            }
+            w.int32(kept);
+            for (int i = 0; i < mods.size(); i++) {
+                int h = mods.get(i);
+                if (!keptInSave(h, content)) {
+                    continue;
+                }
+                w.int32(modifiers.stat(h));
+                w.int32(modifiers.type(h));
+                w.int32(modifiers.value(h));
+                int source = modifiers.source(h);
+                int kind = Modifiers.sourceKind(source);
+                w.int32(kind);
+                RulesSchema.Kind table = sourceTable(kind);
+                if (table != null) {
+                    w.string(this.content.id(table, Modifiers.sourceId(source)));
+                } else {
+                    w.int32(Modifiers.sourceId(source));
+                }
+                w.int32(modifiers.rounds(h));
+            }
+        }
+    }
+
+    private void writeIds(ByteWriter w, RulesSchema.Kind kind, IntList rows) {
+        w.int32(rows.size());
+        for (int i = 0; i < rows.size(); i++) {
+            w.string(content.id(kind, rows.get(i)));
+        }
+    }
+
+    /**
+     * Whether a modifier is written: conditions never (re-applied), content sources only for a
+     * creature made by hand.
+     */
+    private boolean keptInSave(int h, boolean contentBuilt) {
+        int kind = Modifiers.sourceKind(modifiers.source(h));
+        if (kind == Modifiers.SOURCE_CONDITION) {
+            return false;
+        }
+        if (!contentBuilt) {
+            return true;
+        }
+        return switch (kind) {
+            case Modifiers.SOURCE_CHARACTER,
+                    Modifiers.SOURCE_CLASS,
+                    Modifiers.SOURCE_ANCESTRY,
+                    Modifiers.SOURCE_FEAT,
+                    Modifiers.SOURCE_ITEM,
+                    Modifiers.SOURCE_MONSTER ->
+                    false;
+            default -> true;
+        };
+    }
+
+    /** The content table a modifier source's id indexes, or {@code null} for a plain number. */
+    private static RulesSchema.Kind sourceTable(int kind) {
+        return switch (kind) {
+            case Modifiers.SOURCE_FEAT -> RulesSchema.FEATS;
+            case Modifiers.SOURCE_CLASS -> RulesSchema.CLASS_FEATURES;
+            case Modifiers.SOURCE_ANCESTRY -> RulesSchema.ANCESTRIES;
+            case Modifiers.SOURCE_SPELL -> RulesSchema.SPELLS;
+            case Modifiers.SOURCE_MONSTER -> RulesSchema.MONSTERS;
+            case Modifiers.SOURCE_CHARACTER -> RulesSchema.CHARACTERS;
+            default -> null;
+        };
+    }
+
+    /**
+     * Reads what {@link #write} wrote: every creature is removed, each saved one is created at its
+     * handle, rebuilt from the <em>current</em> content (a patched stat block comes back patched)
+     * and then given its saved state. A saved id the content no longer has is skipped with a
+     * warning (a feat removed in a patch is simply not known any more). Conditions are re-applied
+     * through {@link #applyCondition}, so their effects and events happen as they would in play.
+     */
+    public void read(ByteReader r) {
+        creatures.clear();
+        int n = r.longsInto(rngState);
+        if (n == 4) {
+            rng.restoreState(rngState);
+        }
+        int count = r.int32();
+        for (int k = 0; k < count; k++) {
+            int c = r.int32();
+            int team = r.int32();
+            String name = r.string();
+            creatures.createAt(c, name, team);
+            int kind = r.int8();
+            switch (kind) {
+                case SAVED_CHARACTER -> {
+                    String id = r.string();
+                    int row = content.find(RulesSchema.CHARACTERS, id);
+                    if (row >= 0) {
+                        fillCharacter(c, row);
+                    } else {
+                        LOG.warn("save names character " + id + ", which the content lacks");
+                    }
+                }
+                case SAVED_MONSTER -> {
+                    String id = r.string();
+                    int row = content.find(RulesSchema.MONSTERS, id);
+                    if (row >= 0) {
+                        fillMonster(c, row);
+                    } else {
+                        LOG.warn("save names monster " + id + ", which the content lacks");
+                    }
+                }
+                default -> {
+                    for (int a = 0; a < 6; a++) {
+                        creatures.setBaseAbility(c, a, r.int32());
+                    }
+                    creatures.setLevel(c, r.int32());
+                    creatures.setBaseAttackBonus(c, r.int32());
+                    for (int s = 0; s < 3; s++) {
+                        creatures.setBaseSave(c, s, r.int32());
+                    }
+                    creatures.setBaseMaxHp(c, r.int32());
+                    creatures.setSize(c, r.int32());
+                    creatures.setBaseSpeed(c, r.int32());
+                    int casting = r.int32();
+                    creatures.setCasting(c, casting, r.int32());
+                    creatures.setDiesAtZero(c, r.bool());
+                }
+            }
+            creatures.setName(c, name);
+            int hp = r.int32();
+            int tempHp = r.int32();
+            int tempHpRounds = r.int32();
+            for (int l = 0; l < Creatures.SPELL_LEVELS; l++) {
+                creatures.setSlotsUsed(c, l, r.int32());
+            }
+            creatures.setAooUsed(c, r.int32());
+            creatures.setActed(c, r.bool());
+            int feats = r.int32();
+            for (int i = 0; i < feats; i++) {
+                int row = content.find(RulesSchema.FEATS, r.string());
+                if (row >= 0) {
+                    learnFeat(c, row);
+                }
+            }
+            int spells = r.int32();
+            for (int i = 0; i < spells; i++) {
+                int row = content.find(RulesSchema.SPELLS, r.string());
+                if (row >= 0 && !creatures.spells(c).contains(row)) {
+                    creatures.spells(c).add(row);
+                }
+            }
+            for (int slot = 0; slot < Creatures.SLOTS; slot++) {
+                String id = r.string();
+                int row = id.isEmpty() ? -1 : content.find(RulesSchema.ITEMS, id);
+                if (row != creatures.equipment(c, slot)) {
+                    equip(c, slot, row);
+                }
+            }
+            int conds = r.int32();
+            for (int i = 0; i < conds; i++) {
+                String id = r.string();
+                int rounds = r.int32();
+                int row = content.find(RulesSchema.CONDITIONS, id);
+                if (row >= 0) {
+                    applyCondition(c, row, rounds);
+                }
+            }
+            int mods = r.int32();
+            for (int i = 0; i < mods; i++) {
+                int stat = r.int32();
+                int type = r.int32();
+                int value = r.int32();
+                int sourceKind = r.int32();
+                RulesSchema.Kind table = sourceTable(sourceKind);
+                int sourceId;
+                if (table != null) {
+                    sourceId = content.find(table, r.string());
+                } else {
+                    sourceId = r.int32();
+                }
+                int rounds = r.int32();
+                if (sourceId >= 0) {
+                    creatures.addModifier(
+                            c, stat, type, value, Modifiers.source(sourceKind, sourceId), rounds);
+                }
+            }
+            // Last, since the rebuild and the equipment set hit points to the maximum.
+            creatures.setHp(c, hp);
+            creatures.setTempHp(c, tempHp, tempHpRounds);
+        }
     }
 }

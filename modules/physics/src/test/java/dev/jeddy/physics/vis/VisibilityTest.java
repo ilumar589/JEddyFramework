@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.jeddy.core.io.ByteReader;
+import dev.jeddy.core.io.ByteWriter;
 import dev.jeddy.core.job.JobSystem;
 import dev.jeddy.physics.bvh.Bvh;
 import dev.jeddy.physics.bvh.BvhBuilder;
@@ -172,5 +174,40 @@ class VisibilityTest {
                     "fog of war, 12 moving viewers (r 20 m, 0.5 m cells), 400² grid: %.2f ms%n",
                     (System.nanoTime() - t0) / 50 / 1e6);
         }
+    }
+
+    @Test
+    void aSaveRestoresWhatWasExploredAndTheViewersRescan() {
+        OcclusionGrid g = new OcclusionGrid(0, 0, 1, 100, 100);
+        Visibility v = new Visibility(g, null);
+        v.setViewer(1, 20.5f, 20.5f, 8);
+        v.update();
+        v.setViewer(1, 70.5f, 70.5f, 8);
+        v.update();
+        assertTrue(v.isExplored(20, 20) && v.isExplored(70, 70));
+        assertFalse(v.isVisible(20, 20));
+        ByteWriter w = new ByteWriter();
+        Allocations.assertNoAllocation(
+                "visibility write",
+                () -> {
+                    w.reset();
+                    v.write(w);
+                });
+        Visibility loaded = new Visibility(new OcclusionGrid(0, 0, 1, 100, 100), null);
+        loaded.setViewer(1, 70.5f, 70.5f, 8);
+        assertEquals(1, loaded.update());
+        assertTrue(loaded.read(new ByteReader(w.toBytes())));
+        assertTrue(loaded.isExplored(20, 20), "the old exploration came back");
+        assertTrue(loaded.isExplored(70, 70));
+        assertEquals(1, loaded.update(), "the viewer rescanned without moving");
+        assertTrue(loaded.isVisible(70, 70));
+        assertFalse(loaded.isVisible(20, 20));
+        // A grid of another size: the bits are skipped, the exploration cleared.
+        Visibility other = new Visibility(new OcclusionGrid(0, 0, 1, 50, 50), null);
+        other.exploreAll();
+        ByteReader r = new ByteReader(w.toBytes());
+        assertFalse(other.read(r));
+        assertFalse(other.isExplored(10, 10));
+        assertFalse(r.hasRemaining(), "the whole record was consumed");
     }
 }

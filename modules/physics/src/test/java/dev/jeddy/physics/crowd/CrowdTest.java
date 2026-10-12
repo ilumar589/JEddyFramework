@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.jeddy.core.io.ByteReader;
+import dev.jeddy.core.io.ByteWriter;
 import dev.jeddy.core.job.JobSystem;
 import dev.jeddy.physics.bvh.TriFlags;
 import dev.jeddy.physics.bvh.TriangleMesh;
@@ -269,6 +271,82 @@ class CrowdTest {
                         }
                         c.update(DT);
                     });
+        }
+    }
+
+    @Test
+    void aSaveRestoresAgentsInTheirSlotsAndTheirTargets() {
+        Crowd c = new Crowd(new NavMesh(room), 8, 0, 0, 20, 20, null);
+        AgentParams fast = new AgentParams();
+        fast.maxSpeed = 5;
+        fast.radius = 0.3f;
+        fast.flags = AgentParams.AVOIDANCE;
+        int a = c.addAgent(2, 0, 10, new AgentParams());
+        int b = c.addAgent(2, 0, 4, fast);
+        int gone = c.addAgent(2, 0, 16, new AgentParams());
+        c.removeAgent(gone);
+        int d = c.addAgent(16, 0, 16, new AgentParams()); // takes the freed slot: slot 2
+        assertEquals(gone, d);
+        assertTrue(c.requestMoveTarget(a, 18, 0, 10));
+        c.requestMoveVelocity(d, -1, 0);
+        step(c, 45); // a is on its way around the block, d is drifting
+        float ax = c.x(a);
+        float az = c.z(a);
+        float avx = c.velocityX(a);
+        float dx = c.x(d);
+        ByteWriter w = new ByteWriter();
+        Allocations.assertNoAllocation(
+                "crowd write",
+                () -> {
+                    w.reset();
+                    c.write(w);
+                });
+        // A fresh crowd of the same capacity (another run); plus one stray agent it must drop.
+        Crowd loaded = new Crowd(new NavMesh(room), 8, 0, 0, 20, 20, null);
+        loaded.addAgent(5, 0, 5, new AgentParams());
+        loaded.addAgent(6, 0, 6, new AgentParams());
+        ByteReader r = new ByteReader(w.toBytes());
+        Allocations.assertNoAllocation(
+                "crowd read",
+                10,
+                50,
+                () -> {
+                    r.seek(0);
+                    loaded.read(r);
+                });
+        assertTrue(loaded.isActive(a) && loaded.isActive(b) && loaded.isActive(d));
+        for (int i = 3; i < 8; i++) {
+            assertTrue(!loaded.isActive(i), "slot " + i + " is empty again");
+        }
+        assertEquals(ax, loaded.x(a), 1e-4f);
+        assertEquals(az, loaded.z(a), 1e-4f);
+        assertEquals(avx, loaded.velocityX(a), 1e-4f);
+        assertEquals(5, loaded.maxSpeed(b));
+        assertEquals(0.3f, loaded.radius(b));
+        assertEquals(Crowd.TARGET_REQUESTING, loaded.targetState(a), "the target was re-requested");
+        assertEquals(Crowd.TARGET_VELOCITY, loaded.targetState(d));
+        assertEquals(Crowd.TARGET_NONE, loaded.targetState(b));
+        assertEquals(dx, loaded.x(d), 1e-4f);
+        // The loaded agent completes the same walk.
+        int ticks = 0;
+        while (loaded.targetState(a) != Crowd.TARGET_ARRIVED && ticks < 30 * 15) {
+            loaded.update(DT);
+            ticks++;
+        }
+        assertEquals(Crowd.TARGET_ARRIVED, loaded.targetState(a));
+        assertEquals(18, loaded.x(a), 0.15f);
+        assertTrue(loaded.x(d) < dx, "d kept drifting at its requested velocity");
+        // A save from a bigger crowd: the slots past this capacity are skipped, the rest load.
+        Crowd big = new Crowd(new NavMesh(room), 16, 0, 0, 20, 20, null);
+        for (int i = 0; i < 12; i++) {
+            big.addAgent(1 + i, 0, 2, new AgentParams());
+        }
+        ByteWriter w2 = new ByteWriter();
+        big.write(w2);
+        loaded.read(new ByteReader(w2.toBytes()));
+        for (int i = 0; i < 8; i++) {
+            assertTrue(loaded.isActive(i));
+            assertEquals(1 + i, loaded.x(i), 0.2f);
         }
     }
 }

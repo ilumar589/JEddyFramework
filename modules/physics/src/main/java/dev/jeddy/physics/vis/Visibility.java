@@ -1,5 +1,7 @@
 package dev.jeddy.physics.vis;
 
+import dev.jeddy.core.io.ByteReader;
+import dev.jeddy.core.io.ByteWriter;
 import dev.jeddy.core.job.JobKernel;
 import dev.jeddy.core.job.JobSystem;
 
@@ -265,6 +267,41 @@ public final class Visibility {
     /** Returns the explored bitset (save games): {@code wordsPerRow × height} words. */
     public long[] exploredBits() {
         return explored;
+    }
+
+    /**
+     * Writes the grid's size and the explored bits (saves; the visible bits are recomputed by the
+     * next {@link #update}). Allocates nothing.
+     */
+    public void write(ByteWriter w) {
+        w.int32(grid.width());
+        w.int32(grid.height());
+        w.longs(explored);
+    }
+
+    /**
+     * Reads what {@link #write} wrote. A save from a grid of another size (the level's occlusion
+     * grid was re-cooked) is skipped and the exploration cleared, since its bits would land on the
+     * wrong cells. Returns whether the bits were taken. Marks every viewer dirty so the next update
+     * recomputes the visible bits.
+     */
+    public boolean read(ByteReader r) {
+        int width = r.int32();
+        int height = r.int32();
+        int n = r.int32();
+        boolean fits = width == grid.width() && height == grid.height() && n == explored.length;
+        if (!fits) {
+            r.skip(8 * n);
+            clearExplored();
+        } else {
+            for (int i = 0; i < n; i++) {
+                explored[i] = r.int64();
+            }
+        }
+        for (int v = 0; v < viewerCount; v++) {
+            cachedVersion[v] = Integer.MIN_VALUE; // every viewer rescans
+        }
+        return fits;
     }
 
     /**

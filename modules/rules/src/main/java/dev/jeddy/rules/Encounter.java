@@ -1,6 +1,8 @@
 package dev.jeddy.rules;
 
 import dev.jeddy.core.collections.IntList;
+import dev.jeddy.core.io.ByteReader;
+import dev.jeddy.core.io.ByteWriter;
 
 /**
  * A fight (DESIGN §20, D100): the participants in initiative order, rounds and turns, each
@@ -333,6 +335,46 @@ public final class Encounter {
             order.set(j + 1, c);
             initiative.set(j + 1, init);
             joined.set(j + 1, seq);
+        }
+    }
+
+    // ---- Saves (DESIGN §21) -------------------------------------------------------------------
+
+    /**
+     * Writes the fight: the order with initiatives and join sequence (creature handles, which a
+     * load restores at the same handles through {@link Rules#read}), the round, the turn, whether
+     * it is active, and every creature's action budget. Allocates nothing.
+     */
+    public void write(ByteWriter w) {
+        w.bool(active);
+        w.int32(round);
+        w.int32(turnIndex);
+        w.bool(currentLeft);
+        w.int32(joinCounter);
+        w.ints(order.array(), order.size());
+        w.ints(initiative.array(), initiative.size());
+        w.ints(joined.array(), joined.size());
+        budget.write(w, rules.creatures().highWaterMark());
+    }
+
+    /** Reads what {@link #write} wrote, replacing the fight in progress. */
+    public void read(ByteReader r) {
+        active = r.bool();
+        round = r.int32();
+        turnIndex = r.int32();
+        currentLeft = r.bool();
+        joinCounter = r.int32();
+        readList(r, order);
+        readList(r, initiative);
+        readList(r, joined);
+        budget.read(r);
+    }
+
+    private static void readList(ByteReader r, IntList into) {
+        into.clear();
+        int n = r.int32();
+        for (int i = 0; i < n; i++) {
+            into.add(r.int32());
         }
     }
 }

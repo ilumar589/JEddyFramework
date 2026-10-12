@@ -171,6 +171,40 @@ public final class Creatures {
             }
             c = count++;
         }
+        init(c, name, team);
+        return c;
+    }
+
+    /**
+     * Creates a creature at handle {@code c} (a save restoring creatures at the handles the rest of
+     * the game holds, DESIGN §21): a live creature there is destroyed first; slots between the
+     * current count and {@code c} become free. Allocates when {@code c} is past the capacity.
+     */
+    public void createAt(int c, String name, int team) {
+        if (c < 0) {
+            throw new IllegalArgumentException("creature " + c);
+        }
+        if (c >= capacity) {
+            allocate(Math.max(c + 1, capacity * 2));
+        }
+        if (c < count) {
+            if (alive[c]) {
+                destroy(c);
+            }
+            int at = free.indexOf(c);
+            if (at >= 0) {
+                free.removeAt(at);
+            }
+        } else {
+            for (int k = count; k < c; k++) {
+                free.add(k);
+            }
+            count = c + 1;
+        }
+        init(c, name, team);
+    }
+
+    private void init(int c, String name, int team) {
         alive[c] = true;
         liveCount++;
         this.name[c] = name;
@@ -205,7 +239,15 @@ public final class Creatures {
         maxDexToAc[c] = 99;
         finesse[c] = false;
         twoHanded[c] = false;
-        return c;
+    }
+
+    /** Removes every creature (a load starts from nothing). */
+    public void clear() {
+        for (int c = 0; c < count; c++) {
+            destroy(c);
+        }
+        free.clear();
+        count = 0;
     }
 
     /** Removes creature {@code c}, its modifiers and its condition instances. */

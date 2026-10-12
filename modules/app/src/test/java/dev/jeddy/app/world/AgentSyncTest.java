@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.jeddy.core.handle.Handles;
+import dev.jeddy.core.io.ByteReader;
+import dev.jeddy.core.io.ByteWriter;
 import dev.jeddy.core.job.JobSystem;
 import dev.jeddy.physics.bvh.TriFlags;
 import dev.jeddy.physics.bvh.TriangleMesh;
@@ -64,5 +66,49 @@ class AgentSyncTest {
         }
         double d = Math.IEEEremainder(sync.yaw(a) + Math.PI / 2, Math.PI * 2);
         assertEquals(0, d, 1e-4, "now facing -X: " + sync.yaw(a));
+    }
+
+    @Test
+    void facingsSurviveASaveAndLandOnTheEntitiesAtOnce() {
+        TriangleMesh ground = new TriangleMesh();
+        ground.addGround(0, 0, 20, 20, 0, TriFlags.WALKABLE);
+        NavMeshData field;
+        try (JobSystem jobs = new JobSystem(1)) {
+            field =
+                    NavMeshBaker.bake(
+                            ground,
+                            new NavBakeConfig(
+                                    0.2f, 0.1f, 1.8f, 0.4f, 0.4f, 45, 32, 8, 20, 12, 1.3f, 6),
+                            jobs);
+        }
+        Crowd crowd = new Crowd(new NavMesh(field), 4, 0, 0, 20, 20, null);
+        World world = new World(16, null);
+        int e = world.create(Handles.NULL, 2, 0, 10, 0);
+        int a = crowd.addAgent(2, 0, 10, new AgentParams());
+        AgentSync sync = new AgentSync(crowd, world);
+        sync.bind(a, e, 1.25f);
+        sync.face(a, 2.5f);
+        ByteWriter w = new ByteWriter();
+        sync.write(w);
+        // The other run: the agent and entity are rebuilt and bound, the crowd moved the agent.
+        Crowd crowd2 = new Crowd(new NavMesh(field), 4, 0, 0, 20, 20, null);
+        World world2 = new World(16, null);
+        int e2 = world2.create(Handles.NULL, 0, 0, 0, 0);
+        int a2 = crowd2.addAgent(7, 0, 3, new AgentParams());
+        AgentSync sync2 = new AgentSync(crowd2, world2);
+        sync2.bind(a2, e2, 0);
+        sync2.read(new ByteReader(w.toBytes()));
+        assertEquals(1.25f, sync2.yaw(a2));
+        world2.updateTransforms(null);
+        float[] p = new float[3];
+        world2.position(e2, p);
+        assertEquals(7, p[0], 0.2f, "the entity was moved to its agent");
+        assertEquals(3, p[2], 0.2f);
+        // The pending facing is still wanted: standing still, it turns toward 2.5.
+        for (int t = 0; t < 30; t++) {
+            crowd2.update(DT);
+            sync2.apply(DT);
+        }
+        assertEquals(2.5f, sync2.yaw(a2), 1e-3f);
     }
 }

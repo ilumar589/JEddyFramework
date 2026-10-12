@@ -1,5 +1,7 @@
 package dev.jeddy.app.world;
 
+import dev.jeddy.core.io.ByteReader;
+import dev.jeddy.core.io.ByteWriter;
 import dev.jeddy.physics.crowd.Crowd;
 
 import java.util.Arrays;
@@ -110,6 +112,46 @@ public final class AgentSync {
             }
             yaw[a] += Math.clamp(d, -maxTurn, maxTurn);
             world.setYaw(e, yaw[a]);
+        }
+    }
+
+    // ---- Saves (DESIGN §21) -------------------------------------------------------------------
+
+    /**
+     * Writes the facing of every bound agent (saves): the binding itself is the game's (it rebinds
+     * its agents and entities before reading). Allocates nothing.
+     */
+    public void write(ByteWriter w) {
+        w.int32(entity.length);
+        for (int a = 0; a < entity.length; a++) {
+            w.float32(yaw[a]);
+            w.float32(wantYaw[a]);
+            w.bool(wants[a]);
+        }
+    }
+
+    /**
+     * Reads what {@link #write} wrote onto the current bindings and applies the facings to the
+     * bound entities at once (so a loaded character faces as it did without waiting for a tick).
+     * Slots past the current bindings are skipped.
+     */
+    public void read(ByteReader r) {
+        int n = r.int32();
+        for (int a = 0; a < n; a++) {
+            float y = r.float32();
+            float want = r.float32();
+            boolean w = r.bool();
+            if (a >= entity.length) {
+                continue;
+            }
+            yaw[a] = y;
+            wantYaw[a] = want;
+            wants[a] = w;
+            int e = entity[a];
+            if (e != 0 && crowd.isActive(a)) {
+                world.transforms().setPosition(e, crowd.x(a), crowd.y(a), crowd.z(a));
+                world.setYaw(e, y);
+            }
         }
     }
 }

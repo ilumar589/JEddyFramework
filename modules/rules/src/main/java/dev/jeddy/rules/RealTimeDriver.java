@@ -39,6 +39,11 @@ public final class RealTimeDriver {
         return clock;
     }
 
+    /** Sets the clock (a load restoring a fight mid-round). */
+    public void setClock(float seconds) {
+        clock = seconds;
+    }
+
     /** When turn {@code i} of the order is due within a round. */
     public float offset(int i) {
         int n = encounter.size();

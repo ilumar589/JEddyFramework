@@ -1,5 +1,8 @@
 package dev.jeddy.rules;
 
+import dev.jeddy.core.io.ByteReader;
+import dev.jeddy.core.io.ByteWriter;
+
 import java.util.Arrays;
 
 /**
@@ -108,5 +111,28 @@ public final class ActionBudget {
     /** Returns whether {@code c} has moved this turn (a step counts). */
     public boolean moved(int c) {
         return c < moved.length && moved[c];
+    }
+
+    // ---- Saves (DESIGN §21) -------------------------------------------------------------------
+
+    /** Writes the budget of creatures {@code [0, highWaterMark)} (the encounter writes it). */
+    void write(ByteWriter w, int highWaterMark) {
+        int n = Math.min(highWaterMark, left.length);
+        w.ints(left, n);
+        w.bools(moved, n);
+    }
+
+    /** Reads what {@link #write} wrote, growing to fit. */
+    void read(ByteReader r) {
+        int n = r.int32();
+        ensure(n);
+        for (int c = 0; c < n; c++) {
+            left[c] = r.int32();
+        }
+        int m = r.int32();
+        ensure(m);
+        for (int c = 0; c < m; c++) {
+            moved[c] = r.bool();
+        }
     }
 }
