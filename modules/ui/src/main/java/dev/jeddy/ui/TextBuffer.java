@@ -236,4 +236,55 @@ public final class TextBuffer implements CharSequence {
             chars = Arrays.copyOf(chars, Math.max(n, chars.length * 2));
         }
     }
+
+    // ---- Lines (for the text area) ----------------------------------------------------------
+
+    /** The index just after the newline before {@code at} (0 on the first line). */
+    public int lineStart(int at) {
+        int i = Math.clamp(at, 0, length);
+        while (i > 0 && chars[i - 1] != '\n') {
+            i--;
+        }
+        return i;
+    }
+
+    /** The index of the newline at or after {@code at}, or the length on the last line. */
+    public int lineEnd(int at) {
+        int i = Math.clamp(at, 0, length);
+        while (i < length && chars[i] != '\n') {
+            i++;
+        }
+        return i;
+    }
+
+    /** The 0-based line of index {@code at}. */
+    public int lineOf(int at) {
+        int n = 0;
+        int end = Math.clamp(at, 0, length);
+        for (int i = 0; i < end; i++) {
+            if (chars[i] == '\n') {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    /** The number of lines (one more than the newlines). */
+    public int lineCount() {
+        return lineOf(length) + 1;
+    }
+
+    /** The index where 0-based line {@code line} starts (the length past the last line). */
+    public int indexOfLine(int line) {
+        if (line <= 0) {
+            return 0;
+        }
+        int n = 0;
+        for (int i = 0; i < length; i++) {
+            if (chars[i] == '\n' && ++n == line) {
+                return i + 1;
+            }
+        }
+        return length;
+    }
 }

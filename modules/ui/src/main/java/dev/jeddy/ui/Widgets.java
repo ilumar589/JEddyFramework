@@ -687,6 +687,278 @@ public final class Widgets {
         return text.version() != before;
     }
 
+    // ---- Text area ----------------------------------------------------------------------------
+
+    private static final long GUTTER = 0x6077E2L;
+    private static final long BODY = 0xB0D1L;
+
+    /**
+     * A multi-line text editor of {@code heightPx} pixels editing {@code text} (M17-05, DESIGN §24
+     * D125): lines with a line-number gutter, a caret that moves by character, word, line (Up/Down
+     * keep their column), Home/End within the line and Ctrl+Home/End over the whole, Enter inserts
+     * a newline and Tab two spaces, Shift selects, Ctrl+A/C/X/V, click to place the caret and drag
+     * to select, scrolling both ways to keep the caret visible. Returns whether the text changed
+     * this frame. Grows to its parent's width.
+     */
+    public boolean textArea(long id, TextBuffer text, float heightPx) {
+        sync();
+        boolean focused = ui.focused(id);
+        int before = text.version();
+        int font = ui.defaultFont;
+        float size = theme.fontSize;
+        float lineHeight = ui.lineHeight(font, size);
+        float pad = theme.padding;
+        int slot = ui.state(id);
+        int rec = ui.lastRecord(id);
+        float scrollX = ui.scroll(id, 0);
+        float scrollY = ui.scroll(id, 1);
+        int lines = text.lineCount();
+        int digits = lines < 10 ? 1 : lines < 100 ? 2 : lines < 1000 ? 3 : lines < 10000 ? 4 : 6;
+        float gutter = ui.measure(font, size, "0") * digits + pad;
+
+        // Mouse: a press places the caret on the line under it, dragging extends the selection.
+        if (rec >= 0
+                && (ui.active(id) || (ui.pressedThisFrame() && ui.pressedId() == ui.resolve(id)))) {
+            float textX = ui.recordX(rec) + pad + gutter - scrollX; // the gutter includes its gap
+            float textY = ui.recordY(rec) + pad - scrollY;
+            int line =
+                    Math.clamp(
+                            (int) Math.floor((ui.input().mouseY - textY) / lineHeight),
+                            0,
+                            lines - 1);
+            int start = text.indexOfLine(line);
+            int end = text.lineEnd(start);
+            int at = start + indexAt(font, size, text, start, end, ui.input().mouseX - textX);
+            boolean shift = (ui.input().modifiers & UiKey.MOD_SHIFT) != 0;
+            if (ui.pressedThisFrame() && ui.pressedId() == ui.resolve(id)) {
+                text.moveTo(at, shift);
+                ui.setStateF(slot, 2, ui.time());
+                ui.setStateF(slot, 3, -1); // the preferred column follows the click
+            } else {
+                text.moveTo(at, true);
+            }
+            if (ui.doubleClicked(id)) {
+                text.moveTo(start, false);
+                text.moveTo(end, true);
+            }
+        }
+
+        // Keys and typed text.
+        if (focused) {
+            UiInput in = ui.input();
+            int n = in.keyCount();
+            for (int i = 0; i < n; i++) {
+                if (!in.keyDown(i)) {
+                    continue;
+                }
+                int key = in.keyScancode(i);
+                int mods = in.keyModifiers(i);
+                boolean shift = (mods & UiKey.MOD_SHIFT) != 0;
+                boolean ctrl = (mods & (UiKey.MOD_CTRL | UiKey.MOD_GUI)) != 0;
+                boolean vertical = false;
+                switch (key) {
+                    case UiKey.LEFT -> {
+                        if (text.hasSelection() && !shift) {
+                            text.moveTo(text.selectionStart(), false);
+                        } else {
+                            text.move(ctrl ? -wordLength(text, -1) : -1, shift);
+                        }
+                    }
+                    case UiKey.RIGHT -> {
+                        if (text.hasSelection() && !shift) {
+                            text.moveTo(text.selectionEnd(), false);
+                        } else {
+                            text.move(ctrl ? wordLength(text, 1) : 1, shift);
+                        }
+                    }
+                    case UiKey.UP, UiKey.DOWN, UiKey.PAGE_UP, UiKey.PAGE_DOWN -> {
+                        vertical = true;
+                        int delta =
+                                key == UiKey.UP
+                                        ? -1
+                                        : key == UiKey.DOWN
+                                                ? 1
+                                                : key == UiKey.PAGE_UP
+                                                        ? -pageLines(heightPx, lineHeight)
+                                                        : pageLines(heightPx, lineHeight);
+                        int line = text.lineOf(text.caret());
+                        int start = text.lineStart(text.caret());
+                        float x = ui.stateF(slot, 3);
+                        if (x < 0) {
+                            x = ui.measure(font, size, text, start, text.caret());
+                            ui.setStateF(slot, 3, x);
+                        }
+                        int target = Math.clamp(line + delta, 0, lines - 1);
+                        int ts = text.indexOfLine(target);
+                        int te = text.lineEnd(ts);
+                        text.moveTo(ts + indexAt(font, size, text, ts, te, x), shift);
+                    }
+                    case UiKey.HOME -> text.moveTo(ctrl ? 0 : text.lineStart(text.caret()), shift);
+                    case UiKey.END ->
+                            text.moveTo(ctrl ? text.length() : text.lineEnd(text.caret()), shift);
+                    case UiKey.BACKSPACE -> text.deleteBackward();
+                    case UiKey.DELETE -> text.deleteForward();
+                    case UiKey.RETURN -> text.insert('\n');
+                    case UiKey.TAB -> text.insert("  ");
+                    case UiKey.A -> {
+                        if (ctrl) {
+                            text.selectAll();
+                        }
+                    }
+                    case UiKey.C, UiKey.X -> {
+                        if (ctrl && text.hasSelection()) {
+                            scratch.setLength(0);
+                            text.selection(scratch);
+                            clipboard.set(scratch);
+                            if (key == UiKey.X) {
+                                text.deleteSelection();
+                            }
+                        }
+                    }
+                    case UiKey.V -> {
+                        if (ctrl) {
+                            text.insert(clipboard.get());
+                        }
+                    }
+                    default -> {}
+                }
+                if (!vertical) {
+                    ui.setStateF(slot, 3, -1);
+                }
+                ui.setStateF(slot, 2, ui.time());
+            }
+            int t = in.textCount();
+            for (int i = 0; i < t; i++) {
+                int cp = in.textCodePoint(i);
+                if (cp >= 0x20 && cp != 0x7F) {
+                    text.insert(cp);
+                }
+            }
+            if (t > 0) {
+                ui.setStateF(slot, 2, ui.time());
+                ui.setStateF(slot, 3, -1);
+            }
+            // Keep the caret inside the visible area (both axes).
+            if (rec >= 0) {
+                int caretLine = text.lineOf(text.caret());
+                float caretX =
+                        ui.measure(font, size, text, text.lineStart(text.caret()), text.caret());
+                float caretY = caretLine * lineHeight;
+                float innerW = ui.recordWidth(rec) - 2 * pad - gutter;
+                float innerH = ui.recordHeight(rec) - 2 * pad;
+                if (caretX - scrollX > innerW) {
+                    ui.setScroll(id, 0, caretX - innerW);
+                } else if (caretX < scrollX) {
+                    ui.setScroll(id, 0, caretX);
+                }
+                if (caretY + lineHeight - scrollY > innerH) {
+                    ui.setScroll(id, 1, caretY + lineHeight - innerH);
+                } else if (caretY < scrollY) {
+                    ui.setScroll(id, 1, caretY);
+                }
+                scrollX = ui.scroll(id, 0);
+                scrollY = ui.scroll(id, 1);
+            }
+        }
+
+        // Boxes: a scroll box with a row of the gutter and the text, each one element.
+        ui.box(id)
+                .widthGrow()
+                .height(heightPx)
+                .padding(pad)
+                .background(theme.inset)
+                .border(focused ? theme.accent : theme.panelBorder, 1)
+                .radius(theme.radius)
+                .hit()
+                .focusable()
+                .captureKeys()
+                .scroll(true, true)
+                .open();
+        ui.box().row().gap(pad).open();
+        Box g = ui.text(GUTTER).color(theme.textDim).noKerning();
+        g.minWidth(gutter - pad);
+        for (int i = 1; i <= lines; i++) {
+            if (i > 1) {
+                g.append('\n');
+            }
+            g.append(i);
+        }
+        ui.text(BODY).append(text).noKerning();
+        ui.close();
+        if (focused) {
+            float x0 = gutter; // the gutter's digits plus the gap
+            int caretLine = text.lineOf(text.caret());
+            float caretX = ui.measure(font, size, text, text.lineStart(text.caret()), text.caret());
+            if (text.hasSelection()) {
+                int from = text.selectionStart();
+                int to = text.selectionEnd();
+                int line = text.lineOf(from);
+                int at = from;
+                while (at < to) {
+                    int ls = text.lineStart(at);
+                    int le = Math.min(text.lineEnd(at), to);
+                    float sx = ui.measure(font, size, text, ls, at);
+                    float ex = ui.measure(font, size, text, ls, le);
+                    boolean toNextLine = le < to; // the newline is selected too: show it
+                    ui.box()
+                            .floating()
+                            .clippedByParent()
+                            .unclamped()
+                            .anchor(Ui.TOP_LEFT, Ui.TOP_LEFT)
+                            .offset(pad + x0 + sx - scrollX, pad + line * lineHeight - scrollY)
+                            .size(Math.max(ex - sx, 0) + (toNextLine ? size * 0.3f : 0), lineHeight)
+                            .background(theme.selection)
+                            .noHit();
+                    at = le + 1;
+                    line++;
+                }
+            }
+            float blink = ui.time() - ui.stateF(slot, 2);
+            if (blink % 1 < 0.5f) {
+                ui.box()
+                        .floating()
+                        .clippedByParent()
+                        .unclamped()
+                        .anchor(Ui.TOP_LEFT, Ui.TOP_LEFT)
+                        .offset(pad + x0 + caretX - scrollX, pad + caretLine * lineHeight - scrollY)
+                        .size(1, lineHeight)
+                        .background(theme.text)
+                        .noHit();
+            }
+        }
+        ui.close();
+        return text.version() != before;
+    }
+
+    private static int pageLines(float heightPx, float lineHeight) {
+        return Math.max(1, (int) (heightPx / lineHeight) - 1);
+    }
+
+    /** The char index in {@code s[from, to)} nearest to {@code x} pixels from {@code from}. */
+    private int indexAt(int font, float size, CharSequence s, int from, int to, float x) {
+        FontData fd = ui.font(font);
+        float scale = size / fd.emSize();
+        float pen = 0;
+        for (int i = from; i < to; i++) {
+            char c = s.charAt(i);
+            int cp = c;
+            int len = 1;
+            if (Character.isHighSurrogate(c)
+                    && i + 1 < to
+                    && Character.isLowSurrogate(s.charAt(i + 1))) {
+                cp = Character.toCodePoint(c, s.charAt(i + 1));
+                len = 2;
+            }
+            float adv = fd.advance(fd.glyphOrFallback(cp)) * scale;
+            if (x < pen + adv * 0.5f) {
+                return i - from;
+            }
+            pen += adv;
+            i += len - 1;
+        }
+        return to - from;
+    }
+
     /** Returns whether Enter was pressed in text field {@code id} this frame. */
     public boolean submitted(long id) {
         sync();
