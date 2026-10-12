@@ -198,6 +198,13 @@ public final class MaterialTable implements AutoCloseable {
         dirtyTo = -1;
     }
 
+    /**
+     * {@link #flush(FrameRing)} from the CPU: for a buffer no frame has read yet (setup, tests).
+     */
+    public void flush() {
+        flush(null);
+    }
+
     /** Returns the GL buffer name (bind as an SSBO). */
     public int glBuffer() {
         return device.buffers().glName(buffer);
