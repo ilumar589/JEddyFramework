@@ -102,6 +102,9 @@ at "what is a vertex shader".
 
 ## Running things
 
+The `-P` options are quoted because PowerShell would otherwise split them at the dot; bash does
+not mind the quotes. See [running.md](../running.md) for everything else that runs.
+
 ```
 # build and test everything
 ./gradlew build
@@ -109,9 +112,9 @@ at "what is a vertex shader".
 ./gradlew :math:test
 ./gradlew :math:test --tests 'dev.jeddy.math.MatrixAndQuatTest'
 # include GPU tests (needs a GL 4.6 driver)
-./gradlew :render:test -Pjeddy.gpuTests=true
+./gradlew :render:test "-Pjeddy.gpuTests=true"
 # a JMH benchmark
-./gradlew :bench:jmh -Pjmh.includes=MathBench
+./gradlew :bench:jmh "-Pjmh.includes=MathBench"
 # the demo (cooks and packs assets first)
 ./gradlew :iso-demo:run
 # its options

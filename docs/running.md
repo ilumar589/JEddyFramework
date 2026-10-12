@@ -5,9 +5,11 @@ repository root; on Windows use `gradlew.bat` instead of `./gradlew` and the sam
 provisions JDK 27 by itself the first time, so the only things to install are a JDK of any recent
 version to bootstrap the wrapper and, for anything that draws, an OpenGL 4.6 driver.
 
-IntelliJ shows a run icon next to every `./gradlew` line in this file and runs it as a Gradle
-task, not through a shell, so the explanations in the command blocks sit on their own `#` lines
-rather than after the command (a trailing comment would become a task named `#`).
+Two shell notes. IntelliJ shows a run icon next to every `./gradlew` line in this file and
+runs it as a Gradle task, not through a shell, so the explanations in the command blocks sit on
+their own `#` lines rather than after the command (a trailing comment would become a task named
+`#`). And PowerShell splits `-Pjeddy.gpuTests=only` at the dot into two arguments, so the `-P`
+options below are quoted; the quotes are harmless in bash.
 
 Related: [Getting started](getting-started.md) builds a game project of your own on the framework;
 the [learning guide](learn/README.md) explains how the engine works. This page is about operating
@@ -38,7 +40,7 @@ Useful variations:
 | `./gradlew build -x test` | Compile and check formatting only |
 | `./gradlew spotlessApply` | Reformat the Java sources (google-java-format, AOSP style). `check` fails on unformatted code, so run this before pushing |
 | `./gradlew :physics:build` | One module. Short paths (`:core`, `:render`, `:cooker`, `:editor-tool`, `:iso-demo`...) map to the folders under `modules/`, `tools/` and `samples/` |
-| `./gradlew build -Pjeddy.natives.dir=natives/out/linux-x64` | Use natives you built yourself with `python natives/build.py` (needs CMake and a C compiler) instead of the release |
+| `./gradlew build "-Pjeddy.natives.dir=natives/out/linux-x64"` | Use natives you built yourself with `python natives/build.py` (needs CMake and a C compiler) instead of the release |
 | `./gradlew :sdl:regenerateBindings` | Regenerate the jextract bindings (needs jextract and libclang); the GL bindings are generated at build time from `bindings/gl/gl.xml` |
 
 ## 2. Tests
@@ -75,7 +77,7 @@ edits reports `UP-TO-DATE` in a few seconds; that is expected, not a skipped run
   full ten minutes the acceptance criteria want:
 
   ```
-  ./gradlew :app:test -Pjeddy.soakSeconds=600
+  ./gradlew :app:test "-Pjeddy.soakSeconds=600"
   ```
 
 - **Content tests**: the rules and editor tests build the demo's content from
@@ -88,9 +90,9 @@ edits reports `UP-TO-DATE` in a few seconds; that is expected, not a skipped run
 
 ```
 # the normal tests plus the GPU ones
-./gradlew test -Pjeddy.gpuTests=true
+./gradlew test "-Pjeddy.gpuTests=true"
 # just the GPU ones
-./gradlew test -Pjeddy.gpuTests=only
+./gradlew test "-Pjeddy.gpuTests=only"
 ```
 
 They open real windows for a moment. On a Linux machine without a display (a server, WSL without
@@ -98,7 +100,7 @@ WSLg, CI), run them under Xvfb with Mesa's software renderer, exactly as CI does
 
 ```
 sudo apt-get install -y xvfb libgl1-mesa-dri libglx-mesa0 libegl-mesa0
-xvfb-run -a -s "-screen 0 1920x1080x24" ./gradlew test -Pjeddy.gpuTests=only
+xvfb-run -a -s "-screen 0 1920x1080x24" ./gradlew test "-Pjeddy.gpuTests=only"
 ```
 
 If Mesa reports an OpenGL version below 4.6, add `LIBGL_ALWAYS_SOFTWARE=1
@@ -117,8 +119,8 @@ rules the quick loop skips.
 JMH benchmarks live in `bench/`. They are not part of `build`:
 
 ```
-./gradlew :bench:jmh -Pjmh.includes=IntIntMap
-./gradlew :bench:jmh -Pjmh.includes=".*Crowd.*" -Pjmh.args="-f 1 -wi 3 -i 5"
+./gradlew :bench:jmh "-Pjmh.includes=IntIntMap"
+./gradlew :bench:jmh '-Pjmh.includes=.*Crowd.*' '-Pjmh.args=-f 1 -wi 3 -i 5'
 ```
 
 `jmh.includes` is a regular expression on the benchmark class and method names; `jmh.args` passes
@@ -198,7 +200,7 @@ written to the combat log at the bottom right with the rolls.
 | `--assets DIR` | Play from other paks or a loose cooked tree (default `build/paks`, then `build/cooked`) |
 | `--headless` | No window, no GPU: the game thread alone, for servers and the perf scene |
 
-Extra JVM flags go through a property, not `--args`: `-Pjeddy.jvmArgs="-Xlog:gc*:file=build/gc.log"`.
+Extra JVM flags go through a property, not `--args`: `"-Pjeddy.jvmArgs=-Xlog:gc*:file=build/gc.log"`.
 
 ### The performance scene
 
@@ -225,14 +227,14 @@ slots unlimited, so the fight does not change what is measured.
 ./gradlew :iso-demo:distImage
 # the same, zipped under build/distributions
 ./gradlew :iso-demo:distImageZip
-# an app image; -Pjeddy.package.type=deb|rpm|msi|exe for installers
+# an app image; "-Pjeddy.package.type=deb|rpm|msi|exe" for installers
 ./gradlew :iso-demo:jpackage
 ```
 
 The image runs without a JDK: `samples/iso-demo/build/dist/iso-demo/bin/iso-demo` (or
 `iso-demo.bat`), with the same `--args` options given directly. Images are per platform. The
 packaged launchers accept JVM flags through the `JDK_JAVA_OPTIONS` environment variable, for example
-`-Djeddy.app.quitAfterFrames=60` for a smoke run. `-Pjeddy.aot=false` skips the AOT training run
+`-Djeddy.app.quitAfterFrames=60` for a smoke run. `"-Pjeddy.aot=false"` skips the AOT training run
 (a headless play of a few seconds at build time).
 
 ### Smoke runs and screenshots
@@ -325,7 +327,7 @@ Every push and pull request runs `.github/workflows/ci.yml`:
 | Job | What it does |
 |---|---|
 | Build (ubuntu, windows) | `./gradlew build`, a configuration-cache reuse check, then the sample cook twice (the second must come entirely from the cache) and the pak build |
-| GPU tests (Mesa llvmpipe) | `test -Pjeddy.gpuTests=only` under Xvfb, the hello-triangle run, the demo for 20 s with a screenshot, the editor for 30 frames with a screenshot (the screenshots are workflow artifacts) |
+| GPU tests (Mesa llvmpipe) | `test "-Pjeddy.gpuTests=only"` under Xvfb, the hello-triangle run, the demo for 20 s with a screenshot, the editor for 30 frames with a screenshot (the screenshots are workflow artifacts) |
 | Perf scene (headless game thread) | The perf capture with `--fail-on alloc,flags`; `perf.md` goes into the job summary |
 | Package (ubuntu, windows) | `distImageZip`, `jpackage` (and a `.deb` on Linux), then a cold-start measurement of the image with and without the AOT cache |
 | Game template (composite build) | Builds and packages `samples/game-template` and runs its image for 60 frames |
@@ -358,8 +360,8 @@ Add a row when you run on new hardware (`-Djeddy.gl.debug=true` shows the driver
 | Symptom | What to do |
 |---|---|
 | `gh`, `python3` or `xvfb-run` not found | Those are only needed by the CI scripts and the headless recipes; on Windows the Gradle commands alone are enough |
-| The first build cannot download the natives (a proxy, no network) | Build them locally: `python natives/build.py` (CMake, a C compiler and Git), then `-Pjeddy.natives.dir=natives/out/<platform>` on every Gradle command, or set it in `~/.gradle/gradle.properties` |
-| Something renders wrong on your GPU (black models, missing UI) while CI's pictures are fine | Run with the driver's debug output in the log: `./gradlew :iso-demo:run -Pjeddy.jvmArgs="-Djeddy.gl.debug=true"` (any Jeddy app takes the property; it also turns off critical linking so the callback can run). Errors and performance warnings from the driver appear as `gl:` lines; send them with the `GL ... on <GPU>` line |
+| The first build cannot download the natives (a proxy, no network) | Build them locally: `python natives/build.py` (CMake, a C compiler and Git), then `"-Pjeddy.natives.dir=natives/out/<platform>"` on every Gradle command, or set it in `~/.gradle/gradle.properties` |
+| Something renders wrong on your GPU (black models, missing UI) while CI's pictures are fine | Run with the driver's debug output in the log: `./gradlew :iso-demo:run "-Pjeddy.jvmArgs=-Djeddy.gl.debug=true"` (any Jeddy app takes the property; it also turns off critical linking so the callback can run). Errors and performance warnings from the driver appear as `gl:` lines; send them with the `GL ... on <GPU>` line |
 | A laptop runs the game on its Intel GPU instead of the NVIDIA or AMD one (the log says `GL ... on Intel(R) Graphics`) | Windows picks the GPU per executable, and a Java program cannot ask for the fast one the way a C++ game does (by exporting `NvOptimusEnablement`), so tell Windows once: Settings → System → Display → Graphics → Add an app → browse to the `java.exe` that runs the game → Options → High performance. For `gradlew :iso-demo:run` that is the JDK 27 Gradle uses (`gradlew -q javaToolchains` prints its path; typically `%USERPROFILE%\.gradle\jdks\...\bin\java.exe` or `C:\Program Files\...\jdk-27\bin\java.exe`); for a packaged image it is `runtime\bin\java.exe` inside the image. The NVIDIA Control Panel (Manage 3D settings → Program Settings) does the same. The log line names the GPU in use, so you can check |
 | "OpenGL 4.6 is required" or a black window | Update the GPU driver; on Linux check `glxinfo \| grep "core profile version"`. Mesa's llvmpipe works with the environment variables of the GPU-tests section, slowly |
 | No audio device (servers, WSL, CI) | `--no-audio`, or `SDL_AUDIO_DRIVER=dummy` in the environment |
