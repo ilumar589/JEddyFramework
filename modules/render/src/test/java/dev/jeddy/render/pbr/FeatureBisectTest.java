@@ -149,6 +149,257 @@ class FeatureBisectTest {
     }
 
     /**
+     * Draw-order scenarios under the default configuration: the Intel driver rendered factor-only
+     * materials black once textures had been drawn on the same renderer (JUnit's hash order of
+     * SceneRendererTest: three textured tests, then every lit test failed), which a fresh renderer
+     * per cell never shows. Each scenario is a fresh renderer; the table says what the first frame
+     * drew and what the sampled sphere read afterwards.
+     */
+    @Test
+    void drawOrderDoesNotChangeTheShading() {
+        StringBuilder table =
+                new StringBuilder("\nscenario                                     value\n");
+        List<String> failed = new ArrayList<>();
+        String[] names = {
+            "factor-only, then textured rgba8 (next frame)",
+            "textured rgba8, then factor-only (next frame)",
+            "textured bc7 srgb, then factor-only (next frame)",
+            "bc7 bucket grown to 5 layers, textured, then factor-only",
+            "factor-only beside textured bc7 (one frame)",
+            "static textured bc7 beside skinned textured bc7 (one frame)",
+            "textured bc7, units unbound, then factor-only",
+            "translucent factor-only, then opaque factor-only",
+        };
+        for (int i = 0; i < names.length; i++) {
+            float[] v = scenario(i);
+            table.append(String.format("%-44s %6.3f %6.3f%n", names[i], v[0], v[1]));
+            if (v[0] < 0.5f || v[1] < 0.5f) {
+                failed.add(names[i]);
+            }
+        }
+        System.out.print(table);
+        assertTrue(failed.isEmpty(), "unlit: " + failed + table);
+    }
+
+    /** Runs scenario {@code which}; returns the two lit readings it is about. */
+    private static float[] scenario(int which) {
+        try (Scene s = new Scene(SceneRenderer.Config.DEFAULT)) {
+            int plain = s.plain();
+            switch (which) {
+                case 0 -> {
+                    float a = s.frame(s.sphere(0, plain, 0));
+                    float b = s.frame(s.sphere(0, s.textured(GL_RGBA8, 0), 0));
+                    return new float[] {a, b};
+                }
+                case 1 -> {
+                    float a = s.frame(s.sphere(0, s.textured(GL_RGBA8, 0), 0));
+                    float b = s.frame(s.sphere(0, plain, 0));
+                    return new float[] {a, b};
+                }
+                case 2 -> {
+                    float a = s.frame(s.sphere(0, s.textured(BC7_SRGB, 0), 0));
+                    float b = s.frame(s.sphere(0, plain, 0));
+                    return new float[] {a, b};
+                }
+                case 3 -> {
+                    int m = -1;
+                    for (int k = 0; k < 5; k++) {
+                        m = s.textured(BC7_SRGB, 0); // the fifth allocation grows the bucket
+                    }
+                    float a = s.frame(s.sphere(0, m, 0));
+                    float b = s.frame(s.sphere(0, plain, 0));
+                    return new float[] {a, b};
+                }
+                case 4 -> {
+                    int f = s.sphere(-0.8f, plain, 0);
+                    int t = s.sphere(0.8f, s.textured(BC7_SRGB, 0), 0);
+                    s.render();
+                    return new float[] {s.lit(-0.8f), s.lit(0.8f)};
+                }
+                case 5 -> {
+                    int t = s.textured(BC7_SRGB, 0);
+                    s.sphere(-0.8f, t, RenderPacket.FLAG_STATIC);
+                    s.skinnedSphere(0.8f, t);
+                    s.render();
+                    return new float[] {s.lit(-0.8f), s.lit(0.8f)};
+                }
+                case 6 -> {
+                    float a = s.frame(s.sphere(0, s.textured(BC7_SRGB, 0), 0));
+                    for (int u = 0; u < 5; u++) {
+                        device.state().bindTexture(u, 0);
+                    }
+                    float b = s.frame(s.sphere(0, plain, 0));
+                    return new float[] {a, b};
+                }
+                default -> {
+                    MaterialSystem ms = s.renderer.materials();
+                    int glass =
+                            ms.add(
+                                    new MaterialData.Builder()
+                                            .metallicRoughness(0, 0.6f)
+                                            .baseColor(1, 1, 1, 0.9f)
+                                            .alpha(MaterialData.ALPHA_BLEND, 0)
+                                            .build());
+                    ms.compileBlocking(glass);
+                    float a = s.frame(s.sphere(0, glass, 0));
+                    float b = s.frame(s.sphere(0, plain, 0));
+                    return new float[] {a, b};
+                }
+            }
+        }
+    }
+
+    private static final int BC7_SRGB = GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM;
+
+    /** One BC7 block (mode 6) of opaque white: endpoints 255 with the p-bits set, indices 0. */
+    private static final byte[] WHITE_BC7 = {
+        (byte) 0xC0,
+        (byte) 0xFF,
+        (byte) 0xFF,
+        (byte) 0xFF,
+        (byte) 0xFF,
+        (byte) 0xFF,
+        (byte) 0xFF,
+        (byte) 0xFF,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+    };
+
+    /**
+     * A renderer with a packet, a sun from +X and no ambient; spheres of radius 0.4 at y = z = 0.
+     */
+    private static final class Scene implements AutoCloseable {
+        final SceneRenderer renderer;
+        final RenderPacket packet = new RenderPacket(8);
+
+        Scene(SceneRenderer.Config config) {
+            renderer = new SceneRenderer(device, programs, meshes, jobs, config);
+            renderer.resize(SIZE, SIZE);
+            renderer.environment().setUniform(0, 0, 0);
+            reset();
+        }
+
+        void reset() {
+            packet.reset();
+            camera(packet);
+            packet.sunDirection[0] = 1;
+            packet.sunDirection[1] = 0;
+            packet.sunDirection[2] = 0;
+            packet.sunColor[0] = packet.sunColor[1] = packet.sunColor[2] = 3;
+        }
+
+        int plain() {
+            MaterialSystem ms = renderer.materials();
+            int m =
+                    ms.add(
+                            new MaterialData.Builder()
+                                    .metallicRoughness(0, 0.6f)
+                                    .baseColor(1, 1, 1, 1)
+                                    .build());
+            ms.compileBlocking(m);
+            return m;
+        }
+
+        /** A white 4x4 texture of {@code format} in its own array layer, on a new material. */
+        int textured(int format, int unused) {
+            MaterialSystem ms = renderer.materials();
+            int m = ms.add(new MaterialData.Builder().metallicRoughness(0, 0.6f).build());
+            int ref = ms.arrays().allocate(format, 4, 4, 1);
+            MemorySegment texels = ARENA.allocate(64, 16);
+            if (format == GL_RGBA8) {
+                texels.fill((byte) 0xFF);
+            } else {
+                MemorySegment.copy(WHITE_BC7, 0, texels, ValueLayout.JAVA_BYTE, 0, 16);
+            }
+            device.textures()
+                    .uploadLayer(
+                            ms.arrays().textureHandle(TextureArrays.bucket(ref)),
+                            0,
+                            TextureArrays.layer(ref),
+                            texels.address(),
+                            format == GL_RGBA8 ? 64 : 16);
+            ms.setTexture(m, MaterialData.SLOT_BASE_COLOR, ref, false);
+            ms.compileBlocking(m);
+            ms.compileBlockingSkinned(m);
+            return m;
+        }
+
+        /** A sphere at height {@code y} (apart along Y, so neither shadows the other). */
+        int sphere(float y, int material, int flags) {
+            float[] world = new float[12];
+            AffineOps.identity(world, 0);
+            world[7] = y;
+            int i =
+                    packet.add(
+                            world,
+                            0,
+                            world,
+                            0,
+                            sphere,
+                            material,
+                            RenderPacket.FLAG_CASTS_SHADOW | flags,
+                            0);
+            packet.setBounds(i, 0, y, 0, 0.4f);
+            return i;
+        }
+
+        int skinnedSphere(float y, int material) {
+            float[] world = new float[12];
+            AffineOps.identity(world, 0);
+            world[7] = y;
+            int i =
+                    packet.add(
+                            world,
+                            0,
+                            world,
+                            0,
+                            skinnedSphere,
+                            material,
+                            RenderPacket.FLAG_CASTS_SHADOW,
+                            0);
+            packet.setBounds(i, 0, y, 0, 0.4f);
+            float[] identity = new float[RenderPacket.PALETTE_FLOATS];
+            AffineOps.identity(identity, 0);
+            packet.setPalette(i, packet.addPalette(identity, 0, 1));
+            return i;
+        }
+
+        /** Renders the packet twice and reads the HDR target. */
+        void render() {
+            for (int f = 0; f < 2; f++) {
+                renderer.render(packet);
+            }
+            glGetTextureImage(
+                    renderer.hdrTexture(), 0, GL_RGBA, GL_FLOAT, (int) pixels.byteSize(), pixels);
+        }
+
+        /** Renders the packet as it is, reads the lit side of {@code instance} and resets. */
+        float frame(int instance) {
+            render();
+            float v = lit(packet.currWorld[instance * 12 + 7]);
+            reset();
+            return v;
+        }
+
+        /** The lit side's red of the sphere at height {@code y} (the sun travels along +X). */
+        float lit(float y) {
+            int[] p = screen(packet, -0.3f, y, 0.25f);
+            return pixels.getAtIndex(ValueLayout.JAVA_FLOAT, ((long) p[1] * SIZE + p[0]) * 4);
+        }
+
+        @Override
+        public void close() {
+            renderer.close();
+        }
+    }
+
+    /**
      * Renders the sphere three times (factor-only, textured, textured and skinned with an identity
      * palette) and returns the lit side's red for each.
      */
