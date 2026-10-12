@@ -18,6 +18,7 @@ public final class Conditions {
     private int[] rounds;
     private boolean[] alive;
     private int count;
+    private int liveCount;
     private final dev.jeddy.core.collections.IntList free;
 
     /** Creates an empty store with room for 32 instances. */
@@ -56,12 +57,24 @@ public final class Conditions {
         this.condition[h] = condition;
         this.rounds[h] = rounds;
         alive[h] = true;
+        liveCount++;
         return h;
     }
 
     void remove(int h) {
         alive[h] = false;
+        liveCount--;
         free.add(h);
+    }
+
+    /** Instances in use. */
+    public int liveCount() {
+        return liveCount;
+    }
+
+    /** Instance handles are below this; the store doubles past it (allocating). */
+    public int capacity() {
+        return alive.length;
     }
 
     public boolean isAlive(int h) {

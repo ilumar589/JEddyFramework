@@ -380,4 +380,38 @@ class EncounterTest {
                     }
                 });
     }
+
+    /**
+     * The order lists and the budget are sized from the rules' creature capacity, so every creature
+     * the rules can hold joins and leaves a running fight without the lists growing (the demo's 120
+     * s perf capture caught them growing when the 134th skeleton joined).
+     */
+    @Test
+    void everyCreatureJoiningAndLeavingAllocatesNothing() {
+        int n = 160;
+        Rules r = new Rules(DemoContent.get(), n, 9);
+        int[] creature = new int[n];
+        for (int i = 0; i < n; i++) {
+            creature[i] =
+                    i < 2
+                            ? character(r, i == 0 ? "aldric" : "dara")
+                            : monster(r, i % 2 == 0 ? "skeletalWarrior" : "skeletalStalker");
+        }
+        Encounter e = new Encounter(r);
+        e.add(creature[0]);
+        e.add(creature[1]);
+        e.start();
+        Allocations.assertNoAllocation(
+                "Encounter join and leave",
+                () -> {
+                    for (int i = 2; i < n; i++) {
+                        e.join(creature[i]);
+                    }
+                    assertEquals(n, e.size());
+                    for (int i = 2; i < n; i++) {
+                        e.leave(creature[i]);
+                    }
+                });
+        assertEquals(2, e.size());
+    }
 }

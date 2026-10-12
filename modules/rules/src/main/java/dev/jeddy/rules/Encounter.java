@@ -21,9 +21,9 @@ import dev.jeddy.core.collections.IntList;
 public final class Encounter {
     private final Rules rules;
     private final ActionBudget budget;
-    private final IntList order = new IntList(16); // creatures in initiative order
-    private final IntList initiative = new IntList(16); // parallel to order
-    private final IntList joined = new IntList(16); // parallel: join sequence, the last tie-break
+    private final IntList order; // creatures in initiative order
+    private final IntList initiative; // parallel to order
+    private final IntList joined; // parallel: join sequence, the last tie-break
     private int joinCounter;
     private int round;
     private int turnIndex = -1;
@@ -31,10 +31,19 @@ public final class Encounter {
     private boolean currentLeft; // the creature at turnIndex left; do not end its turn again
     private int[] teamScratch = new int[8];
 
-    /** Creates an empty encounter over {@code rules}. */
+    /**
+     * Creates an empty encounter over {@code rules}, with room for every creature the rules have
+     * capacity for: the order lists and the budget never grow in a fight that stays within it
+     * (growing allocates on the game thread; the demo's 120 s perf capture caught the lists growing
+     * when the 134th skeleton joined).
+     */
     public Encounter(Rules rules) {
         this.rules = rules;
-        budget = new ActionBudget(rules.creatures().capacity());
+        int n = Math.max(16, rules.creatures().capacity());
+        budget = new ActionBudget(n);
+        order = new IntList(n);
+        initiative = new IntList(n);
+        joined = new IntList(n);
     }
 
     public Rules rules() {

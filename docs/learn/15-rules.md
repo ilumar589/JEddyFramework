@@ -444,9 +444,22 @@ test play without a player. Engagement and disengagement are events to the rules
 - The modifier total is $O(\text{modifiers} + \text{types})$ per stat with no allocation;
   creatures cache nothing, which keeps every rule change instantly visible and is cheap at the
   sizes of a CRPG fight (tens of creatures, tens of modifiers each).
-- The perf capture (`--headless --perf 20 --warmup 6 --warmup-frames 150 --alloc-probe`) runs
-  the scripted march and fights with the party invulnerable and slots unlimited, so the rules
-  run the whole time; the game thread stays at 0 B/frame.
+- The perf capture (`--headless --perf 20 --warmup 6 --warmup-frames 150 --alloc-probe`; CI
+  runs 120 s) runs the scripted march and fights with the party invulnerable and slots
+  unlimited, so the rules run the whole time; the game thread stays at 0 B/frame.
+- **What the capture caught.** The first runs of the finished demo were not at zero, and each
+  miss was a store growing: `Conditions` doubling 32 → 64 (896 B) when a fireball left enough
+  skeletons dead; the encounter's order lists growing 133 → 200 entries (2448 B, three
+  `IntList`s) when the 134th skeleton joined the fight; and `Conditions` doubling again at
+  1232 (32 KB) because a destroyed creature kept its instances, so every respawned skeleton
+  leaked its `dead`. The fixes are the same shape: `Rules` sizes every store from its creature
+  capacity (sixteen modifiers, four condition instances, one budget and one order slot per
+  creature) and `Creatures.destroy` gives both modifiers and condition instances back. The
+  tests `aCrowdedFightWithinCapacityAllocatesNothing`,
+  `destroyedCreaturesReleaseTheirConditionsSoRespawnsDoNotGrowTheStore` and
+  `everyCreatureJoiningAndLeavingAllocatesNothing` keep each one fixed. The lesson for the
+  reader: a growable store is an allocation waiting for a longer run; size it from a number the
+  game knows, and test the long run.
 
 ## 7. Try it
 

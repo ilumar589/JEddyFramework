@@ -568,4 +568,43 @@ class RulesTest {
                 });
         assertEquals(n, r.creatures().capacity());
     }
+
+    /**
+     * A destroyed creature gives its condition instances back: the demo respawns skeletons for
+     * hours, and the first 120 s perf capture caught the condition store doubling (32 KB) because
+     * every dead skeleton's {@code dead} instance stayed behind.
+     */
+    @Test
+    void destroyedCreaturesReleaseTheirConditionsSoRespawnsDoNotGrowTheStore() {
+        int n = 48;
+        Rules r = new Rules(DemoContent.get(), n, 5);
+        int warriorRow = r.content().find(RulesSchema.MONSTERS, "skeletalWarrior");
+        int[] creature = new int[n];
+        for (int i = 0; i < n; i++) {
+            creature[i] = r.buildMonster(warriorRow, TEAM_UNDEAD);
+        }
+        int shaken = condition(r, "shaken");
+        int sickened = condition(r, "sickened");
+        int fatigued = condition(r, "fatigued");
+        // Ten generations through a store of 4 * n instances: a generation that leaked its dead
+        // would fill it by the fifth and double it.
+        for (int generation = 0; generation < 10; generation++) {
+            for (int i = 0; i < n; i++) {
+                r.applyCondition(creature[i], shaken, 2);
+                r.applyCondition(creature[i], sickened, 2);
+                r.applyCondition(creature[i], fatigued, 2);
+                r.damage(creature[i], 1000, 0, -1, 0); // dead
+                assertTrue(r.isDead(creature[i]));
+            }
+            assertTrue(r.conditions().liveCount() >= n, "the dead keep their condition");
+            for (int i = 0; i < n; i++) {
+                r.creatures().destroy(creature[i]);
+                creature[i] = r.buildMonster(warriorRow, TEAM_UNDEAD);
+                assertFalse(r.isDead(creature[i]));
+            }
+            assertEquals(0, r.conditions().liveCount(), "generation " + generation);
+        }
+        assertEquals(4 * n, r.conditions().capacity(), "the store never grew");
+        assertEquals(n, r.creatures().liveCount());
+    }
 }

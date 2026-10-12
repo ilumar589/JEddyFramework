@@ -293,8 +293,10 @@ that fade where they touch geometry, ribbons and trails, and light flashes.
 through the shared `RulesSchema` (D97, D98), checks and effects (D99), one `Encounter` behind a
 turn-based and a real-time driver (D100), and the demo fighting with the rules in both modes,
 with attacks of opportunity on `TurnBasedNav` and a combat log read from the event ring. Two
-things learned on the way: the perf capture caught the condition store doubling during a fight
-(896 B, once), so `Rules` now sizes its stores from its creature capacity; and the crypt's
+things learned on the way: the perf captures caught three stores growing during long fights (the
+condition store, the encounter's order lists, and a condition leak on respawn), so `Rules` and
+`Encounter` now size every store from the creature capacity and `destroy` releases
+everything; and the crypt's
 doorways were closed door leaves in the kit prefab, which the new `excludeNodes` import
 setting (D104) removes. The chapter is [15 Rules](learn/15-rules.md) and the lesson is
 [L02 Dice and probability](learn/lessons/02-dice-and-probability.md).

@@ -28,6 +28,7 @@ public final class Creatures {
     public static final int SPELL_LEVELS = 10;
 
     private final Modifiers modifiers;
+    private final Conditions conditionStore;
     private int capacity;
     private int count;
     private boolean[] alive;
@@ -60,15 +61,20 @@ public final class Creatures {
     private IntList[] feats;
     private IntList[] spells;
     private IntList[] mods;
-    private IntList[] conditions; // condition instance handles (see Conditions)
+    private IntList[] conditions; // condition instance handles into conditionStore
     private int[] flags; // the union of the active conditions' flags, kept by Rules
     private int[] aooUsed;
     private boolean[] acted;
     private final int[] scratch = new int[BonusType.COUNT];
 
-    /** Creates a store for {@code capacity} creatures (it grows past it). */
-    public Creatures(Modifiers modifiers, int capacity) {
+    /**
+     * Creates a store for {@code capacity} creatures (it grows past it) whose modifiers and
+     * condition instances live in the two stores given, so that destroying a creature releases
+     * both: a leaked condition instance would make {@code Conditions} grow during a long fight.
+     */
+    public Creatures(Modifiers modifiers, Conditions conditionStore, int capacity) {
         this.modifiers = modifiers;
+        this.conditionStore = conditionStore;
         this.capacity = Math.max(1, capacity);
         allocate(this.capacity);
     }
@@ -192,11 +198,7 @@ public final class Creatures {
         diesAtZero[c] = false;
         feats[c].clear();
         spells[c].clear();
-        for (int i = 0; i < mods[c].size(); i++) {
-            modifiers.remove(mods[c].get(i));
-        }
-        mods[c].clear();
-        conditions[c].clear();
+        release(c);
         flags[c] = 0;
         aooUsed[c] = 0;
         acted[c] = false;
@@ -206,19 +208,27 @@ public final class Creatures {
         return c;
     }
 
-    /** Removes creature {@code c} and its modifiers. */
+    /** Removes creature {@code c}, its modifiers and its condition instances. */
     public void destroy(int c) {
         if (!isAlive(c)) {
             return;
         }
+        release(c);
+        alive[c] = false;
+        liveCount--;
+        free.add(c);
+    }
+
+    /** Gives {@code c}'s modifiers and condition instances back to their stores. */
+    private void release(int c) {
         for (int i = 0; i < mods[c].size(); i++) {
             modifiers.remove(mods[c].get(i));
         }
         mods[c].clear();
+        for (int i = 0; i < conditions[c].size(); i++) {
+            conditionStore.remove(conditions[c].get(i));
+        }
         conditions[c].clear();
-        alive[c] = false;
-        liveCount--;
-        free.add(c);
     }
 
     // ---- Plain fields -------------------------------------------------------------------------

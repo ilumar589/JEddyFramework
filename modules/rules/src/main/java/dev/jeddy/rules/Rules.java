@@ -60,7 +60,7 @@ public final class Rules {
         this.content = content;
         this.modifiers = new Modifiers(Math.max(64, capacity * 16));
         this.conditions = new Conditions(Math.max(32, capacity * 4));
-        this.creatures = new Creatures(modifiers, capacity);
+        this.creatures = new Creatures(modifiers, conditions, capacity);
         this.events = new Events(1024);
         this.rng = new Rng(seed);
         flatFootedRow = content.find(RulesSchema.CONDITIONS, "flatFooted");
