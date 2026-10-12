@@ -1,6 +1,6 @@
 # Next milestones: the roadmap
 
-Milestones M0 to M15 and M22 are done (see [TASKS.md](TASKS.md)). This page is the plan for what comes
+Milestones M0 to M16 and M22 are done (see [TASKS.md](TASKS.md)). This page is the plan for what comes
 next, decided with the owner on 2026-10-11, and the reference for every option.
 
 **How the work goes.** Claude implements the milestones in the order below and asks the owner
@@ -345,6 +345,13 @@ with a background writer; the hard parts of identity (handles across sessions).
 
 **Read first:** [01 Architecture](learn/01-architecture.md), [10 Assets](learn/10-assets.md),
 [22 Components](learn/22-components.md).
+
+**Done (2026-10-12).** As decided: `modules/save` (D116, D118, D119), `core.io` (D113),
+`EntityIds` (D114), the rules by content id (D115), formats per record with golden files
+(D117), the demo's quick save, autosave and slots with the byte-exact round-trip check
+(`--save-at`). Chapter [16](learn/16-saves.md), lesson
+[L04](learn/lessons/04-binary-formats.md), [formats/jsave.md](formats/jsave.md). Not done, on
+purpose: a screenshot in the meta block, cross-level saves (a save names its level).
 
 ---
 

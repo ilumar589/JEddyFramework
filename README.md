@@ -28,6 +28,7 @@ A Java 27 framework for building 3D isometric RPGs in the style of *Pathfinder: 
 | [app](modules/app/README.md) | The two-thread game loop, `World` and `WorldRenderer` |
 | [editor](modules/editor/README.md) | The level editor as a library: `.jlevel` levels, commands with undo, picking, gizmos, docked panels built from `ui` ([screenshot](docs/images/editor-m14.jpg)) |
 | [rules](modules/rules/README.md) | A d20 game-mechanics core: creatures and typed modifiers as SoA stores, checks, attacks and saves, effects as data, encounters with an action economy in turn-based or real time with pause |
+| [save](modules/save/README.md) | Save games as the dynamic state only: a chunked, versioned, checksummed `.jsave` container every system writes itself into, captured between ticks and written on a background thread; quick, auto and named slots in the user's data directory |
 | [components](modules/components/README.md) | Components and behaviours: `@Component` records and `@Behaviour` static methods that an annotation processor (`tools/component-processor`) turns into SoA stores, flyweight views, loops, a job-graph schedule and the game's registry; the editor edits their rows in levels |
 
 Tools: the asset cooker (`tools/cooker`, also the `dev.jeddy.assets` Gradle plugin), the component processor (`tools/component-processor`, on every game's annotation processor path through `dev.jeddy.game`), the standalone level editor (`tools/editor`, `./gradlew :editor-tool:run --args="--project samples/iso-demo/assets --level levels/crypt.jlevel"`) and the Javadoc site (`tools/site`).
@@ -39,8 +40,8 @@ Tools: the asset cooker (`tools/cooker`, also the `dev.jeddy.assets` Gradle plug
 - `./gradlew :iso-demo:distImage` builds a runnable image with its own runtime and an AOT cache; `:iso-demo:jpackage` makes an app image or installer.
 
 ## Documents
-- [Learning guide](docs/learn/README.md): thirteen chapters on how the engine works and the 3D math and
-  OpenGL behind it, with exercises
+- [Learning guide](docs/learn/README.md): seventeen chapters and four lessons on how the engine works
+  and the 3D math and OpenGL behind it, with exercises
 - [Architecture and design](docs/DESIGN.md)
 - [Task plan](docs/TASKS.md) and [the options for the next milestone](docs/next-milestones.md)
 - [M10 performance capture and fix list](docs/perf/m10.md)
@@ -49,7 +50,7 @@ Tools: the asset cooker (`tools/cooker`, also the `dev.jeddy.assets` Gradle plug
 ## Status
 Pre-alpha. Milestones M0–M15 and M22 are implemented: the runtime modules, the cooker, the iso demo
 with its performance capture, packaging, publishing, skeletal animation with GPU skinning, the
-immediate-mode UI, the level editor, the d20 rules, components and behaviours, and the docs. Version 0.1.0 is tagged at M12. The CPU-side budgets pass in CI; the GPU
+immediate-mode UI, the level editor, the d20 rules, components and behaviours, save games, and the docs. Version 0.1.0 is tagged at M12. The CPU-side budgets pass in CI; the GPU
 and main-thread budgets still need a run on the reference hardware (docs/perf/m10.md, O1–O2).
 
 ## License

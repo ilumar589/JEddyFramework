@@ -91,6 +91,7 @@ final class CryptSave {
     private final JobSystem jobs;
     private final StringBuilder text = new StringBuilder(96); // meta values, without allocating
     private long captureNanos;
+    private long loadNanos;
     private String lastError;
 
     CryptSave(
@@ -140,6 +141,11 @@ final class CryptSave {
     /** The last load's failure, or {@code null}. */
     String lastError() {
         return lastError;
+    }
+
+    /** What the last load took: the read, the decompression and the apply. */
+    long loadNanos() {
+        return loadNanos;
     }
 
     /** The slots on disk, newest first (a menu lists them when it opens). */
@@ -290,8 +296,10 @@ final class CryptSave {
             lastError = "no save in slot " + slot;
             return false;
         }
+        long t0 = System.nanoTime();
         try {
             apply(slots.load(slot));
+            loadNanos = System.nanoTime() - t0;
             return true;
         } catch (IOException | RuntimeException e) {
             lastError = e.getMessage() == null ? e.toString() : e.getMessage();

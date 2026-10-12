@@ -753,7 +753,7 @@ final class DemoGame implements Game, CryptSave.Host {
                 afterLoad();
                 demoUi.saveStatus = "Loaded " + slot;
                 demoUi.log.start().add("Loaded ").add(slot).end();
-                LOG.info("loaded " + slot);
+                LOG.info("loaded " + slot + " in " + saves.loadNanos() / 1000 + " us");
                 if (scriptedPayload != null) {
                     // The scripted check: a capture right after the load must reproduce the
                     // saved bytes, chunk for chunk (the whole-state round trip).

@@ -165,6 +165,7 @@ if you want the cook to compile every shader permutation up front.
 | Space | Pause and resume |
 | I | Inventory |
 | F3 | Profiler overlay |
+| F5, F9 | Quick save, quick load (the menu has *Save as* and the slots) |
 | F10 | The level editor over the running game |
 | F12 | Screenshot |
 | Esc | Cancel, then the menu |
@@ -198,6 +199,9 @@ written to the combat log at the bottom right with the rolls.
 | `--quit-after SECONDS` | Quit that long after loading |
 | `--editor`, `--editor-command CMD` | Start with the editor open and run console commands (repeatable) |
 | `--level-source FILE` | The `.jlevel` the editor saves (default: the sample's `assets/levels/crypt.jlevel`) |
+| `--autosave SECONDS` | Save to the auto slot that often (default: never) |
+| `--saves DIR` | Where the saves go (default: `%APPDATA%\crypt\saves` or `~/.local/share/crypt/saves`) |
+| `--save-at SECONDS` | Scripted: quick save then, quick load a second later and compare a fresh capture with the saved bytes (`save round trip exact` in the log, exit 3 if not) |
 | `--assets DIR` | Play from other paks or a loose cooked tree (default `build/paks`, then `build/cooked`) |
 | `--headless` | No window, no GPU: the game thread alone, for servers and the perf scene |
 
@@ -375,7 +379,7 @@ Add a row when you run on new hardware (`-Djeddy.gl.debug=true` shows the driver
 | "OpenGL 4.6 is required" or a black window | Update the GPU driver; on Linux check `glxinfo \| grep "core profile version"`. Mesa's llvmpipe works with the environment variables of the GPU-tests section, slowly |
 | No audio device (servers, WSL, CI) | `--no-audio`, or `SDL_AUDIO_DRIVER=dummy` in the environment |
 | Running on a machine with no display at all | `--headless` for the demo and the perf scene (no window is opened), `SDL_VIDEO_DRIVER=dummy` for the app tests |
-| An allocation test fails only on your machine | Rerun it alone (`--tests`), with nothing else running; if it still allocates, the stack from JFR with small TLABs shows where (`-XX:TLABSize=256 -XX:MinTLABSize=256 -XX:-ResizeTLAB`, see getting-started §9) |
+| An allocation test fails only on your machine | Rerun it alone (`--tests`), with nothing else running; if it still allocates, the stack from JFR with small TLABs shows where (`-XX:TLABSize=256 -XX:MinTLABSize=256 -XX:-ResizeTLAB`, see getting-started §12) |
 | `spotlessCheck` fails | `./gradlew spotlessApply` and commit the result |
 | Gradle says the configuration cache cannot be reused | Harmless locally; CI checks it to keep builds fast. `--no-configuration-cache` if a plugin misbehaves |
 | The demo plays an old level after editing in the editor | The editor saves the source `.jlevel`; the next `:iso-demo:run` re-cooks it. The standalone tool re-cooks and hot-reloads by itself |

@@ -1508,6 +1508,14 @@ this version, so the renderer re-uploads its fog texture
 ([`render/fog/FogOfWar.java`](../../modules/render/src/main/java/dev/jeddy/render/fog/FogOfWar.java))
 only when something changed.
 
+**Saving (M16).** `Crowd.write` stores every active agent in its slot — position, velocity,
+parameters and target, not the corridor — and `read` puts them back in the same slots,
+re-requests the targets and solves the paths at once, so the indices a game holds stay valid
+and the loaded agents walk on the next tick; `FormationMove.write` keeps a walk in progress.
+`Visibility.write` is the explored bitset (the visible bits are recomputed on the next update).
+Chapter [16](16-saves.md) §3.3 has the details and the two lines about floating-point
+re-projection that a byte-exact round trip needed.
+
 ---
 
 ## Triggers

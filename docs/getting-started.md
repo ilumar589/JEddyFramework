@@ -549,7 +549,46 @@ generates `CryptLevel.SPAWN_PARTY_START`-style constants for the level's named o
 generated sources under `build/generated/sources/annotationProcessor/java/main`: they are plain
 loops over primitive arrays, and the chapter explains every line.
 
-## 9. Run
+## 9. Saves
+
+A save is the dynamic state only (DESIGN §21, [docs/learn/16-saves.md](learn/16-saves.md)): the
+level and the rulebook come back from the paks, and every system with state writes itself into
+`core.io.ByteWriter`. The `save` module (depend on `dev.jeddy:jeddy-save`) owns the container,
+the background job and the slots; your game composes the chunks:
+
+```java
+SaveSlots slots = new SaveSlots(SaveDirectory.of("mygame"));   // %APPDATA%\mygame\saves, ~/.local/share/mygame/saves
+SaveWriter writer = new SaveWriter(256 * 1024);                 // kept: a capture allocates nothing after the first
+
+void save(String slot) {                                        // between ticks, on the game thread
+    writer.reset();
+    writer.meta("title", "Chapter 2, the crypt");               // what the slot list shows
+    writer.meta("level", levelPath);
+    game.write(writer.chunk(SaveFile.tag("COMP"), 1), ids);     // the registry's stores, entities as your EntityIds
+    crowd.write(writer.chunk(SaveFile.tag("CROW"), 1));
+    rules.write(writer.chunk(SaveFile.tag("RULE"), 1));
+    encounter.write(writer.chunk(SaveFile.tag("ENCT"), 1));
+    visibility.write(writer.chunk(SaveFile.tag("FOG "), 1));
+    slots.save(slot, writer, 0);                                 // compressed and written on the job's thread
+}
+
+void load(String slot) throws IOException {
+    SaveFile file = slots.load(slot);                           // checks the magic, the checksums, the version
+    game.read(file.chunk(SaveFile.tag("COMP")).data(), ids);    // in dependency order: stores, then agents, ...
+    crowd.read(file.chunk(SaveFile.tag("CROW")).data());
+    rules.read(file.chunk(SaveFile.tag("RULE")).data());        // creatures rebuilt from the current rulebook
+    ...
+}
+```
+
+`EntityIds` is yours: `idOf(entity)` names an entity across runs (a level object by its id,
+your own kinds for what you spawn) and `entityOf(id)` finds or creates it on load. Give each of
+your own records a format number and keep old ones readable; keep a golden file of every format
+under test (`testing.Fixtures`). The demo's `CryptSave` and `CryptIds` are the reference, and
+`--save-at` is the round-trip check worth copying: a capture right after a load must be the
+saved bytes.
+
+## 10. Run
 
 ```
 ./gradlew run
@@ -562,7 +601,7 @@ finds the `paks/` folder of its image.
 For smoke tests and CI, `-Djeddy.app.quitAfterFrames=N` quits after N frames. A packaged game
 accepts it through the `JDK_JAVA_OPTIONS` environment variable.
 
-## 10. Package
+## 11. Package
 
 | Task | Output |
 |---|---|
@@ -591,7 +630,7 @@ skips training. The launchers use the cache when `aot/<name>.aot` exists and fal
 when it does not. The cache only loads with the exact JVM flags it was trained with, so leave the
 flags to the plugin.
 
-## 11. Performance rules
+## 12. Performance rules
 
 The framework's hot paths allocate nothing per frame (DESIGN §4). Games should follow the same
 rules in per-frame and per-tick code:

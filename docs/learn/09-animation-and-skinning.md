@@ -1722,6 +1722,11 @@ M12-07 records 0.16 ms on 2 vCPUs in the perf scene, with the fog of war freezin
 ./gradlew :iso-demo:run --args="--perf 60 --fail-on animation"
 ```
 
+**Saving (M16).** `Animator.write` stores each character's mode, stance, the one-shot it is
+playing (`actionSlot`, kept since M16 for this), what is left of it and the clip's phase;
+`read` plays the clip again and sets the phase, so a loaded character stands, swings or lies
+exactly as it did (chapter [16](16-saves.md) §3.5).
+
 ## Exercises
 
 1. **The test rig by hand.** Compute the test rig's joint bounding sphere in the bind pose

@@ -390,6 +390,14 @@ nearest member, attack, end). `--auto-turns` scripts both so the perf capture an
 test play without a player. Engagement and disengagement are events to the rules
 (`engage`/`disengage`) so attacks of opportunity fire when a member walks away.
 
+**Saving (M16).** `Rules.write` stores each creature by the id of the character or monster it
+was built from plus what play changed (hit points, slots, conditions, the modifiers no rebuild
+recreates) and the generator's state; `read` recreates it at its handle (`Creatures.createAt`)
+from the *current* rulebook — `buildCharacter` and `buildMonster` were split into a create and a
+`fillCharacter`/`fillMonster` for this — so a patched stat block reaches a creature the player
+has already met. `Encounter.write` keeps the order, the round, the turn and the action budget;
+`Combat.write` adds its own tables. Chapter [16](16-saves.md) §2.3 and §3.4.
+
 ## 4. Why it is built this way
 
 - **A PF1e-shaped core with original content (D96).** The mechanics are the point of the
