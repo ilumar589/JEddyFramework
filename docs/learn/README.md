@@ -1,6 +1,6 @@
 # Learning guide: Jeddy from the inside
 
-This guide explains everything built in milestones M0 to M14, so you can understand the code and
+This guide explains everything built in milestones M0 to M15, so you can understand the code and
 learn the 3D math and OpenGL behind it. From M13 on, each milestone ships with its own chapter.
 
 Each chapter takes one part of the engine and follows the same path:
@@ -9,7 +9,7 @@ Each chapter takes one part of the engine and follows the same path:
 3. **The real code.** A walkthrough with excerpts copied from the repository; file links sit next
    to them.
 4. **Why it is built this way.** The performance reasons and the design decisions, with their
-   numbers (D1–D95) in [DESIGN.md](../DESIGN.md) §17.
+   numbers (D1–D104) in [DESIGN.md](../DESIGN.md) §17.
 5. **Try it.** Tests to run, demo flags and experiments.
 6. **Exercises.** Each one has a hint, and most are checked by a test.
 
@@ -38,6 +38,7 @@ at "what is a vertex shader".
 | 12 | [Fast Java: FFM, zero allocation and the JIT](12-java-performance.md) | The Foreign Function & Memory API, zero allocation per frame and how it is proved, JMH, the perf capture, JIT and AOT, lock-free handoffs | `core`, `testing`, `bench`, the perf capture |
 | 13 | [The user interface: immediate mode, flex layout and distance-field text](13-ui.md) | Immediate-mode UI, the six-pass flex layout derived and checked, hit testing against last frame's rectangles, drag and drop and focus, the exact Euclidean distance transform behind SDF fonts, the one-draw UI renderer with per-vertex clipping and premultiplied blending, widgets, the demo's screens | `ui`, `render/ui`, `app/ui`, `cooker/font`, `DemoUi` |
 | 14 | [The level editor: a binary level format, commands with undo, picking, gizmos and docked panels](14-editor.md) | The `.jlevel` composition format and an editable SoA store with stable ids, placements as entity groups that follow edits, commands with explicit inverse data and merging, picking through inverse transforms, the gizmo math derived (ray–axis, ray–plane, signed angles, snapping, pixels at any depth), rotating a selection about a pivot, immediate-mode panels and id scopes, the standalone tool with the cooker watching | `editor`, `LevelData`, `LevelLoader`, `World.pick`, `cooker/level`, `tools/editor` |
+| 15 | [Rules: a d20 engine without objects](15-rules.md) | The mathematics of a d20 game (modifiers, the 5 %-per-point check, criticals and expected damage, saves, stacking, dying, rounds and the real-time clock); dice packed in an `int`; creatures and modifiers as SoA stores; checks, attacks and damage; events instead of strings; content as flat effect operations in `.jrules`; encounters, action budgets, the turn-based and real-time drivers; the demo's `Combat` | `rules`, `math.Dice`, `math.Rng`, `cooker/rules`, `RulesSchema`, `Combat` |
 
 ## Lessons: math and GPU deep dives
 
@@ -49,9 +50,10 @@ one. They assume the chapters they name.
 | # | Lesson | What you learn | Builds on |
 |---|---|---|---|
 | L01 | [Buffers in flight](lessons/01-buffers-in-flight.md) | The GPU as a second computer and the command stream; immutable storage and its flags; the three ways to change a buffer and their ordering; fences, the three-frame ring and its sizing; barriers; the three findings of the first run on an Intel GPU and the bisect method that found the dropped write | 05, 06 |
+| L02 | [Dice and probability](lessons/02-dice-and-probability.md) | A die as a random variable (mean and variance derived); sums of dice, convolution and the bell; why the flat d20 makes every +1 worth 5 % and a 3d6 system does not; criticals as conditional trials and the expected-damage formula; save-for-half; a Markov chain for rounds-to-kill; Lemire's unbiased `nextInt` and xoshiro256**; testing randomness by choosing seeds and tolerances from the variance | 15, 12 |
 
-Planned next (one per milestone, in the order the milestones need them): the d20's probability
-distributions (M15); binary formats, alignment and endianness (M16); two-bone IK and quaternion
+Planned next (one per milestone, in the order the milestones need them): binary formats,
+alignment and endianness (M16); two-bone IK and quaternion
 deltas, derived (M18); compute shaders, workgroups and atomics (M19); A* and admissible
 heuristics (M20); data layout, cache lines and the flyweight view (M22); rendering for tools
 (M23). Standing requests from the owner for the GPU side, to be scheduled: the projection
@@ -60,7 +62,7 @@ texture memory (mips, block compression bit layouts, bandwidth), the pipeline st
 
 ## Reading paths
 
-- **Everything, in order:** 01 → 14. Each chapter links back to earlier ones when it builds on
+- **Everything, in order:** 01 → 15. Each chapter links back to earlier ones when it builds on
   them.
 - **3D math:**
   1. 02 Math foundations
@@ -70,6 +72,7 @@ texture memory (mips, block compression bit layouts, bandwidth), the pipeline st
   5. 11 Physics (geometry and algorithms)
   6. The lighting math in 07
   7. The gizmo and picking math in 14 (rays against axes, planes and boxes; Euler angles)
+  8. The probability in 15 and lesson L02 (a different kind of math: discrete distributions)
 - **OpenGL:**
   1. 05 OpenGL from Java
   2. 06 The renderer
@@ -86,6 +89,7 @@ texture memory (mips, block compression bit layouts, bandwidth), the pipeline st
   4. 10 Assets
   5. 13 The user interface (an immediate-mode module on top of the renderer)
   6. 14 The level editor (commands, a level format, tools built from the same modules)
+  7. 15 Rules (a gameplay module with the same discipline: SoA stores, `int` handles, events)
 
 ## Conventions at a glance
 
@@ -116,8 +120,9 @@ texture memory (mips, block compression bit layouts, bandwidth), the pipeline st
 | `physics` | 11 |
 | `animation` | 09 |
 | `app` (`JeddyApp`, `World`, `WorldRenderer`) | 01, 06, 09 |
-| `tools/cooker` | 10 |
-| `samples/iso-demo` | 01, 09 (animation), 12 (perf capture) |
+| `rules` | 15, lesson L02 |
+| `tools/cooker` | 10, 15 (`RulesImporter`) |
+| `samples/iso-demo` | 01, 09 (animation), 12 (perf capture), 15 (`Combat`, the drivers) |
 
 ## Running things
 
@@ -158,6 +163,7 @@ Each term links to the chapter that explains it best.
   ([11](11-physics-navigation-crowds.md)).
 - **Cascaded shadow maps:** several sun shadow maps that cover the view at increasing distances
   ([07](07-lighting-and-shadows.md)).
+- **Check, DC, threat range, action budget:** the d20 vocabulary ([15](15-rules.md)).
 - **Clustered forward+:** lights binned into a 3D grid of view-space cells, so each pixel shades
   only nearby lights ([07](07-lighting-and-shadows.md)).
 - **Cook (cooker), pak:** offline conversion of source assets to engine formats, and the archive

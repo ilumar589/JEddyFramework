@@ -39,7 +39,7 @@ public final class Rules {
     private final Content content;
     private final Creatures creatures;
     private final Modifiers modifiers;
-    private final Conditions conditions = new Conditions();
+    private final Conditions conditions;
     private final Events events;
     private final Rng rng;
     private final int flatFootedRow;
@@ -50,10 +50,16 @@ public final class Rules {
     private int lastNatural;
     private int lastTotal;
 
-    /** Creates an engine over {@code content} with room for {@code capacity} creatures. */
+    /**
+     * Creates an engine over {@code content} with room for {@code capacity} creatures. The modifier
+     * and condition stores are sized with it (sixteen modifiers and four conditions per creature)
+     * so that a fight does not grow them: a store that doubles allocates on the game thread, which
+     * the demo's perf run reports as a budget miss.
+     */
     public Rules(Content content, int capacity, long seed) {
         this.content = content;
-        this.modifiers = new Modifiers();
+        this.modifiers = new Modifiers(Math.max(64, capacity * 16));
+        this.conditions = new Conditions(Math.max(32, capacity * 4));
         this.creatures = new Creatures(modifiers, capacity);
         this.events = new Events(1024);
         this.rng = new Rng(seed);

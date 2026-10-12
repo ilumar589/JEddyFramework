@@ -632,4 +632,4 @@ The `World.pick` loop is O(renderables) per click with a sphere test per rendera
 
 ---
 
-[← 13 The user interface](13-ui.md) · [Index](README.md)
+[← 13 The user interface](13-ui.md) · [Index](README.md) · [15 Rules →](15-rules.md)

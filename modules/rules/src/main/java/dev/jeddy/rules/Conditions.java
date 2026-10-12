@@ -13,16 +13,30 @@ public final class Conditions {
     /** Lasts until removed. */
     public static final int INDEFINITE = -1;
 
-    private int[] creature = new int[32];
-    private int[] condition = new int[32];
-    private int[] rounds = new int[32];
-    private boolean[] alive = new boolean[32];
+    private int[] creature;
+    private int[] condition;
+    private int[] rounds;
+    private boolean[] alive;
     private int count;
-    private final dev.jeddy.core.collections.IntList free =
-            new dev.jeddy.core.collections.IntList(8);
+    private final dev.jeddy.core.collections.IntList free;
 
-    /** Creates an empty store. */
-    public Conditions() {}
+    /** Creates an empty store with room for 32 instances. */
+    public Conditions() {
+        this(32);
+    }
+
+    /**
+     * Creates an empty store with room for {@code capacity} instances; it doubles past it, which
+     * allocates, so a game sizes it for its creatures ({@link Rules} does: four per creature).
+     */
+    public Conditions(int capacity) {
+        int n = Math.max(1, capacity);
+        creature = new int[n];
+        condition = new int[n];
+        rounds = new int[n];
+        alive = new boolean[n];
+        free = new dev.jeddy.core.collections.IntList(Math.max(8, n / 4));
+    }
 
     int add(int creature, int condition, int rounds) {
         int h;

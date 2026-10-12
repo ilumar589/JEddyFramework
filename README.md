@@ -27,6 +27,7 @@ A Java 27 framework for building 3D isometric RPGs in the style of *Pathfinder: 
 | [scene](modules/scene/README.md) | Struct-of-arrays transforms and hierarchy |
 | [app](modules/app/README.md) | The two-thread game loop, `World` and `WorldRenderer` |
 | [editor](modules/editor/README.md) | The level editor as a library: `.jlevel` levels, commands with undo, picking, gizmos, docked panels built from `ui` ([screenshot](docs/images/editor-m14.jpg)) |
+| [rules](modules/rules/README.md) | A d20 game-mechanics core: creatures and typed modifiers as SoA stores, checks, attacks and saves, effects as data, encounters with an action economy in turn-based or real time with pause |
 
 Tools: the asset cooker (`tools/cooker`, also the `dev.jeddy.assets` Gradle plugin), the standalone level editor (`tools/editor`, `./gradlew :editor-tool:run --args="--project samples/iso-demo/assets --level levels/crypt.jlevel"`) and the Javadoc site (`tools/site`).
 

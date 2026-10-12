@@ -75,13 +75,13 @@
 | `ui` | `dev.jeddy.ui` | Immediate-mode user interface: element tree, flex layout, SDF text measurement, widgets, draw lists (no GL) | core, math, asset | Added in M13: game screens and the editor from one widget set, in pure Java (§18) |
 | `scene`* | `dev.jeddy.scene` | Entity handles, sparse-set component stores, SoA transform hierarchy | core, math | Gameplay needs one authoritative transform store. `app` sync/extract systems copy from it into render, physics and audio, which never depend on `scene` |
 | `editor` | `dev.jeddy.editor` | The editor as a library: level model and commands with undo, selection and gizmos, docked panels (outliner, inspector, asset browser, console) that any game can embed behind a key | app, ui, physics, asset, core, math | Added in M14: level editing and live inspection from the `ui` widgets, in pure Java (§19) |
-| `rules` | `dev.jeddy.rules` | The d20 game-mechanics layer: creatures as SoA stats, typed modifiers with stacking, dice and checks, effects as data-driven operation lists, conditions with durations, encounters with initiative and an action economy, real time with pause and turn-based drivers, an event log | core, asset | Added in M15: a Pathfinder-1e-shaped core with original names and content, pure Java, deterministic (§20) |
+| `rules` | `dev.jeddy.rules` | The d20 game-mechanics layer: creatures as SoA stats, typed modifiers with stacking, dice and checks, effects as data-driven operation lists, conditions with durations, encounters with initiative and an action economy, real time with pause and turn-based drivers, an event log | core, math, asset | Added in M15: a Pathfinder-1e-shaped core with original names and content, pure Java, deterministic (§20) |
 | `app`* | `dev.jeddy.app` | Application lifecycle, thread orchestration, main loop, world integration (scene→render, physics→scene, audio), settings, crash handling | everything above | Ties the leaf modules together so that they stay independent of each other |
 | `tools/cooker`* | `dev.jeddy.cooker` | Offline asset cooking: glTF, textures, materials, shaders, navmesh/BVH bake, levels, pak building, CLI and Gradle plugin | core, math, compress, asset, physics + libktx/meshoptimizer bindings | The offline half of "PBR asset pipeline" |
 | `tools/editor`* | `dev.jeddy.editortool` | The standalone level editor: opens a project (assets and cooked output), runs the `editor` library as its `Game` with the cooker's watch mode | editor, app, cooker | A tool, not a runtime module; games embed `editor` instead (§19) |
 | `natives/*`* | (resource jars) | Prebuilt shared libraries per OS/arch with SHA-256 manifest | none | Distribution |
 | `bench`* | none | JMH benchmarks for every hot path | all runtime modules | Required to enforce "performance is a must" |
-| `samples/iso-demo`* | `dev.jeddy.samples.iso` | Integration demo and perf scene | app | Acceptance target |
+| `samples/iso-demo`* | `dev.jeddy.samples.iso` | Integration demo and perf scene | app, rules | Acceptance target; the only module that depends on `rules` (the editor edits rules content through `asset`'s `RulesSchema`, D97) |
 
 > `dev.jeddy` is the root package and Maven group (confirmed 2026-10-10).
 
@@ -115,9 +115,8 @@ graph TD
   animation[animation] --> math
   animation --> asset
   rules[rules] --> asset
-  rules --> core
+  rules --> math
   editor[editor] --> app
-  editor --> rules
   editor --> ui
   editor --> physics
   editortool[tools/editor*] --> editor
@@ -129,7 +128,8 @@ graph TD
   app --> audio
   app --> physics
   app --> scene
-  app --> rules
+  isodemo[samples/iso-demo*] --> app
+  isodemo --> rules
   cooker[tools/cooker*] --> asset
   cooker --> physics
 ```
@@ -693,6 +693,8 @@ Then the *draw list* is emitted in tree order (floating subtrees after the main 
 **Checks and effects (D99).** `Dice` parses and rolls `NdS+B` without allocating (packed into an `int`). A d20 check is `d20 + modifier` against a difficulty class, a natural 20 succeeds and a natural 1 fails; an attack roll is a check against the target's AC (touch or flat-footed when the situation says), a natural roll in the weapon's threat range is confirmed by a second roll and multiplies the damage dice; iterative attacks come from the base attack bonus (`+6/+1`, `+11/+6/+1`, ...) and a full attack takes a full-round action; saving throws are checks against a spell's DC (10 + spell level + casting ability modifier) with `half` or `negates` outcomes. Damage subtracts temporary hit points first; at 0 or below a creature is *dying* (unconscious, loses a point per round until stable) and dies at negative Constitution. Conditions are definitions like any other (their operations apply while the condition is on) plus engine-known flags (`CANNOT_ACT`, `FLAT_FOOTED`, `PRONE`, `HELPLESS`); durations are in rounds and tick at the end of the affected creature's turn. Every resolution appends an event (`ATTACK`, `DAMAGE`, `SAVE`, `CONDITION`, `TURN`, `DEATH`, ... with actor, target, natural roll, total, DC) to a ring the UI drains.
 
 **Encounters (D100).** An `Encounter` holds the participants, rolls initiative (`d20 + initiative modifier`, ties by Dexterity then by join order), and runs rounds. Each turn gives its creature an action budget (standard, move, swift; a full-round action spends standard and move; a 5-foot step is free once when no other movement was taken) that the game spends through `useAction`; `endTurn` ticks the creature's durations and advances, `startRound` fires round effects. Attacks of opportunity: the game reports threat-zone crossings and provoking actions (casting, ranged attacks, standing up); the engine grants one attack of opportunity per round per threatening creature (more with the *Reflexes* feat) and resolves it. Two drivers share the encounter: the **turn-based** driver waits for the active creature's orders (the player's or the AI's) and the **real-time** driver advances a round clock, starting each creature's turn at its initiative offset within the six-second round, so a fight switches between the modes without losing state (the demo's **T**). Movement itself stays in `physics` (the crowd and `TurnBasedNav`'s movement budget and threat crossings); the rules only know distances and reach.
+
+**Sizing and allocation.** `Rules(content, capacity, seed)` sizes every store from `capacity` (sixteen modifiers and four condition instances per creature, the action budget per creature handle), because a store that doubles allocates on the game thread: the first perf capture of the finished demo caught `Conditions` growing 32 → 64 once (896 B) when a fireball left enough skeletons dead. `RulesTest.aCrowdedFightWithinCapacityAllocatesNothing` keeps it at zero; building creatures and growing past the capacity are the cold paths.
 
 **Not in M15.** Multiclassing, skills, prepared casting per spell slot (slots per level only), item enchantment beyond flat bonuses, size-based reach beyond a radius, grappling and combat maneuvers, companions' AI beyond attack-the-nearest, a bestiary beyond the demo's.
 

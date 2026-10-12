@@ -31,10 +31,15 @@ public final class ActionBudget {
     /** The whole budget of a fresh turn. */
     public static final int ALL = STANDARD | MOVE | SWIFT | STEP;
 
-    private int[] left = new int[16];
-    private boolean[] moved = new boolean[16];
+    private int[] left;
+    private boolean[] moved;
 
-    ActionBudget() {}
+    /** Room for {@code capacity} creature handles; it grows past them (allocating). */
+    ActionBudget(int capacity) {
+        int n = Math.max(16, capacity);
+        left = new int[n];
+        moved = new boolean[n];
+    }
 
     private void ensure(int c) {
         if (c >= left.length) {

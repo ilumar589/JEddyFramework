@@ -532,4 +532,40 @@ class RulesTest {
                     }
                 });
     }
+
+    /**
+     * The stores are sized from the creature capacity (sixteen modifiers and four conditions per
+     * creature), so a fight in which every creature carries several conditions at once does not
+     * grow them; growth allocates, which the demo's perf run counts against the frame budget.
+     */
+    @Test
+    void aCrowdedFightWithinCapacityAllocatesNothing() {
+        int n = 48;
+        Rules r = new Rules(DemoContent.get(), n, 3);
+        int[] creature = new int[n];
+        for (int i = 0; i < n; i++) {
+            creature[i] = monster(r, i % 2 == 0 ? "skeletalWarrior" : "skeletalStalker");
+        }
+        int shaken = condition(r, "shaken");
+        int sickened = condition(r, "sickened");
+        int fatigued = condition(r, "fatigued");
+        Allocations.assertNoAllocation(
+                "Rules crowded fight",
+                () -> {
+                    for (int i = 0; i < n; i++) {
+                        r.applyCondition(creature[i], shaken, 2);
+                        r.applyCondition(creature[i], sickened, 2);
+                        r.applyCondition(creature[i], fatigued, 2);
+                    }
+                    for (int i = 0; i < n; i++) {
+                        r.attack(creature[i], creature[(i + 1) % n], 0, 0, 0);
+                    }
+                    for (int i = 0; i < n; i++) {
+                        r.removeCondition(creature[i], shaken);
+                        r.removeCondition(creature[i], sickened);
+                        r.removeCondition(creature[i], fatigued);
+                    }
+                });
+        assertEquals(n, r.creatures().capacity());
+    }
 }

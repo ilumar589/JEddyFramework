@@ -377,6 +377,7 @@ final class DemoGame implements Game {
         enemies.updateVisibility(level.visibility);
         world.updateTransforms(ctx.jobs());
         levelBuilt = true;
+        following |= options.autoTurns; // a scripted run keeps the party in view
         LOG.info(
                 "crypt built in "
                         + (System.nanoTime() - t0) / 1_000_000

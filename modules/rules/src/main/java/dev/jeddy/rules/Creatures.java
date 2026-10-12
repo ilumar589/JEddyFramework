@@ -98,10 +98,10 @@ public final class Creatures {
         castingAbility = grow(castingAbility, n);
         slotsUsed = grow(slotsUsed, n * SPELL_LEVELS);
         diesAtZero = Arrays.copyOf(diesAtZero == null ? new boolean[0] : diesAtZero, n);
-        feats = growLists(feats, n);
-        spells = growLists(spells, n);
-        mods = growLists(mods, n);
-        conditions = growLists(conditions, n);
+        feats = growLists(feats, n, 8);
+        spells = growLists(spells, n, 8);
+        mods = growLists(mods, n, 16); // ancestry, class, feats, items and a fight's conditions
+        conditions = growLists(conditions, n, 8);
         flags = grow(flags, n);
         aooUsed = grow(aooUsed, n);
         acted = Arrays.copyOf(acted == null ? new boolean[0] : acted, n);
@@ -117,12 +117,17 @@ public final class Creatures {
         return a == null ? new int[n] : Arrays.copyOf(a, n);
     }
 
-    private static IntList[] growLists(IntList[] a, int n) {
+    private static IntList[] growLists(IntList[] a, int n, int each) {
         IntList[] out = a == null ? new IntList[n] : Arrays.copyOf(a, n);
         for (int i = a == null ? 0 : a.length; i < n; i++) {
-            out[i] = new IntList(8);
+            out[i] = new IntList(each);
         }
         return out;
+    }
+
+    /** Creature handles are below this (the store grows past it, allocating). */
+    public int capacity() {
+        return capacity;
     }
 
     /** Returns the number of live creatures. */

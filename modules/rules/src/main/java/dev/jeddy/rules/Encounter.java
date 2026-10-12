@@ -20,7 +20,7 @@ import dev.jeddy.core.collections.IntList;
  */
 public final class Encounter {
     private final Rules rules;
-    private final ActionBudget budget = new ActionBudget();
+    private final ActionBudget budget;
     private final IntList order = new IntList(16); // creatures in initiative order
     private final IntList initiative = new IntList(16); // parallel to order
     private final IntList joined = new IntList(16); // parallel: join sequence, the last tie-break
@@ -34,6 +34,7 @@ public final class Encounter {
     /** Creates an empty encounter over {@code rules}. */
     public Encounter(Rules rules) {
         this.rules = rules;
+        budget = new ActionBudget(rules.creatures().capacity());
     }
 
     public Rules rules() {

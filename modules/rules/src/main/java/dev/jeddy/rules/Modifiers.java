@@ -34,19 +34,37 @@ public final class Modifiers {
     /** Lasts until removed by its source. */
     public static final int PERMANENT = -1;
 
-    private int[] creature = new int[64];
-    private int[] stat = new int[64];
-    private int[] type = new int[64];
-    private int[] value = new int[64];
-    private int[] source = new int[64];
-    private int[] rounds = new int[64];
-    private boolean[] alive = new boolean[64];
+    private int[] creature;
+    private int[] stat;
+    private int[] type;
+    private int[] value;
+    private int[] source;
+    private int[] rounds;
+    private boolean[] alive;
     private int count;
-    private final IntList free = new IntList(16);
+    private final IntList free;
     private int liveCount;
 
-    /** Creates an empty store. */
-    public Modifiers() {}
+    /** Creates an empty store with room for 64 modifiers. */
+    public Modifiers() {
+        this(64);
+    }
+
+    /**
+     * Creates an empty store with room for {@code capacity} modifiers; it doubles past it, which
+     * allocates, so a game sizes it for its creatures ({@link Rules} does: sixteen per creature).
+     */
+    public Modifiers(int capacity) {
+        int n = Math.max(1, capacity);
+        creature = new int[n];
+        stat = new int[n];
+        type = new int[n];
+        value = new int[n];
+        source = new int[n];
+        rounds = new int[n];
+        alive = new boolean[n];
+        free = new IntList(Math.max(16, n / 4));
+    }
 
     /** Packs a source. */
     public static int source(int kind, int id) {

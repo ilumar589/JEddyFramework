@@ -442,7 +442,58 @@ library runs standalone with the cooker watching your project:
 [docs/learn/14-editor.md](learn/14-editor.md) explains the format, the commands and the gizmo
 math.
 
-## 7. Run
+## 7. Rules
+
+The d20 mechanics live in the `rules` module (DESIGN §20, [docs/learn/15-rules.md](learn/15-rules.md)).
+Content is JSON under `assets/rules/` (one file per kind: `classes.json`, `feats.json`,
+`spells.json`, `items.json`, `monsters.json`, `conditions.json`, `characters.json`, and a
+`core.rules.json` manifest naming them; copy the demo's to start) that the cooker validates and
+writes as `rules/core.jrules` ([docs/formats/jrules.md](formats/jrules.md)). The game loads it
+like any asset and builds an engine over it:
+
+```java
+private AssetType<RulesData> rules;
+private int rulesHandle;
+private Rules engine;
+private Encounter encounter;
+private RealTimeDriver realTime;
+
+@Override
+public void init(AppContext ctx) {
+    rules = renderer.assets().register("rules", WorldAssets.rules());
+    rulesHandle = rules.load("rules/core.jrules");
+}
+
+// once the asset is ready (rules.isReady(rulesHandle)):
+Content content = new Content(rules.get(rulesHandle));
+engine = new Rules(content, 64, seed);                          // room for 64 creatures; sized once
+int aldric = engine.buildCharacter(content.find(RulesSchema.CHARACTERS, "aldric"), TEAM_PARTY);
+int skeleton = engine.buildMonster(content.find(RulesSchema.MONSTERS, "skeletalWarrior"), TEAM_UNDEAD);
+encounter = new Encounter(engine);
+realTime = new RealTimeDriver(encounter);
+realTime.setListener((e, creature) -> startTurn(creature));    // your AI or the player's orders
+
+// a fight
+encounter.join(aldric);
+encounter.join(skeleton);
+encounter.start();                                              // rolls initiative
+// every tick, real time with pause:
+realTime.advance(dt);                                           // starts turns at their offsets in the round
+// when a creature strikes (an animation event, a click on an enemy):
+int result = engine.attack(aldric, skeleton, 0, 0, 0);          // MISS, HIT or CRIT; damage is applied
+// the UI reads the events ring:
+Events ev = engine.events();
+for (long i = drained; i < ev.next(); i++) { ...ev.kind(i), ev.actor(i), ev.natural(i)... }
+```
+
+Movement, reach and animation stay yours: the engine knows creatures, numbers and rounds, and
+tells you whose turn it is. For turn-based play swap the driver for a `TurnBasedDriver` and call
+`endTurn` when the player is done; the encounter keeps its state across the switch. The capacity
+given to `Rules` sizes its stores, so a fight allocates nothing; `RulesTest` shows how to test
+mechanics with chosen seeds. The demo's `Combat` class is the reference integration of both
+modes, attacks of opportunity and the combat log.
+
+## 8. Run
 
 ```
 ./gradlew run
@@ -455,7 +506,7 @@ finds the `paks/` folder of its image.
 For smoke tests and CI, `-Djeddy.app.quitAfterFrames=N` quits after N frames. A packaged game
 accepts it through the `JDK_JAVA_OPTIONS` environment variable.
 
-## 8. Package
+## 9. Package
 
 | Task | Output |
 |---|---|
@@ -484,7 +535,7 @@ skips training. The launchers use the cache when `aot/<name>.aot` exists and fal
 when it does not. The cache only loads with the exact JVM flags it was trained with, so leave the
 flags to the plugin.
 
-## 9. Performance rules
+## 10. Performance rules
 
 The framework's hot paths allocate nothing per frame (DESIGN §4). Games should follow the same
 rules in per-frame and per-tick code:

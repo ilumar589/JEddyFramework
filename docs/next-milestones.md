@@ -1,6 +1,6 @@
 # Next milestones: the roadmap
 
-Milestones M0 to M14 are done (see [TASKS.md](TASKS.md)). This page is the plan for what comes
+Milestones M0 to M15 are done (see [TASKS.md](TASKS.md)). This page is the plan for what comes
 next, decided with the owner on 2026-10-11, and the reference for every option.
 
 **How the work goes.** Claude implements the milestones in the order below and asks the owner
@@ -287,6 +287,17 @@ that fade where they touch geometry, ribbons and trails, and light flashes.
 - M13-07 Real-time-with-pause rounds.
 - M13-08 The demo's fights with the rules (to-hit, damage, death).
 - M13-09 Docs.
+
+**Done (2026-10-12).** Shipped as planned, as M15-01 to M15-08 in [TASKS.md](TASKS.md): the
+`rules` module (D96), content as JSON cooked to `.jrules` and edited in the editor's Rules panel
+through the shared `RulesSchema` (D97, D98), checks and effects (D99), one `Encounter` behind a
+turn-based and a real-time driver (D100), and the demo fighting with the rules in both modes,
+with attacks of opportunity on `TurnBasedNav` and a combat log read from the event ring. Two
+things learned on the way: the perf capture caught the condition store doubling during a fight
+(896 B, once), so `Rules` now sizes its stores from its creature capacity; and the crypt's
+doorways were closed door leaves in the kit prefab, which the new `excludeNodes` import
+setting (D104) removes. The chapter is [15 Rules](learn/15-rules.md) and the lesson is
+[L02 Dice and probability](learn/lessons/02-dice-and-probability.md).
 
 **What you learn.** Data-oriented design of game logic; probability (the distribution of d20 plus a
 modifier, expected damage); deterministic simulation; testing rules with fixed seeds.
