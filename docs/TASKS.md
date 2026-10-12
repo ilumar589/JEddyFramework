@@ -34,6 +34,9 @@ graph LR
   M13 --> M14[M14 Editor]
   M14 --> M15[M15 Rules]
   M15 --> M16[M16 Save]
+  M15 --> M22[M22 Components & behaviours]
+  M22 --> M23[M23 Unity-shaped editor]
+  M22 -. stores snapshot themselves .-> M16
 ```
 
 **Parallel tracks after M1:** A: platform → GL → render (M2, M3, M5, M7) · B: physics/nav (M8) · C: assets (M4, M6) · D: audio (M9).
@@ -213,14 +216,41 @@ The editor as a library any game embeds, plus a standalone tool; levels become `
 ## M15: Rules (§20)
 A d20 core shaped like Pathfinder 1e with original names and content, in a pure-Java `rules` module; content as JSON cooked to `.jrules` and edited in the editor; the iso demo fights with it in real time with pause and turn by turn (decided with the owner 2026-10-11: D96–D100).
 
-- [ ] **M15-01** Design and plan: DESIGN §20, D96–D100, [formats/jrules.md](formats/jrules.md), this milestone · S
-- [ ] **M15-02** Core: `Dice` (packed `NdS+B`, parse and roll without allocating), `Stat`, `BonusType`, `Modifiers` (SoA, stacking: same type takes the largest except untyped/dodge/circumstance, penalties stack, durations), `Creatures` (SoA: abilities, level, class, BAB, base saves, hit points incl. temporary, size, speed, equipment, conditions with rounds, feats, spell slots, team), `stat(creature, Stat)` resolution with per-type scratch; tests with hand-computed numbers and an allocation test of resolution · M · Deps: M15-01
-- [ ] **M15-03** Content: the JSON schema (`RulesSchema`: kinds, fields, types, references) shared by the importer and the editor; `RulesData` (`.jrules` reader/writer in `asset`: tables per kind, effect-operation array, string table); `RulesImporter` in the cooker (validation: references, dice, enums, prerequisites; errors name the file and definition); the demo's original content under `samples/iso-demo/assets/rules/` (six classes, three ancestries, a dozen feats, a dozen spells, weapons and armor, the skeleton and a few monsters, the conditions); round-trip and validation tests · L · Deps: M15-02
-- [ ] **M15-04** Checks and effects: `Checks` (d20 checks, attack rolls with threat and confirmation, iterative attacks, damage with crit multipliers and temporary hit points, saving throws half/negates), `Effects` (applies operation lists: modifiers with durations, damage, healing, conditions, feats, slots), dying and death, `Events` ring for the log; tests with fixed seeds asserting exact rolls, and an allocation test of a round of attacks · M · Deps: M15-03
-- [ ] **M15-05** Encounters: `Encounter` (participants, initiative with tie-breaks, rounds, turns, `ActionBudget` with standard/move/swift/full-round/5-foot step, durations ticking at the end of turns, attacks of opportunity from reported crossings and provoking actions, joining and leaving mid-fight), the turn-based driver (waits for orders) and the real-time driver (six-second rounds, initiative offsets, switching modes mid-fight); tests of a scripted fight in both modes giving the same numbers · M · Deps: M15-04
-- [ ] **M15-06** Editor: the *Rules* panel (definitions by kind in a list with a filter, a property grid generated from `RulesSchema`: strings, numbers, dice, enums, references as dropdowns, operation lists with add/remove/reorder; add, duplicate, delete definitions; undo through commands; save writes the JSON files back, the cooker watcher re-cooks, the game hot-reloads the `.jrules`); tests · M · Deps: M15-03, M14
+- [x] **M15-01** Design and plan: DESIGN §20, D96–D100, [formats/jrules.md](formats/jrules.md), this milestone · S
+- [x] **M15-02** Core: `Dice` (packed `NdS+B`, parse and roll without allocating), `Stat`, `BonusType`, `Modifiers` (SoA, stacking: same type takes the largest except untyped/dodge/circumstance, penalties stack, durations), `Creatures` (SoA: abilities, level, class, BAB, base saves, hit points incl. temporary, size, speed, equipment, conditions with rounds, feats, spell slots, team), `stat(creature, Stat)` resolution with per-type scratch; tests with hand-computed numbers and an allocation test of resolution · M · Deps: M15-01
+- [x] **M15-03** Content: the JSON schema (`RulesSchema`: kinds, fields, types, references) shared by the importer and the editor; `RulesData` (`.jrules` reader/writer in `asset`: tables per kind, effect-operation array, string table); `RulesImporter` in the cooker (validation: references, dice, enums, prerequisites; errors name the file and definition); the demo's original content under `samples/iso-demo/assets/rules/` (six classes, three ancestries, a dozen feats, a dozen spells, weapons and armor, the skeleton and a few monsters, the conditions); round-trip and validation tests · L · Deps: M15-02
+- [x] **M15-04** Checks and effects: `Checks` (d20 checks, attack rolls with threat and confirmation, iterative attacks, damage with crit multipliers and temporary hit points, saving throws half/negates), `Effects` (applies operation lists: modifiers with durations, damage, healing, conditions, feats, slots), dying and death, `Events` ring for the log; tests with fixed seeds asserting exact rolls, and an allocation test of a round of attacks · M · Deps: M15-03
+- [x] **M15-05** Encounters: `Encounter` (participants, initiative with tie-breaks, rounds, turns, `ActionBudget` with standard/move/swift/full-round/5-foot step, durations ticking at the end of turns, attacks of opportunity from reported crossings and provoking actions, joining and leaving mid-fight), the turn-based driver (waits for orders) and the real-time driver (six-second rounds, initiative offsets, switching modes mid-fight); tests of a scripted fight in both modes giving the same numbers · M · Deps: M15-04
+- [x] **M15-06** Editor: the *Rules* panel (definitions by kind in a list with a filter, a property grid generated from `RulesSchema`: strings, numbers, dice, enums, references as dropdowns, operation lists with add/remove/reorder; add, duplicate, delete definitions; undo through commands; save writes the JSON files back, the cooker watcher re-cooks, the game hot-reloads the `.jrules`); tests · M · Deps: M15-03, M14
 - [ ] **M15-07** Demo: party members and skeletons are creatures built from the content (classes, feats, weapons, armor); fights resolve through the engine in real time with pause (attack animations trigger attack rolls, damage, death; fireballs are a spell with a Reflex save; conditions show in the UI); turn-based mode on **T**: an initiative bar, the active creature's action budget, movement within the budget on `TurnBasedNav` with attacks of opportunity when crossing threat zones, End Turn, enemy AI turns (move to the nearest, attack); the combat log reads the event ring; the perf capture stays at 0 B/frame · L · Deps: M15-05, M15-06
 - [ ] **M15-08** Docs: learning chapter 15 (the d20 math and probabilities, stacking, effects as data, the encounter state machine, determinism and testing with seeds), `rules` README, DESIGN §20 final, getting-started section, README row · S · Deps: M15-07
+
+## M22: Components and behaviours (§22)
+A unified gameplay API generated by an annotation processor: components are records, behaviours are static methods, stores are SoA sparse sets, views are flyweights, the schedule is derived from declared access, the editor and the save system read the generated schema. No inheritance, no reflection. Plan and design proposal: [next-milestones.md §15](next-milestones.md#15-components-and-behaviours-generated). Added 2026-10-12 at the owner's request; placement before M16 recommended, to be confirmed.
+
+- [ ] **M22-01** Design: DESIGN §22, decisions, this milestone · S
+- [ ] **M22-02** `components` runtime: sparse sets, store base, schedule executor on the job system, debug race checks, allocation tests · M
+- [ ] **M22-03** `tools/component-processor`: stores, views, loops, registry and schema generation; `jeddy.game` convention plugin; compile tests · L · Deps: M22-02
+- [ ] **M22-04** Lifecycle and events: spawn/despawn, triggers and collisions, the animation/rules/dialogue event rings, turn callbacks · M · Deps: M22-03
+- [ ] **M22-05** Editor and formats: components chunk in `.jlevel`, inspector *Add component* and field editing from the schema, prefab rows, cooker validation · M · Deps: M22-03, M14
+- [ ] **M22-06** Scene bindings generated by the cooker (`<Level>.java` constants for named entities, spawns, triggers) · S · Deps: M22-05
+- [ ] **M22-07** Port the demo (`Party`, `Enemies`, `Combat`, `Spells`) to components and behaviours; perf capture at 0 B/frame; parallel schedule measured · L · Deps: M22-04, M22-05
+- [ ] **M22-08** Stores snapshot and restore themselves (what M16 needs) · M · Deps: M22-03
+- [ ] **M22-09** Docs: chapter 22, a lesson on data layout, DESIGN, README · S · Deps: M22-07
+
+## M23: The Unity-shaped editor (§23)
+The M14 editor grown to Unity's workflow without scripting: play mode, hierarchy and inspector with components, a project window with thumbnails and import settings, scene view modes, materials, lighting, navigation and profiler windows, prefab editing, a build window. Plan: [next-milestones.md §16](next-milestones.md#16-the-unity-shaped-editor).
+
+- [ ] **M23-01** Design: DESIGN §23, decisions, this milestone · S · Deps: M22
+- [ ] **M23-02** Play mode: edit/play/pause/step, discard-on-stop from the M22 stores, two cameras · M
+- [ ] **M23-03** Hierarchy and Inspector: parenting, groups, components, multi-object editing · M
+- [ ] **M23-04** Project window: sources and cooked side by side, thumbnails rendered by the engine, import settings in sidecars, search, drag into the scene · L
+- [ ] **M23-05** Scene view modes and tools · M
+- [ ] **M23-06** Materials editor and `.jmat` assets · M
+- [ ] **M23-07** Lighting, Navigation and Profiler windows · M
+- [ ] **M23-08** Prefab editing mode · M
+- [ ] **M23-09** Build window (cook, pack, package, run) · S
+- [ ] **M23-10** Docs: chapter 23, a lesson on rendering for tools, DESIGN, README · S
 
 ## Backlog (unscheduled)
 Each item is described, with a draft task list, in [next-milestones.md](next-milestones.md).

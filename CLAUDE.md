@@ -47,3 +47,8 @@ whenever a decision is theirs (scope, trade-offs with no clear winner, anything 
   - Javadoc that says what and why, and comments on non-obvious lines.
 - **Keep the guide current.** When code a chapter quotes or describes changes, fix the chapter in
   the same change.
+- **Math and GPU in depth (owner's request, 2026-10-12).** Derive every formula the code uses from
+  definitions to the line in the source, with a worked numeric example; for every GPU feature
+  explain what the driver and the hardware do (pipeline stage, memory, synchronization, what can
+  go wrong), not only the GL calls. Each milestone also adds at least one standalone lesson to
+  `docs/learn/lessons/` (listed in `docs/learn/README.md`) on one math or GPU topic it touched.

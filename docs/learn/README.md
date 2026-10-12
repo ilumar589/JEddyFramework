@@ -39,6 +39,25 @@ at "what is a vertex shader".
 | 13 | [The user interface: immediate mode, flex layout and distance-field text](13-ui.md) | Immediate-mode UI, the six-pass flex layout derived and checked, hit testing against last frame's rectangles, drag and drop and focus, the exact Euclidean distance transform behind SDF fonts, the one-draw UI renderer with per-vertex clipping and premultiplied blending, widgets, the demo's screens | `ui`, `render/ui`, `app/ui`, `cooker/font`, `DemoUi` |
 | 14 | [The level editor: a binary level format, commands with undo, picking, gizmos and docked panels](14-editor.md) | The `.jlevel` composition format and an editable SoA store with stable ids, placements as entity groups that follow edits, commands with explicit inverse data and merging, picking through inverse transforms, the gizmo math derived (ray–axis, ray–plane, signed angles, snapping, pixels at any depth), rotating a selection about a pivot, immediate-mode panels and id scopes, the standalone tool with the cooker watching | `editor`, `LevelData`, `LevelLoader`, `World.pick`, `cooker/level`, `tools/editor` |
 
+## Lessons: math and GPU deep dives
+
+From 2026-10-12 the guide also has standalone **lessons** in [`lessons/`](lessons/): one topic
+each, derived from definitions to the line in the code, with numeric examples and exercises,
+and with what the driver and the hardware do behind the GL calls. Every milestone adds at least
+one. They assume the chapters they name.
+
+| # | Lesson | What you learn | Builds on |
+|---|---|---|---|
+| L01 | [Buffers in flight](lessons/01-buffers-in-flight.md) | The GPU as a second computer and the command stream; immutable storage and its flags; the three ways to change a buffer and their ordering; fences, the three-frame ring and its sizing; barriers; the three findings of the first run on an Intel GPU and the bisect method that found the dropped write | 05, 06 |
+
+Planned next (one per milestone, in the order the milestones need them): the d20's probability
+distributions (M15); binary formats, alignment and endianness (M16); two-bone IK and quaternion
+deltas, derived (M18); compute shaders, workgroups and atomics (M19); A* and admissible
+heuristics (M20); data layout, cache lines and the flyweight view (M22); rendering for tools
+(M23). Standing requests from the owner for the GPU side, to be scheduled: the projection
+matrix and depth precision with numbers, the rendering equation to `pbr.frag` step by step,
+texture memory (mips, block compression bit layouts, bandwidth), the pipeline stage by stage.
+
 ## Reading paths
 
 - **Everything, in order:** 01 → 14. Each chapter links back to earlier ones when it builds on
