@@ -4,6 +4,7 @@ module dev.jeddy.samples.iso {
     requires dev.jeddy.editor;
     requires dev.jeddy.rules;
     requires dev.jeddy.components;
+    requires dev.jeddy.save;
     requires dev.jeddy.gl;
     requires jdk.management;
 }

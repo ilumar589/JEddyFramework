@@ -49,8 +49,12 @@ public final class SaveWriter {
         openLengthAt = -1;
     }
 
-    /** Adds a meta entry (the title, the level, the play time; what a slot list shows). */
-    public void meta(String key, String value) {
+    /**
+     * Adds a meta entry (the title, the level, the play time; what a slot list shows). A {@link
+     * CharSequence} value lets the game format into a kept {@code StringBuilder} without
+     * allocating.
+     */
+    public void meta(String key, CharSequence value) {
         meta.string(key);
         meta.string(value);
         metaCount++;
@@ -122,8 +126,8 @@ public final class SaveWriter {
         return meta.size();
     }
 
-    /** The payload's bytes; valid up to {@link #payloadSize}. */
-    byte[] payloadBuffer() {
+    /** The payload's bytes (chunk headers, data and padding); valid up to {@link #payloadSize}. */
+    public byte[] payloadBuffer() {
         finish();
         return payload.buffer();
     }

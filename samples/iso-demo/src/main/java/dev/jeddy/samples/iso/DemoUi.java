@@ -10,7 +10,9 @@ import dev.jeddy.core.id.StrId;
 import dev.jeddy.render.RenderPacket;
 import dev.jeddy.render.material.GpuTexture;
 import dev.jeddy.rules.ActionBudget;
+import dev.jeddy.save.SaveSlots;
 import dev.jeddy.ui.Box;
+import dev.jeddy.ui.TextBuffer;
 import dev.jeddy.ui.Theme;
 import dev.jeddy.ui.Ui;
 import dev.jeddy.ui.UiKey;
@@ -18,6 +20,8 @@ import dev.jeddy.ui.Widgets;
 import dev.jeddy.window.VSync;
 import dev.jeddy.window.WindowCommands;
 import dev.jeddy.window.WindowMode;
+
+import java.util.List;
 
 /**
  * The demo's screens (TASKS M13-07), built with the immediate-mode UI every frame: a status panel,
@@ -54,6 +58,14 @@ final class DemoUi {
     private static final long END_TURN = StrId.of("endturn");
     private static final long INITIATIVE = StrId.of("initiative");
     private static final long HELP = StrId.of("help");
+    private static final long QUICK_SAVE = StrId.of("quicksave");
+    private static final long QUICK_LOAD = StrId.of("quickload");
+    private static final long SAVE_NAME = StrId.of("savename");
+    private static final long SAVE_AS = StrId.of("saveas");
+    private static final long SAVE_LIST = StrId.of("savelist");
+    private static final long SAVE_ROW = StrId.of("saverow");
+    private static final long SAVE_LOAD = StrId.of("saveload");
+    private static final long SAVE_DELETE = StrId.of("savedelete");
 
     private static final int DRAG_ITEM = 1;
     private static final int SLOT_SIZE = 44;
@@ -158,6 +170,14 @@ final class DemoUi {
     boolean ambience = true;
     boolean volumeChanged;
 
+    // Saves (DESIGN §21): the game refreshes the list when the menu opens and runs the requests.
+    List<SaveSlots.SaveInfo> saves = List.of();
+    final TextBuffer saveName = new TextBuffer(48);
+    String saveRequested;
+    String loadRequested;
+    String deleteRequested;
+    String saveStatus = "";
+
     private final int[] slots = new int[COLUMNS * ROWS];
     private int logVersion = -1;
     private long buildStart;
@@ -199,6 +219,9 @@ final class DemoUi {
         profilerChanged = false;
         turnBasedChanged = false;
         volumeChanged = false;
+        saveRequested = null;
+        loadRequested = null;
+        deleteRequested = null;
         shift = (ui.input().modifiers & UiKey.MOD_SHIFT) != 0;
         beginNanos = System.nanoTime() - t0;
     }
@@ -667,7 +690,7 @@ final class DemoUi {
                 .column()
                 .gap(10)
                 .padding(16)
-                .width(340)
+                .width(380)
                 .background(theme.panel)
                 .border(theme.panelBorder, 1)
                 .radius(6)
@@ -724,6 +747,8 @@ final class DemoUi {
             profilerChanged = true;
         }
         w.separator();
+        savesSection();
+        w.separator();
         w.row().widthGrow().gap(8).open();
         if (w.button(OPTIONS, "Inventory")) {
             inventoryOpen = !inventoryOpen;
@@ -734,5 +759,57 @@ final class DemoUi {
         }
         ui.close();
         ui.close();
+    }
+
+    /** The pause menu's saves: quick save and load, save as, and the slots with Load and Delete. */
+    private void savesSection() {
+        w.labelDim("Saves");
+        w.row().widthGrow().gap(8).open();
+        if (w.button(QUICK_SAVE, "Quick save (F5)")) {
+            saveRequested = SaveSlots.QUICK;
+        }
+        if (w.button(QUICK_LOAD, "Quick load (F9)", hasSlot(SaveSlots.QUICK))) {
+            loadRequested = SaveSlots.QUICK;
+        }
+        ui.close();
+        w.row().widthGrow().gap(8).open();
+        boolean submitted = w.textField(SAVE_NAME, saveName, "Name");
+        if ((w.button(SAVE_AS, "Save as") || submitted) && saveName.length() > 0) {
+            saveRequested = saveName.toString();
+        }
+        ui.close();
+        if (!saveStatus.isEmpty()) {
+            w.small(saveStatus);
+        }
+        if (saves.isEmpty()) {
+            w.small("No saves yet");
+            return;
+        }
+        w.scrollColumn(SAVE_LIST).widthGrow().maxHeight(180).open();
+        for (int i = 0; i < saves.size(); i++) {
+            SaveSlots.SaveInfo info = saves.get(i);
+            ui.pushId(i);
+            ui.box(SAVE_ROW).row().widthGrow().gap(8).open();
+            w.label(info.slot()).minWidth(72);
+            w.small(info.meta("title", "")).widthGrow();
+            if (w.button(SAVE_LOAD, "Load")) {
+                loadRequested = info.slot();
+            }
+            if (w.button(SAVE_DELETE, "Delete")) {
+                deleteRequested = info.slot();
+            }
+            ui.close();
+            ui.popId();
+        }
+        ui.close();
+    }
+
+    private boolean hasSlot(String slot) {
+        for (int i = 0; i < saves.size(); i++) {
+            if (saves.get(i).slot().equals(slot)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

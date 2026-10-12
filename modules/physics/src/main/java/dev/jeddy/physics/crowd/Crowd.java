@@ -473,8 +473,8 @@ public final class Crowd {
 
     /**
      * Reads what {@link #write} wrote: every current agent is removed, the saved ones are placed in
-     * their slots (so the indices the game holds stay valid) and their targets are requested again.
-     * A slot past this crowd's capacity is skipped. Allocates nothing.
+     * their slots (so the indices the game holds stay valid), their targets are requested again and
+     * the paths solved at once. A slot past this crowd's capacity is skipped. Allocates nothing.
      */
     public void read(ByteReader r) {
         for (int i = 0; i < capacity; i++) {
@@ -506,6 +506,13 @@ public final class Crowd {
                 filterIndex[i] = Math.clamp(r.int32(), 0, filters.length - 1);
                 filter(filterIndex[i]);
                 place(i, x, y, z);
+                // The saved position was on the mesh already: keep its exact bits rather than
+                // the re-projection's (a few ulps off in y), so that a save made right after a
+                // load is the same bytes. The corridor starts there too.
+                px[i] = prevX[i] = x;
+                py[i] = y;
+                pz[i] = prevZ[i] = z;
+                corridors[i].reset(corridors[i].firstPoly(), x, y, z);
                 vx[i] = velX;
                 vz[i] = velZ;
             } else {
@@ -521,11 +528,24 @@ public final class Crowd {
                 continue;
             }
             switch (target) {
-                case TARGET_VALID, TARGET_REQUESTING, TARGET_ARRIVED, TARGET_FAILED ->
+                case TARGET_VALID, TARGET_REQUESTING ->
                         requestMoveTarget(i, targetX, targetY, targetZ);
                 case TARGET_VELOCITY -> requestMoveVelocity(i, requestedVx, requestedVz);
+                case TARGET_ARRIVED, TARGET_FAILED -> targetState[i] = target; // nothing to walk
                 default -> {}
             }
+            // The saved target was the snapped point and may be stale (a velocity target, none):
+            // keep its exact bits for the same reason as the position.
+            tx[i] = targetX;
+            ty[i] = targetY;
+            tz[i] = targetZ;
+            reqVx[i] = requestedVx;
+            reqVz[i] = requestedVz;
+        }
+        // Solve every path now rather than over the next ticks: the loaded agents walk at once,
+        // and their target states are what the save had.
+        while (queueCount > 0) {
+            solveRequests();
         }
     }
 

@@ -17,6 +17,8 @@ import dev.jeddy.asset.format.RulesData;
 import dev.jeddy.asset.format.SceneData;
 import dev.jeddy.audio.Audio;
 import dev.jeddy.audio.SoundClip;
+import dev.jeddy.core.io.ByteReader;
+import dev.jeddy.core.io.ByteWriter;
 import dev.jeddy.core.log.Log;
 import dev.jeddy.core.log.Logger;
 import dev.jeddy.editor.Editor;
@@ -39,6 +41,8 @@ import dev.jeddy.render.RenderPackets;
 import dev.jeddy.render.camera.IsoCameraController;
 import dev.jeddy.rules.ActionBudget;
 import dev.jeddy.rules.Content;
+import dev.jeddy.save.SaveDirectory;
+import dev.jeddy.save.SaveSlots;
 
 /**
  * The iso demo's game thread (TASKS M10-03 to M10-05, M12-07): loads the crypt, the characters and
@@ -50,7 +54,7 @@ import dev.jeddy.rules.Content;
  * <p>Thread ownership: the game thread ({@link Game} callbacks). Allocates nothing per frame once
  * loaded.
  */
-final class DemoGame implements Game {
+final class DemoGame implements Game, CryptSave.Host {
     private static final Logger LOG = Log.logger("iso-demo");
 
     /** Joints per character rig (KayKit: 41), for sizing the animation pools. */
@@ -147,6 +151,14 @@ final class DemoGame implements Game {
     private boolean screenshotTaken;
 
     private final Rng rng;
+    private final long[] rngState = new long[4];
+    private CryptSave saves;
+    private String pendingSave;
+    private String pendingLoad;
+    private float autosaveTimer;
+    private boolean scriptedSaveDone;
+    private boolean scriptedLoadDone;
+    private byte[] scriptedPayload; // the scripted save's bytes, compared after the load
     private double time;
     private long startNanos;
     private long loadedNanos;
@@ -398,6 +410,28 @@ final class DemoGame implements Game {
             audioSync = new AudioSync(audio, world);
         }
         turnBased = new TurnBasedNav(level.nav, 4096);
+        saves =
+                new CryptSave(
+                        options.savesDir != null ? options.savesDir : SaveDirectory.of("crypt"),
+                        this,
+                        world,
+                        level,
+                        levelLoader,
+                        Level.LEVEL,
+                        party,
+                        enemies,
+                        animator,
+                        spells,
+                        game,
+                        combat,
+                        sync,
+                        ctx.jobs());
+        if (options.saveAt > 0) {
+            // The round-trip check compares a capture after the load with the saved bytes; the
+            // fog's visible bits are derived, and exactly so only when every viewer rescans as
+            // soon as it moves (the default skips moves under 0.25 m: the saved bits lag).
+            level.visibility.setMoveThreshold(0);
+        }
         scatterProps(options.instanceCount());
         instanceCount = world.renderableCount();
         controller.setBounds(
@@ -604,6 +638,7 @@ final class DemoGame implements Game {
                 handleInput(ctx, in);
             }
             game.update(dt, alpha); // the skeletons' outlines (SkeletonAi.outline)
+            saves(dt);
         }
         probe.mark(AllocProbe.INPUT);
         if (levelBuilt) {
@@ -647,6 +682,161 @@ final class DemoGame implements Game {
         demoUi.declare(party);
         editor.declare(demoUi.ui, demoUi.w);
         probe.mark(AllocProbe.UI);
+    }
+
+    // Saves (DESIGN §21, TASKS M16-08) ------------------------------------------------------------
+
+    /**
+     * Runs the frame's save and load requests (keys, the menu, the autosave, the scripted save)
+     * between ticks, where the state is whole. A load replaces everything the save holds; the frame
+     * carries on with the loaded state.
+     */
+    private void saves(float dt) {
+        if (demoUi.saveRequested != null) {
+            pendingSave = demoUi.saveRequested;
+        }
+        if (demoUi.loadRequested != null) {
+            pendingLoad = demoUi.loadRequested;
+        }
+        if (demoUi.deleteRequested != null) {
+            try {
+                saves.slots().delete(demoUi.deleteRequested);
+                demoUi.saveStatus = "Deleted " + demoUi.deleteRequested;
+            } catch (java.io.IOException e) {
+                demoUi.saveStatus = "Cannot delete: " + e.getMessage();
+            }
+            demoUi.saves = saves.list();
+        }
+        if (options.autosaveSeconds > 0 && ready) {
+            autosaveTimer += dt;
+            if (autosaveTimer >= options.autosaveSeconds) {
+                autosaveTimer = 0;
+                pendingSave = SaveSlots.AUTO;
+            }
+        }
+        if (options.saveAt > 0 && ready) {
+            double since = time - loadedTime;
+            if (!scriptedSaveDone && since >= options.saveAt) {
+                scriptedSaveDone = true;
+                pendingSave = SaveSlots.QUICK;
+            } else if (scriptedSaveDone && !scriptedLoadDone && since >= options.saveAt + 1) {
+                scriptedLoadDone = true;
+                pendingLoad = SaveSlots.QUICK;
+            }
+        }
+        if (pendingSave != null) {
+            String slot = pendingSave;
+            pendingSave = null;
+            saves.save(slot);
+            if (options.saveAt > 0 && scriptedPayload == null) {
+                scriptedPayload = saves.payloadCopy();
+            }
+            demoUi.saveStatus =
+                    "Saved "
+                            + slot
+                            + " ("
+                            + saves.payloadBytes() / 1024
+                            + " KB captured in "
+                            + saves.captureNanos() / 1000
+                            + " us)";
+            demoUi.log.start().add("Saved ").add(slot).end();
+            LOG.info(demoUi.saveStatus);
+            if (demoUi.menuOpen) {
+                saves.job().await(); // the list below should show the new file
+                demoUi.saves = saves.list();
+            }
+        }
+        if (pendingLoad != null) {
+            String slot = pendingLoad;
+            pendingLoad = null;
+            if (saves.load(slot)) {
+                afterLoad();
+                demoUi.saveStatus = "Loaded " + slot;
+                demoUi.log.start().add("Loaded ").add(slot).end();
+                LOG.info("loaded " + slot);
+                if (scriptedPayload != null) {
+                    // The scripted check: a capture right after the load must reproduce the
+                    // saved bytes, chunk for chunk (the whole-state round trip).
+                    saves.capture();
+                    String difference = saves.differenceFrom(scriptedPayload);
+                    if (difference == null) {
+                        LOG.info(
+                                "save round trip exact: "
+                                        + saves.payloadBytes()
+                                        + " bytes captured again in "
+                                        + saves.captureNanos() / 1000
+                                        + " us");
+                    } else {
+                        LOG.error("save round trip differs: " + difference);
+                        failed = true;
+                    }
+                    scriptedPayload = null;
+                }
+            } else {
+                demoUi.saveStatus = "Cannot load " + slot + ": " + saves.lastError();
+                demoUi.log.start().add("Cannot load ").add(slot).end();
+            }
+        }
+        if (demoUi.menuOpen && !menuListed) {
+            demoUi.saves = saves.list();
+            menuListed = true;
+        } else if (!demoUi.menuOpen) {
+            menuListed = false;
+        }
+    }
+
+    private boolean menuListed;
+
+    /** Re-derives what the frame caches from the loaded state. */
+    private void afterLoad() {
+        turnBasedOn = combat.turnBasedMode;
+        demoUi.turnBased = turnBasedOn;
+        floodMember = -1;
+        boundaryCount = 0;
+        markerAge = 99;
+        spells.targeting = false;
+        party.updateHighlights();
+        controller.syncGoals();
+    }
+
+    @Override
+    public void writeGame(ByteWriter w) {
+        w.float64(time - (loadedTime < 0 ? 0 : loadedTime));
+        w.bool(following);
+        w.float32(camera.target.x);
+        w.float32(camera.target.y);
+        w.float32(camera.target.z);
+        w.float32(camera.yaw);
+        w.float32(camera.distance);
+        rng.saveState(rngState);
+        w.longs(rngState);
+    }
+
+    @Override
+    public void readGame(ByteReader r) {
+        double played = r.float64();
+        loadedTime = time - played; // play time continues from the save's
+        following = r.bool();
+        camera.target.set(r.float32(), r.float32(), r.float32());
+        camera.yaw = r.float32();
+        camera.distance = r.float32();
+        if (r.longsInto(rngState) == 4) {
+            rng.restoreState(rngState);
+        }
+    }
+
+    @Override
+    public void title(StringBuilder out) {
+        out.append("Crypt, round ")
+                .append(combat.rounds)
+                .append(", ")
+                .append(enemies.kills)
+                .append(" slain");
+    }
+
+    @Override
+    public double playSeconds() {
+        return loadedTime < 0 ? 0 : time - loadedTime;
     }
 
     /** Opens the editor over the current view, or closes it (F10). */
@@ -899,6 +1089,12 @@ final class DemoGame implements Game {
         }
         if (in.wasKeyPressed(Scancode.F12)) {
             screenshotRequested = true;
+        }
+        if (in.wasKeyPressed(Scancode.F5)) {
+            pendingSave = SaveSlots.QUICK;
+        }
+        if (in.wasKeyPressed(Scancode.F9)) {
+            pendingLoad = SaveSlots.QUICK;
         }
         if (in.wasKeyPressed(Scancode.I)) {
             demoUi.inventoryOpen = !demoUi.inventoryOpen;

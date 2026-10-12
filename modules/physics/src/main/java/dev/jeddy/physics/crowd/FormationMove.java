@@ -1,5 +1,7 @@
 package dev.jeddy.physics.crowd;
 
+import dev.jeddy.core.io.ByteReader;
+import dev.jeddy.core.io.ByteWriter;
 import dev.jeddy.physics.nav.NavMeshQuery;
 import dev.jeddy.physics.nav.QueryFilter;
 
@@ -172,5 +174,29 @@ public final class FormationMove {
             }
             a[j + 1] = key;
         }
+    }
+
+    // ---- Saves (DESIGN §21) -------------------------------------------------------------------
+
+    /** Writes the order in progress: members, their normal speeds and their slots. */
+    public void write(ByteWriter w) {
+        w.int32(count);
+        for (int k = 0; k < count; k++) {
+            w.int32(members[k]);
+            w.float32(baseSpeed[k]);
+            w.int32(slotOf[k]);
+        }
+        w.floats(slots, count * 3);
+    }
+
+    /** Reads what {@link #write} wrote (the crowd's agents first: their targets are theirs). */
+    public void read(ByteReader r) {
+        count = Math.min(r.int32(), members.length);
+        for (int k = 0; k < count; k++) {
+            members[k] = r.int32();
+            baseSpeed[k] = r.float32();
+            slotOf[k] = Math.clamp(r.int32(), 0, members.length - 1);
+        }
+        r.floatsInto(slots);
     }
 }

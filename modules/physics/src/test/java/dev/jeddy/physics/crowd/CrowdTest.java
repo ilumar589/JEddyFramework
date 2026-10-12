@@ -323,7 +323,7 @@ class CrowdTest {
         assertEquals(avx, loaded.velocityX(a), 1e-4f);
         assertEquals(5, loaded.maxSpeed(b));
         assertEquals(0.3f, loaded.radius(b));
-        assertEquals(Crowd.TARGET_REQUESTING, loaded.targetState(a), "the target was re-requested");
+        assertEquals(Crowd.TARGET_VALID, loaded.targetState(a), "re-requested and solved at once");
         assertEquals(Crowd.TARGET_VELOCITY, loaded.targetState(d));
         assertEquals(Crowd.TARGET_NONE, loaded.targetState(b));
         assertEquals(dx, loaded.x(d), 1e-4f);

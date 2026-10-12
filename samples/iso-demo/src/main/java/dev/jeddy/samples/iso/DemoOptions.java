@@ -70,6 +70,16 @@ final class DemoOptions {
     boolean autoTurns;
 
     boolean quitAfterFirstFrame;
+
+    /** Seconds between autosaves; 0 for none. */
+    float autosaveSeconds;
+
+    /** Where the saves go (default: the user's data directory, DESIGN §21 D119). */
+    Path savesDir;
+
+    /** Scripted runs: quick save that many seconds after loading, load it again a second later. */
+    double saveAt;
+
     java.util.List<String> failOn = java.util.List.of();
     boolean editor;
     Path levelSource;
@@ -136,6 +146,9 @@ final class DemoOptions {
                 case "--editor" -> o.editor = true;
                 case "--editor-command" -> o.editorCommands.add(value(args, ++i, a));
                 case "--level-source" -> o.levelSource = Path.of(value(args, ++i, a));
+                case "--autosave" -> o.autosaveSeconds = Float.parseFloat(value(args, ++i, a));
+                case "--saves" -> o.savesDir = Path.of(value(args, ++i, a));
+                case "--save-at" -> o.saveAt = Double.parseDouble(value(args, ++i, a));
                 case "--help", "-h" -> {
                     System.out.println(usage());
                     System.exit(0);
@@ -236,6 +249,9 @@ final class DemoOptions {
           --editor-command CMD  run an editor console command at start (repeatable)
           --level-source FILE   the .jlevel the editor saves (default: the sample's
                                 assets/levels/crypt.jlevel, else build/crypt.jlevel)
+          --autosave SECONDS    save to the auto slot that often (default: never)
+          --saves DIR           the save directory (default: the user's data directory)
+          --save-at SECONDS     scripted: quick save then, quick load a second later
         controls:
           left click        select a party member / move the selection
           left drag         box select          right click   move the selection
@@ -246,6 +262,7 @@ final class DemoOptions {
           T                 real time / turn-based combat     Enter  end the turn
           I                 inventory           Space         pause
           F3                profiler            F12           screenshot
+          F5                quick save          F9            quick load
           F10               level editor        Esc           cancel / menu
         """;
     }

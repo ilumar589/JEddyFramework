@@ -3,6 +3,8 @@ package dev.jeddy.samples.iso;
 import dev.jeddy.app.world.AgentSync;
 import dev.jeddy.app.world.World;
 import dev.jeddy.asset.format.SceneData;
+import dev.jeddy.core.io.ByteReader;
+import dev.jeddy.core.io.ByteWriter;
 import dev.jeddy.math.Rng;
 import dev.jeddy.physics.crowd.AgentParams;
 import dev.jeddy.physics.crowd.Crowd;
@@ -347,5 +349,31 @@ final class Party {
                         crowd.x(a), crowd.y(a), crowd.z(a), 0.65f, 0.3f, 1f, 0.45f, 0.9f);
             }
         }
+    }
+
+    // ---- Saves (DESIGN §21) -------------------------------------------------------------------
+
+    /**
+     * Writes the selection, the formation, the strike cooldowns and the formation walk in progress.
+     * Allocates nothing.
+     */
+    void write(ByteWriter w) {
+        w.bools(selected);
+        w.int32(formation);
+        w.floats(cooldown);
+        mover.write(w);
+    }
+
+    /** Reads what {@link #write} wrote and re-derives who is down from the rules. */
+    void read(ByteReader r) {
+        r.boolsInto(selected);
+        formation = Math.clamp(r.int32(), 0, formations.length - 1);
+        r.floatsInto(cooldown);
+        mover.read(r);
+        hovered = -1;
+        for (int i = 0; i < SIZE; i++) {
+            down[i] = !combat.canAct(combat.partyCreature(i));
+        }
+        rebuildSelection();
     }
 }

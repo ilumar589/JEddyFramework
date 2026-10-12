@@ -2,6 +2,8 @@ package dev.jeddy.samples.iso;
 
 import dev.jeddy.asset.format.RulesSchema;
 import dev.jeddy.core.collections.IntList;
+import dev.jeddy.core.io.ByteReader;
+import dev.jeddy.core.io.ByteWriter;
 import dev.jeddy.physics.crowd.Crowd;
 import dev.jeddy.physics.nav.TurnBasedNav;
 import dev.jeddy.rules.ActionBudget;
@@ -760,5 +762,65 @@ final class Combat implements TurnListener {
             }
         }
         eventsRead = end;
+    }
+
+    // ---- Saves (DESIGN §21) -------------------------------------------------------------------
+
+    /**
+     * Writes the rules (creatures by content id, the generator), the encounter, the real-time clock
+     * and this class's own round state: the mode, the rounds, who is engaged, each creature's
+     * attacks and movement left this turn, and the skeleton AI's turn. Allocates nothing.
+     */
+    void write(ByteWriter w) {
+        rules.write(w);
+        encounter.write(w);
+        w.float32(realTime.clock());
+        w.bool(turnBasedMode);
+        w.int32(rounds);
+        w.int32(engaged);
+        w.float32(regenTimer);
+        int n = creatures.highWaterMark();
+        w.ints(attacksLeft, Math.min(n, attacksLeft.length));
+        w.ints(attackIndex, Math.min(n, attackIndex.length));
+        w.floats(moveLeft, Math.min(n, moveLeft.length));
+        w.int32(aiCreature);
+        w.int32(aiPhase);
+        w.float32(aiTimer);
+        w.float32(aiTargetX);
+        w.float32(aiTargetZ);
+        w.int32(aiVictim);
+    }
+
+    /**
+     * Reads what {@link #write} wrote: the creatures come back at their handles (the party at
+     * {@code 0..5}, skeleton {@code i} at {@code 6 + i}, as they were built), so {@link
+     * #partyCreature} and {@link #enemyCreature} need no translation; the agent of each skeleton is
+     * re-read from the stores, since a respawn may have moved it to another slot. The events the
+     * rebuild raised are dropped: nothing happened in play.
+     */
+    void read(ByteReader r) {
+        rules.read(r);
+        encounter.read(r);
+        realTime.setClock(r.float32());
+        turnBasedMode = r.bool();
+        rounds = r.int32();
+        engaged = r.int32();
+        regenTimer = r.float32();
+        int n = r.intsInto(attacksLeft);
+        java.util.Arrays.fill(attacksLeft, n, attacksLeft.length, 0);
+        n = r.intsInto(attackIndex);
+        java.util.Arrays.fill(attackIndex, n, attackIndex.length, 0);
+        n = r.floatsInto(moveLeft);
+        java.util.Arrays.fill(moveLeft, n, moveLeft.length, 0);
+        aiCreature = r.int32();
+        aiPhase = r.int32();
+        aiTimer = r.float32();
+        aiTargetX = r.float32();
+        aiTargetZ = r.float32();
+        aiVictim = r.int32();
+        for (int i = 0; i < enemies.count; i++) {
+            bind(enemyCreature[i], enemies.agent(i), -1, i);
+        }
+        eventsRead = rules.events().next();
     }
 }

@@ -43,11 +43,15 @@ public final class SaveSlots {
 
     private final Path directory;
     private final SaveJob job;
+    private final Path quickPath; // resolved once: an autosave frame allocates nothing
+    private final Path autoPath;
 
     /** Slots in {@code directory}, written by {@code job}. */
     public SaveSlots(Path directory, SaveJob job) {
         this.directory = directory;
         this.job = job;
+        quickPath = directory.resolve(QUICK + EXTENSION);
+        autoPath = directory.resolve(AUTO + EXTENSION);
     }
 
     /** Slots in {@code directory} with a job of their own. */
@@ -83,8 +87,11 @@ public final class SaveSlots {
 
     /** The file of {@code slot} ({@link #QUICK}, {@link #AUTO} or a name, sanitized). */
     public Path pathOf(String slot) {
-        if (QUICK.equals(slot) || AUTO.equals(slot)) {
-            return directory.resolve(slot + EXTENSION);
+        if (QUICK.equals(slot)) {
+            return quickPath;
+        }
+        if (AUTO.equals(slot)) {
+            return autoPath;
         }
         return directory.resolve(NAMED_PREFIX + sanitize(slot) + EXTENSION);
     }

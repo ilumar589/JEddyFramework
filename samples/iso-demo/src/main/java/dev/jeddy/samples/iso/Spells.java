@@ -3,6 +3,8 @@ package dev.jeddy.samples.iso;
 import dev.jeddy.audio.Audio;
 import dev.jeddy.audio.SoundClip;
 import dev.jeddy.core.collections.IntList;
+import dev.jeddy.core.io.ByteReader;
+import dev.jeddy.core.io.ByteWriter;
 import dev.jeddy.physics.query.CollisionWorld;
 import dev.jeddy.physics.query.QueryContext;
 import dev.jeddy.render.RenderPacket;
@@ -162,5 +164,30 @@ final class Spells {
     /** Number of fireballs in flight or exploding. */
     int activeCount() {
         return game.fireball().size();
+    }
+
+    // ---- Saves (DESIGN §21) -------------------------------------------------------------------
+
+    /** Writes the cast count (the fireballs in flight are rows of the registry's store). */
+    void write(ByteWriter w) {
+        w.int32(casts);
+    }
+
+    void read(ByteReader r) {
+        casts = r.int32();
+        targeting = false;
+    }
+
+    /** Destroys every fireball entity (a load replaces the store's rows with the saved ones). */
+    void clear() {
+        FireballStore store = game.fireball();
+        for (int i = store.size() - 1; i >= 0; i--) {
+            entities.destroy(store.entityAt(i)); // the pool drops the row
+        }
+    }
+
+    /** A fresh fireball entity for a saved row ({@link CryptIds}). */
+    int spawnEntity() {
+        return entities.create();
     }
 }

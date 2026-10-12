@@ -92,7 +92,7 @@ public final class ByteWriter {
      * Writes a string of at most 65535 UTF-8 bytes ({@code null} is written as empty). Encodes by
      * hand so that a capture allocates nothing; an unpaired surrogate is written as U+FFFD.
      */
-    public void string(String s) {
+    public void string(CharSequence s) {
         int chars = s == null ? 0 : s.length();
         int n = 0;
         for (int i = 0; i < chars; i++) {

@@ -3,6 +3,8 @@ package dev.jeddy.physics.crowd;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.jeddy.core.io.ByteReader;
+import dev.jeddy.core.io.ByteWriter;
 import dev.jeddy.physics.nav.NavMesh;
 import dev.jeddy.physics.nav.NavMeshQuery;
 import dev.jeddy.physics.nav.QueryFilter;
@@ -147,6 +149,61 @@ class FormationTest {
             assertEquals(slot[0], c.x(party[k]), 0.25f);
             assertEquals(slot[2], c.z(party[k]), 0.25f);
             assertEquals(p.maxSpeed, c.maxSpeed(party[k]), 1e-6f, "speeds restored");
+        }
+        assertTrue(last - first < 1.6f, "arrivals within " + (last - first) + " s");
+    }
+
+    @Test
+    void aFormationWalkContinuesAfterASave() {
+        NavMesh mesh = new NavMesh(CrowdTest.field);
+        Crowd c = new Crowd(mesh, 8, 0, 0, 30, 30, null);
+        AgentParams p = new AgentParams();
+        int[] party = new int[6];
+        for (int k = 0; k < 5; k++) {
+            party[k] = c.addAgent(5 + k, 0, 5, p);
+        }
+        party[5] = c.addAgent(5, 0, 1, p);
+        FormationMove move = new FormationMove(c, new NavMeshQuery(mesh, 512), 6);
+        move.order(party, 6, Formation.box(6, 3, 1.5f), 15, 0, 20, 0, 1);
+        for (int t = 0; t < 45; t++) {
+            move.update();
+            c.update(CrowdTest.DT);
+        }
+        ByteWriter w = new ByteWriter();
+        c.write(w);
+        move.write(w);
+        // Another run: the crowd and the walk come back and the party still arrives together.
+        Crowd c2 = new Crowd(mesh, 8, 0, 0, 30, 30, null);
+        FormationMove move2 = new FormationMove(c2, new NavMeshQuery(mesh, 512), 6);
+        ByteReader r = new ByteReader(w.toBytes());
+        c2.read(r);
+        move2.read(r);
+        assertEquals(6, move2.count());
+        float[] slot = new float[3];
+        float[] slot2 = new float[3];
+        for (int k = 0; k < 6; k++) {
+            move.slotOf(k, slot);
+            move2.slotOf(k, slot2);
+            assertEquals(slot[0], slot2[0]);
+            assertEquals(slot[2], slot2[2]);
+        }
+        float[] arrivedAt = new float[6];
+        for (int t = 0; t < 30 * 15; t++) {
+            move2.update();
+            c2.update(CrowdTest.DT);
+            for (int k = 0; k < 6; k++) {
+                if (arrivedAt[k] == 0 && c2.targetState(party[k]) == Crowd.TARGET_ARRIVED) {
+                    arrivedAt[k] = t * CrowdTest.DT;
+                }
+            }
+        }
+        float first = Float.MAX_VALUE;
+        float last = 0;
+        for (int k = 0; k < 6; k++) {
+            assertTrue(arrivedAt[k] > 0, "member " + k + " arrived");
+            first = Math.min(first, arrivedAt[k]);
+            last = Math.max(last, arrivedAt[k]);
+            assertEquals(p.maxSpeed, c2.maxSpeed(party[k]), 1e-6f, "speeds restored");
         }
         assertTrue(last - first < 1.6f, "arrivals within " + (last - first) + " s");
     }

@@ -5,6 +5,8 @@ import dev.jeddy.animation.Clip;
 import dev.jeddy.animation.Skeleton;
 import dev.jeddy.app.world.World;
 import dev.jeddy.asset.format.SceneData;
+import dev.jeddy.core.io.ByteReader;
+import dev.jeddy.core.io.ByteWriter;
 import dev.jeddy.math.Rng;
 import dev.jeddy.physics.crowd.Crowd;
 
@@ -112,6 +114,7 @@ final class Animator {
     private final byte[] moving;
     private final boolean[] combat;
     private final float[] actionLeft;
+    private final int[] actionSlot; // the one-shot playing while mode == ACTION (for saves)
 
     /**
      * Bakes the rigs' clips (cold: allocates) for up to {@code capacity} characters scaled by
@@ -155,6 +158,7 @@ final class Animator {
         moving = new byte[capacity];
         combat = new boolean[capacity];
         actionLeft = new float[capacity];
+        actionSlot = new int[capacity];
     }
 
     private static int animationIndex(SceneData library, String name) {
@@ -219,6 +223,7 @@ final class Animator {
         Clip clip = clip(rig[c], slot);
         animations.playOnce(instance[c], clip, 0.1f);
         mode[c] = ACTION;
+        actionSlot[c] = slot;
         actionLeft[c] = clip.duration() - FADE;
         moving[c] = NONE;
     }
@@ -279,6 +284,58 @@ final class Animator {
         } else {
             animations.setBlendWeight(i, w);
             animations.setSpeed(i, rate);
+        }
+    }
+
+    // ---- Saves (DESIGN §21) -------------------------------------------------------------------
+
+    /**
+     * Writes every character's state: what it is doing (locomotion, a one-shot and which, dead),
+     * its stance, what is left of the action and the phase of the clip playing. The crowd agent is
+     * not written: the game rebinds it from its own tables. Allocates nothing.
+     */
+    void write(ByteWriter w) {
+        w.int32(count);
+        for (int c = 0; c < count; c++) {
+            w.int8(mode[c]);
+            w.bool(combat[c]);
+            w.int32(actionSlot[c]);
+            w.float32(actionLeft[c]);
+            w.float32(animations.phase(instance[c]));
+        }
+    }
+
+    /**
+     * Reads what {@link #write} wrote and replays each character's clip at its saved phase, so a
+     * loaded character stands, swings or lies exactly as it was. Characters past the saved count
+     * are left as they are.
+     */
+    void read(ByteReader r) {
+        int n = Math.min(count, r.int32());
+        for (int c = 0; c < n; c++) {
+            byte m = (byte) r.int8();
+            combat[c] = r.bool();
+            actionSlot[c] = r.int32();
+            actionLeft[c] = r.float32();
+            float phase = r.float32();
+            int i = instance[c];
+            int rig = this.rig[c];
+            switch (m) {
+                case DEAD -> {
+                    mode[c] = DEAD;
+                    animations.playOnce(i, clip(rig, DEATH), 0);
+                }
+                case ACTION -> {
+                    mode[c] = ACTION;
+                    animations.playOnce(i, clip(rig, Math.clamp(actionSlot[c], 0, SLOTS - 1)), 0);
+                }
+                default -> {
+                    mode[c] = LOCOMOTION;
+                    moving[c] = NONE; // locomotion() picks the clip from the agent's speed
+                    locomotion(c);
+                }
+            }
+            animations.setPhase(i, phase);
         }
     }
 }

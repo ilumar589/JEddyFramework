@@ -3,6 +3,8 @@ package dev.jeddy.samples.iso;
 import dev.jeddy.app.world.AgentSync;
 import dev.jeddy.app.world.World;
 import dev.jeddy.asset.format.SceneData;
+import dev.jeddy.core.io.ByteReader;
+import dev.jeddy.core.io.ByteWriter;
 import dev.jeddy.math.Rng;
 import dev.jeddy.physics.crowd.AgentParams;
 import dev.jeddy.physics.crowd.Crowd;
@@ -61,6 +63,7 @@ final class Enemies {
     private final int[] agent0;
     private final int[] character0;
     private final float[] home0;
+    private final float[] deathYaw; // the facing a dead skeleton kept (saves)
     private CryptGame game;
 
     Enemies(
@@ -89,6 +92,7 @@ final class Enemies {
         agent0 = new int[count];
         character0 = new int[count];
         home0 = new float[count * 3];
+        deathYaw = new float[count];
         enemyOfAgent = new int[crowd.capacity()];
         java.util.Arrays.fill(enemyOfAgent, -1);
         params.radius = 0.4f;
@@ -281,6 +285,7 @@ final class Enemies {
         minds.timer()[i] = respawnSeconds;
         int a = monsters.agent()[i];
         enemyOfAgent[a] = -1;
+        deathYaw[i] = sync.yaw(a);
         sync.unbind(a);
         crowd.removeAgent(a);
         monsters.agent()[i] = -1;
@@ -367,5 +372,61 @@ final class Enemies {
             }
         }
         return false;
+    }
+
+    // ---- Saves (DESIGN §21) -------------------------------------------------------------------
+
+    /**
+     * Writes the whole-population numbers and, per skeleton, where its body is (a dead one has no
+     * agent to place it) and its facing. The components are the registry's (the {@code COMP}
+     * chunk). Allocates nothing.
+     */
+    void write(ByteWriter w) {
+        w.int32(count);
+        w.int32(alive);
+        w.int32(kills);
+        int[] agent = game.monster().agent();
+        for (int i = 0; i < count; i++) {
+            int e = root[i];
+            w.float32(world.transforms().position(e, 0));
+            w.float32(world.transforms().position(e, 1));
+            w.float32(world.transforms().position(e, 2));
+            w.float32(agent[i] >= 0 ? sync.yaw(agent[i]) : deathYaw[i]);
+        }
+    }
+
+    /**
+     * Reads what {@link #write} wrote, after the registry's stores and the crowd were read: places
+     * every body, rebinds the living skeletons' agents to their entities and animator slots,
+     * rebuilds the agent → skeleton table, and hides what was hidden.
+     */
+    void read(ByteReader r) {
+        int n = Math.min(count, r.int32());
+        alive = r.int32();
+        kills = r.int32();
+        hovered = -1;
+        java.util.Arrays.fill(enemyOfAgent, -1);
+        MonsterStore monsters = game.monster();
+        boolean[] hidden = game.sight().hidden();
+        for (int i = 0; i < n; i++) {
+            float x = r.float32();
+            float y = r.float32();
+            float z = r.float32();
+            float yaw = r.float32();
+            int a = monsters.agent()[i];
+            int c = monsters.character()[i];
+            if (a >= 0 && crowd.isActive(a)) {
+                enemyOfAgent[a] = i;
+                sync.bind(a, root[i], yaw);
+                animator.setAgent(c, a);
+            } else {
+                monsters.agent()[i] = -1;
+                animator.setAgent(c, -1);
+                deathYaw[i] = yaw;
+                world.transforms().setPosition(root[i], x, y, z);
+                world.setYaw(root[i], yaw);
+            }
+            world.setGroupHidden(root[i], hidden[i]);
+        }
     }
 }
