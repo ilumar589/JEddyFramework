@@ -117,11 +117,15 @@ public final class AgentSync {
 
     // ---- Saves (DESIGN §21) -------------------------------------------------------------------
 
+    /** The layout {@link #write} uses (D117). */
+    public static final int SAVE_FORMAT = 1;
+
     /**
      * Writes the facing of every bound agent (saves): the binding itself is the game's (it rebinds
      * its agents and entities before reading). Allocates nothing.
      */
     public void write(ByteWriter w) {
+        w.int32(SAVE_FORMAT);
         w.int32(entity.length);
         for (int a = 0; a < entity.length; a++) {
             w.float32(yaw[a]);
@@ -136,6 +140,11 @@ public final class AgentSync {
      * Slots past the current bindings are skipped.
      */
     public void read(ByteReader r) {
+        int format = r.int32();
+        if (format != 1) {
+            throw new IllegalStateException(
+                    "agent sync save format " + format + "; this build reads 1");
+        }
         int n = r.int32();
         for (int a = 0; a < n; a++) {
             float y = r.float32();

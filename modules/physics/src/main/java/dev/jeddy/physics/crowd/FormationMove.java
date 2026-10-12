@@ -178,8 +178,12 @@ public final class FormationMove {
 
     // ---- Saves (DESIGN §21) -------------------------------------------------------------------
 
+    /** The layout {@link #write} uses (D117). */
+    public static final int SAVE_FORMAT = 1;
+
     /** Writes the order in progress: members, their normal speeds and their slots. */
     public void write(ByteWriter w) {
+        w.int32(SAVE_FORMAT);
         w.int32(count);
         for (int k = 0; k < count; k++) {
             w.int32(members[k]);
@@ -191,6 +195,11 @@ public final class FormationMove {
 
     /** Reads what {@link #write} wrote (the crowd's agents first: their targets are theirs). */
     public void read(ByteReader r) {
+        int format = r.int32();
+        if (format != 1) {
+            throw new IllegalStateException(
+                    "formation save format " + format + "; this build reads 1");
+        }
         count = Math.min(r.int32(), members.length);
         for (int k = 0; k < count; k++) {
             members[k] = r.int32();

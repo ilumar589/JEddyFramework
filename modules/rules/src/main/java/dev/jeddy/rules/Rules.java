@@ -955,6 +955,9 @@ public final class Rules {
 
     // ---- Saves (DESIGN §21, D115) -------------------------------------------------------------
 
+    /** The layout {@link #write} uses; {@link #read} keeps every older one readable (D117). */
+    public static final int SAVE_FORMAT = 1;
+
     private static final int SAVED_BLANK = 0;
     private static final int SAVED_CHARACTER = 1;
     private static final int SAVED_MONSTER = 2;
@@ -970,6 +973,7 @@ public final class Rules {
      * hand). Content rows are never written: a rulebook edit renumbers them.
      */
     public void write(ByteWriter w) {
+        w.int32(SAVE_FORMAT);
         rng.saveState(rngState);
         w.longs(rngState);
         w.int32(creatures.liveCount());
@@ -1110,6 +1114,10 @@ public final class Rules {
      * through {@link #applyCondition}, so their effects and events happen as they would in play.
      */
     public void read(ByteReader r) {
+        int format = r.int32();
+        if (format != 1) {
+            throw new IllegalStateException("rules save format " + format + "; this build reads 1");
+        }
         creatures.clear();
         int n = r.longsInto(rngState);
         if (n == 4) {

@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.jeddy.core.io.ByteReader;
 import dev.jeddy.core.io.ByteWriter;
 import dev.jeddy.testing.Allocations;
+import dev.jeddy.testing.Fixtures;
 
 import org.junit.jupiter.api.Test;
 
@@ -197,5 +198,33 @@ class SaveFileTest {
         int size = w.payloadSize();
         Allocations.assertNoAllocation("save capture", capture);
         assertEquals(size, w.payloadSize());
+    }
+
+    /**
+     * The golden file of format 1 (D117): written by the build that introduced the format and read
+     * by every later one. A format change bumps {@link SaveFile#FORMAT_VERSION} and adds a fixture;
+     * this test keeps reading the old one.
+     */
+    @Test
+    void formatOneFixtureStillReads() throws Exception {
+        SaveWriter w = capture(new SaveWriter(), 64 * 4);
+        byte[] fixture =
+                Fixtures.bytesOrCreate(
+                        SaveFileTest.class,
+                        "fixtures/v1.jsave",
+                        SaveFile.encode(w, SaveFile.DEFAULT_LEVEL));
+        SaveFile f = SaveFile.read(fixture);
+        assertEquals(1, f.formatVersion());
+        assertEquals("Crypt, 2 rounds", f.meta().get("title"));
+        assertEquals(2, f.chunks().size());
+        SaveFile.Chunk game = f.chunk(GAME);
+        assertEquals(3, game.version());
+        assertEquals(12.5, game.data().float64());
+        assertEquals(7, game.data().int32());
+        assertEquals("turn-based", game.data().string());
+        long[] bits = f.chunk(FOG).data().longs();
+        assertEquals(4, bits.length);
+        assertEquals(-1L, bits[0]);
+        assertEquals(0L, bits[3]);
     }
 }

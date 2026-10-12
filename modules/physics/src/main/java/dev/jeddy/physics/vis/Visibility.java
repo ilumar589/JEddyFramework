@@ -269,11 +269,15 @@ public final class Visibility {
         return explored;
     }
 
+    /** The layout {@link #write} uses (D117). */
+    public static final int SAVE_FORMAT = 1;
+
     /**
      * Writes the grid's size and the explored bits (saves; the visible bits are recomputed by the
      * next {@link #update}). Allocates nothing.
      */
     public void write(ByteWriter w) {
+        w.int32(SAVE_FORMAT);
         w.int32(grid.width());
         w.int32(grid.height());
         w.longs(explored);
@@ -286,6 +290,10 @@ public final class Visibility {
      * recomputes the visible bits.
      */
     public boolean read(ByteReader r) {
+        int format = r.int32();
+        if (format != 1) {
+            throw new IllegalStateException("fog save format " + format + "; this build reads 1");
+        }
         int width = r.int32();
         int height = r.int32();
         int n = r.int32();

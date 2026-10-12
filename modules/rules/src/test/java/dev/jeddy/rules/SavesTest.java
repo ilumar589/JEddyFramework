@@ -4,12 +4,14 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.jeddy.asset.format.RulesSchema;
 import dev.jeddy.core.io.ByteReader;
 import dev.jeddy.core.io.ByteWriter;
 import dev.jeddy.testing.Allocations;
+import dev.jeddy.testing.Fixtures;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -224,5 +226,47 @@ class SavesTest {
         int[] got = {c.create("x", 0), c.create("y", 0), c.create("z", 0)};
         assertArrayEquals(expected, got);
         assertNotEquals(7, c.create("w", 0));
+    }
+
+    /**
+     * The golden record of rules format 1 and encounter format 1 (D117): the {@link #play} state as
+     * the build that introduced the formats wrote it. A format change adds a fixture and a branch
+     * in {@code read}; this test keeps the old one readable.
+     */
+    @Test
+    void formatOneFixtureStillReads() {
+        Rules a = rules(DemoContent.get(), 7);
+        Encounter ea = play(a);
+        ByteWriter w = new ByteWriter();
+        a.write(w);
+        ea.write(w);
+        byte[] fixture =
+                Fixtures.bytesOrCreate(SavesTest.class, "fixtures/rules-v1.bin", w.toBytes());
+        Rules b = rules(DemoContent.get(), 1);
+        Encounter eb = new Encounter(b);
+        ByteReader r = new ByteReader(fixture);
+        b.read(r);
+        eb.read(r);
+        assertFalse(r.hasRemaining());
+        assertEquals(4, b.creatures().liveCount());
+        assertEquals("Aldric", b.creatures().name(0));
+        assertEquals(a.creatures().hp(0), b.creatures().hp(0));
+        assertTrue(b.hasCondition(0, row(b, RulesSchema.CONDITIONS, "shaken")));
+        assertTrue(b.hasCondition(2, row(b, RulesSchema.CONDITIONS, "slowed")));
+        assertEquals(4, b.creatures().tempHp(1));
+        assertEquals(
+                a.creatures().stat(1, Stat.AC),
+                b.creatures().stat(1, Stat.AC),
+                "shield spell kept");
+        assertEquals(ea.round(), eb.round());
+        assertEquals(ea.current(), eb.current());
+        assertEquals(a.rng().d20(), b.rng().d20());
+        // A record from a newer build is refused rather than misread.
+        ByteWriter newer = new ByteWriter();
+        newer.int32(Rules.SAVE_FORMAT + 1);
+        IllegalStateException e =
+                assertThrows(
+                        IllegalStateException.class, () -> b.read(new ByteReader(newer.toBytes())));
+        assertTrue(e.getMessage().contains("format 2"), e.getMessage());
     }
 }

@@ -340,12 +340,16 @@ public final class Encounter {
 
     // ---- Saves (DESIGN §21) -------------------------------------------------------------------
 
+    /** The layout {@link #write} uses (D117). */
+    public static final int SAVE_FORMAT = 1;
+
     /**
      * Writes the fight: the order with initiatives and join sequence (creature handles, which a
      * load restores at the same handles through {@link Rules#read}), the round, the turn, whether
      * it is active, and every creature's action budget. Allocates nothing.
      */
     public void write(ByteWriter w) {
+        w.int32(SAVE_FORMAT);
         w.bool(active);
         w.int32(round);
         w.int32(turnIndex);
@@ -359,6 +363,11 @@ public final class Encounter {
 
     /** Reads what {@link #write} wrote, replacing the fight in progress. */
     public void read(ByteReader r) {
+        int format = r.int32();
+        if (format != 1) {
+            throw new IllegalStateException(
+                    "encounter save format " + format + "; this build reads 1");
+        }
         active = r.bool();
         round = r.int32();
         turnIndex = r.int32();

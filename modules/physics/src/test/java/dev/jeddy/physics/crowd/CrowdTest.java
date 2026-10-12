@@ -2,6 +2,7 @@ package dev.jeddy.physics.crowd;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.jeddy.core.io.ByteReader;
@@ -14,6 +15,7 @@ import dev.jeddy.physics.nav.NavMeshData;
 import dev.jeddy.physics.nav.bake.NavBakeConfig;
 import dev.jeddy.physics.nav.bake.NavMeshBaker;
 import dev.jeddy.testing.Allocations;
+import dev.jeddy.testing.Fixtures;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -348,5 +350,33 @@ class CrowdTest {
             assertTrue(loaded.isActive(i));
             assertEquals(1 + i, loaded.x(i), 0.2f);
         }
+    }
+
+    /** The golden record of crowd format 1 (D117): three agents of the room, one walking. */
+    @Test
+    void formatOneFixtureStillReads() {
+        Crowd c = new Crowd(new NavMesh(room), 8, 0, 0, 20, 20, null);
+        AgentParams fast = new AgentParams();
+        fast.maxSpeed = 5;
+        int a = c.addAgent(2, 0, 10, new AgentParams());
+        c.addAgent(2, 0, 4, fast);
+        c.addAgent(16, 0, 16, new AgentParams());
+        c.requestMoveTarget(a, 18, 0, 10);
+        step(c, 30);
+        ByteWriter w = new ByteWriter();
+        c.write(w);
+        byte[] fixture =
+                Fixtures.bytesOrCreate(CrowdTest.class, "fixtures/crowd-v1.bin", w.toBytes());
+        Crowd loaded = new Crowd(new NavMesh(room), 8, 0, 0, 20, 20, null);
+        loaded.read(new ByteReader(fixture));
+        assertTrue(loaded.isActive(0) && loaded.isActive(1) && loaded.isActive(2));
+        assertEquals(5, loaded.maxSpeed(1));
+        assertEquals(Crowd.TARGET_VALID, loaded.targetState(0));
+        assertEquals(18, loaded.corridor(0).target()[0], 0.01f);
+        assertTrue(loaded.x(0) > 2.5f, "it had walked: " + loaded.x(0));
+        ByteWriter newer = new ByteWriter();
+        newer.int32(Crowd.SAVE_FORMAT + 1);
+        assertThrows(
+                IllegalStateException.class, () -> loaded.read(new ByteReader(newer.toBytes())));
     }
 }

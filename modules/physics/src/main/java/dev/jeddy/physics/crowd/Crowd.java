@@ -428,12 +428,16 @@ public final class Crowd {
 
     // ---- Saves (DESIGN §21) -------------------------------------------------------------------
 
+    /** The layout {@link #write} uses; {@link #read} keeps every older one readable (D117). */
+    public static final int SAVE_FORMAT = 1;
+
     /**
      * Writes every active agent in its slot: position, velocity, parameters and the move target
      * (saves). The corridor is not written: {@link #read} re-requests the target and the path is
      * solved again. Allocates nothing.
      */
     public void write(ByteWriter w) {
+        w.int32(SAVE_FORMAT);
         int n = 0;
         for (int i = 0; i < capacity; i++) {
             if (active[i]) {
@@ -477,6 +481,10 @@ public final class Crowd {
      * the paths solved at once. A slot past this crowd's capacity is skipped. Allocates nothing.
      */
     public void read(ByteReader r) {
+        int format = r.int32();
+        if (format != 1) {
+            throw new IllegalStateException("crowd save format " + format + "; this build reads 1");
+        }
         for (int i = 0; i < capacity; i++) {
             removeAgent(i);
             queued[i] = false;
