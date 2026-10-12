@@ -1,4 +1,4 @@
-# `.jlevel` level, version 1
+# `.jlevel` level, version 2
 
 A level as a *composition* (DESIGN §19, D86): placements of prefabs, lights, spawn points,
 triggers, navigation area volumes and off-mesh links, collision rules, agent size classes and
@@ -14,16 +14,21 @@ trigger has a **stable `u32` id** within the level, unique across the four kinds
 `nextId` is the next free one. The editor's selection and undo stack and the game's triggers refer
 to ids, never to indices, so rows can be removed and reinserted.
 
+Version 2 (M22, D109) adds the **component rows**: per level object the components the editor
+attached and the values it set, keyed by component and column *names*, so a renamed record
+field does not break a level. Version 1 files (a 160-byte header, no rows) are still read;
+the writer always writes version 2.
+
 Little-endian; offsets are from the start of the file; every section starts at a 16-byte
 boundary. Strings are UTF-8 bytes in the string section, referenced by `(u32 offset, u32
 length)` pairs; an empty string is `(0, 0)`.
 
-## Header (160 bytes)
+## Header (192 bytes; 160 in version 1)
 
 | Offset | Type | Field | Notes |
 |---|---|---|---|
 | 0 | u32 | magic | `0x4C564C4A` (`"JLVL"` in file order) |
-| 4 | u16 | version | 1 |
+| 4 | u16 | version | 2 (1 is read) |
 | 6 | u16 | flags | 0 |
 | 8 | u32 | prefabCount | |
 | 12 | u32 | placementCount | |
@@ -49,6 +54,11 @@ length)` pairs; an empty string is `(0, 0)`.
 | 136 | u64 | stringsOffset | |
 | 144 | u64 | stringBytes | |
 | 152 | u64 | fileSize | for truncation checks |
+| 160 | u32 | componentRowCount | version 2 |
+| 164 | u32 | componentValueCount | version 2 |
+| 168 | u64 | componentRowsOffset | version 2 |
+| 176 | u64 | componentValuesOffset | version 2 |
+| 184 | 8 bytes | reserved (0) | version 2 |
 
 ## Prefabs (16 bytes each)
 
@@ -166,6 +176,35 @@ One navmesh per class, `<level>.<name>.jnav`.
 | 12 | f32 | height |
 | 16 | f32 | climb |
 | 20 | 12 bytes | reserved (0) |
+
+## Component rows (24 bytes each; version 2)
+
+One row per (object, component): the object is any placement, light, spawn or trigger by id,
+the component a record's simple name from the game's schema
+(`META-INF/jeddy/components.json`, `asset.format.ComponentSchema`). A row's values are a run in
+the value section; a column that has no value keeps the component's default.
+
+| Offset | Type | Field |
+|---|---|---|
+| 0 | u32 | object id |
+| 4 | u32 ×2 | component name |
+| 12 | u32 | first value (index into the values) |
+| 16 | u32 | value count |
+| 20 | 4 bytes | reserved (0) |
+
+## Component values (24 bytes each; version 2)
+
+| Offset | Type | Field |
+|---|---|---|
+| 0 | u32 ×2 | column name (`current`, `pos.x`) |
+| 8 | u32 | type: 0 `INT`, 1 `LONG`, 2 `FLOAT`, 3 `BOOL`, 4 `ENUM` (a constant's name), 5 `ENTITY` (a level object id, resolved to its entity at load), 6 `ASSET` (a path, resolved to a handle at load) |
+| 12 | 4 bytes | reserved (0) |
+| 16 | 8 bytes | the payload: `i32` (INT, BOOL as 0/1, ENTITY), `i64` (LONG), `f32` (FLOAT), or a string reference (ENUM, ASSET) |
+
+`LevelData.addComponentRow`, `setComponentInt/Float/Bool/Long/Enum/Entity/Asset` and
+`removeComponentValue` edit them; removing an object removes its rows; `copyComponentRows`
+duplicates them. `components.Levels` applies them to the generated stores
+(`Store.columnIndex`, `enumOrdinal`, the generic setters).
 
 ## Settings (128 bytes)
 

@@ -29,9 +29,11 @@ fun module(path: String, dir: String) {
 listOf(
     "core", "math", "compress", "sdl", "gl", "window", "input",
     "render", "asset", "audio", "physics", "animation", "ui", "scene", "app", "editor", "rules",
+    "components",
 ).forEach { module(it, "modules/$it") }
 
 module("cooker", "tools/cooker")
+module("component-processor", "tools/component-processor")
 module("editor-tool", "tools/editor")
 module("site", "tools/site")
 module("bench", "bench")

@@ -37,6 +37,12 @@ tasks.withType<JavaCompile>().configureEach {
 
 configureJeddyApplication("dev.jeddy:jeddy-natives-${JeddyPlatforms.current()}:$JEDDY_VERSION")
 
+// The component processor (DESIGN §22): @Component records and @Behaviour classes in the game
+// become generated stores, views, loops and the registry. It does nothing in a game without them.
+dependencies {
+    "annotationProcessor"("dev.jeddy:jeddy-component-processor:$JEDDY_VERSION")
+}
+
 val packAssets = tasks.named<PackAssets>("packAssets")
 
 extensions.configure<JeddyPackagingExtension> {

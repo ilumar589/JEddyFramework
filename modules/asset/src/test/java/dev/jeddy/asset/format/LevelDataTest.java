@@ -199,6 +199,65 @@ class LevelDataTest {
     }
 
     @Test
+    void componentRowsRoundTripAndFollowTheirObjects() throws Exception {
+        LevelData a = sample();
+        int chest = a.placementId(2);
+        int spawn = a.spawnId(0);
+        int row = a.addComponentRow(chest, "Loot");
+        assertEquals(row, a.addComponentRow(chest, "Loot"), "one row per object and component");
+        a.setComponentInt(row, "gold", 25);
+        a.setComponentFloat(row, "weight", 1.5f);
+        a.setComponentBool(row, "locked", true);
+        a.setComponentLong(row, "seed", 1L << 40);
+        a.setComponentEnum(row, "rarity", "RARE");
+        a.setComponentEntity(row, "owner", spawn);
+        a.setComponentAsset(row, "sound", "sfx/chest.wav");
+        a.setComponentInt(row, "gold", 30); // replaces
+        int tag = a.addComponentRow(spawn, "Patrol");
+        assertEquals(2, a.componentRowCount());
+        assertEquals(7, a.componentValueCount(row));
+        assertEquals(0, a.componentValueCount(tag));
+        assertEquals(30, a.componentValueBits(row, a.componentValue(row, "gold")));
+        assertEquals(-1, a.componentValue(row, "nope"));
+        LevelData b = LevelData.read(MemorySegment.ofArray(a.toBytes()));
+        assertEquals(2, b.componentRowCount());
+        int r = b.componentRow(chest, "Loot");
+        assertTrue(r >= 0);
+        assertEquals(chest, b.componentRowObject(r));
+        assertEquals("Loot", b.componentRowComponent(r));
+        assertEquals(30, b.componentValueBits(r, b.componentValue(r, "gold")));
+        assertEquals(LevelData.VALUE_INT, b.componentValueType(r, b.componentValue(r, "gold")));
+        assertEquals(1.5f, b.componentValueFloat(r, b.componentValue(r, "weight")));
+        assertEquals(1, b.componentValueBits(r, b.componentValue(r, "locked")));
+        assertEquals(1L << 40, b.componentValueBits(r, b.componentValue(r, "seed")));
+        assertEquals("RARE", b.componentValueText(r, b.componentValue(r, "rarity")));
+        assertEquals(LevelData.VALUE_ENUM, b.componentValueType(r, b.componentValue(r, "rarity")));
+        assertEquals(spawn, b.componentValueBits(r, b.componentValue(r, "owner")));
+        assertEquals("sfx/chest.wav", b.componentValueText(r, b.componentValue(r, "sound")));
+        assertTrue(b.componentRow(spawn, "Patrol") >= 0);
+        assertTrue(Arrays.equals(a.toBytes(), b.toBytes()));
+        assertTrue(a.toJson().contains("\"component\": \"Loot\""));
+        assertTrue(a.toJson().contains("\"rarity\": \"RARE\""));
+        // A copy carries the rows; a removed object takes its rows along; a duplicate copies.
+        LevelData c = new LevelData();
+        c.copyFrom(a);
+        assertEquals(2, c.componentRowCount());
+        a.removeComponentValue(row, "gold");
+        assertEquals(-1, a.componentValue(row, "gold"));
+        a.copyComponentRows(chest, a.placementId(0));
+        assertEquals(3, a.componentRowCount());
+        assertEquals(6, a.componentValueCount(a.componentRow(a.placementId(0), "Loot")));
+        a.removePlacement(2);
+        assertEquals(2, a.componentRowCount());
+        assertEquals(-1, a.componentRow(chest, "Loot"));
+        a.removeSpawn(0);
+        assertEquals(1, a.componentRowCount());
+        a.removeComponentRow(0);
+        assertEquals(0, a.componentRowCount());
+        assertEquals(0, LevelData.read(MemorySegment.ofArray(a.toBytes())).componentRowCount());
+    }
+
+    @Test
     void copiesAndDumps() {
         LevelData a = sample();
         LevelData b = new LevelData();

@@ -38,10 +38,37 @@ public final class LevelData {
     public static final int MAGIC = 0x4C564C4A;
 
     /** The format version this code reads and writes. */
-    public static final int VERSION = 1;
+    public static final int VERSION = 2;
+
+    /** The first version, without the components section (still read). */
+    public static final int VERSION_1 = 1;
 
     /** Header size in bytes. */
-    public static final int HEADER_SIZE = 160;
+    public static final int HEADER_SIZE = 192;
+
+    /** The version 1 header. */
+    public static final int HEADER_SIZE_V1 = 160;
+
+    /** Component value types (DESIGN §22, D109): what a value's payload holds. */
+    public static final int VALUE_INT = 0;
+
+    public static final int VALUE_LONG = 1;
+    public static final int VALUE_FLOAT = 2;
+    public static final int VALUE_BOOL = 3;
+
+    /** An enum constant by name (the text). */
+    public static final int VALUE_ENUM = 4;
+
+    /** A level object id (the bits), resolved to an entity at load. */
+    public static final int VALUE_ENTITY = 5;
+
+    /** An asset path (the text), resolved to a handle at load. */
+    public static final int VALUE_ASSET = 6;
+
+    /** Bytes per component row and per value in the file. */
+    public static final int COMPONENT_ROW_SIZE = 24;
+
+    public static final int COMPONENT_VALUE_SIZE = 24;
 
     static final int PREFAB_SIZE = 16;
     static final int PLACEMENT_SIZE = 96;
@@ -268,6 +295,60 @@ public final class LevelData {
     private int sizeClassCount;
     private String[] sizeClassName = new String[4];
     private float[] sizeClassData = new float[4 * SIZE_CLASS_FLOATS];
+
+    // Component rows (M22, D109): per (object, component) the values by column name.
+    private int componentRowCount;
+    private ComponentRow[] componentRows = new ComponentRow[16];
+
+    /** One component on one level object. */
+    private static final class ComponentRow {
+        int object;
+        String component;
+        int count;
+        String[] column = new String[4];
+        int[] type = new int[4];
+        long[] bits = new long[4];
+        String[] text = new String[4];
+
+        int indexOf(String name) {
+            for (int k = 0; k < count; k++) {
+                if (column[k].equals(name)) {
+                    return k;
+                }
+            }
+            return -1;
+        }
+
+        void set(String name, int valueType, long valueBits, String valueText) {
+            int k = indexOf(name);
+            if (k < 0) {
+                if (count == column.length) {
+                    column = Arrays.copyOf(column, count * 2);
+                    type = Arrays.copyOf(type, count * 2);
+                    bits = Arrays.copyOf(bits, count * 2);
+                    text = Arrays.copyOf(text, count * 2);
+                }
+                k = count++;
+                column[k] = name;
+            }
+            type[k] = valueType;
+            bits[k] = valueBits;
+            text[k] = valueText == null ? "" : valueText;
+        }
+
+        void remove(int k) {
+            int tail = count - k - 1;
+            if (tail > 0) {
+                System.arraycopy(column, k + 1, column, k, tail);
+                System.arraycopy(type, k + 1, type, k, tail);
+                System.arraycopy(bits, k + 1, bits, k, tail);
+                System.arraycopy(text, k + 1, text, k, tail);
+            }
+            count--;
+            column[count] = null;
+            text[count] = null;
+        }
+    }
 
     private int nextId = 1;
     private int version;
@@ -585,6 +666,7 @@ public final class LevelData {
         }
         placementCount--;
         indexRemove(removed, KIND_PLACEMENT, index, placementId, placementCount);
+        removeComponentRowsOf(removed);
         placementName[placementCount] = null;
         placementLayer[placementCount] = null;
         version++;
@@ -743,6 +825,7 @@ public final class LevelData {
         }
         lightCount--;
         indexRemove(removed, KIND_LIGHT, index, lightId, lightCount);
+        removeComponentRowsOf(removed);
         lightName[lightCount] = null;
         version++;
     }
@@ -862,6 +945,7 @@ public final class LevelData {
         }
         spawnCount--;
         indexRemove(removed, KIND_SPAWN, index, spawnId, spawnCount);
+        removeComponentRowsOf(removed);
         spawnName[spawnCount] = null;
         spawnKind[spawnCount] = null;
         version++;
@@ -1027,6 +1111,7 @@ public final class LevelData {
         }
         triggerCount--;
         indexRemove(removed, KIND_TRIGGER, index, triggerId, triggerCount);
+        removeComponentRowsOf(removed);
         triggerName[triggerCount] = null;
         triggerKind[triggerCount] = null;
         triggerPayload[triggerCount] = null;
@@ -1409,13 +1494,34 @@ public final class LevelData {
      * @throws AssetFormatException if the file is malformed
      */
     public static LevelData read(MemorySegment file) throws AssetFormatException {
-        checkRange(file, 0, HEADER_SIZE, ".jlevel header");
+        checkRange(file, 0, HEADER_SIZE_V1, ".jlevel header");
         if (file.get(U32, 0) != MAGIC) {
             throw new AssetFormatException("not a .jlevel file");
         }
         int version = Short.toUnsignedInt(file.get(U16, 4));
-        if (version != VERSION) {
+        if (version != VERSION && version != VERSION_1) {
             throw new AssetFormatException(".jlevel version " + version + ", expected " + VERSION);
+        }
+        int componentRows = 0;
+        int componentValues = 0;
+        long componentRowsAt = 0;
+        long componentValuesAt = 0;
+        if (version == VERSION) {
+            checkRange(file, 0, HEADER_SIZE, ".jlevel header");
+            componentRows = count(file, 160, "component row");
+            componentValues = count(file, 164, "component value");
+            componentRowsAt = file.get(U64, 168);
+            componentValuesAt = file.get(U64, 176);
+            checkRange(
+                    file,
+                    componentRowsAt,
+                    (long) COMPONENT_ROW_SIZE * componentRows,
+                    ".jlevel component rows");
+            checkRange(
+                    file,
+                    componentValuesAt,
+                    (long) COMPONENT_VALUE_SIZE * componentValues,
+                    ".jlevel component values");
         }
         int prefabs = count(file, 8, "prefab");
         int placements = count(file, 12, "placement");
@@ -1571,6 +1677,32 @@ public final class LevelData {
         s.environmentDiffuse = file.get(F32, settingsAt + 64);
         s.environment = string(strings, file, settingsAt + 68);
         s.gridStep = file.get(F32, settingsAt + 76);
+        for (int i = 0; i < componentRows; i++) {
+            long at = componentRowsAt + (long) COMPONENT_ROW_SIZE * i;
+            int object = file.get(U32, at);
+            String component = string(strings, file, at + 4);
+            int start = file.get(U32, at + 12);
+            int n = file.get(U32, at + 16);
+            if (start < 0 || n < 0 || start + n > componentValues) {
+                throw new AssetFormatException(".jlevel component row " + i + " values");
+            }
+            int row = level.addComponentRow(object, component);
+            for (int k = 0; k < n; k++) {
+                long v = componentValuesAt + (long) COMPONENT_VALUE_SIZE * (start + k);
+                int type = file.get(U32, v + 8);
+                long bits =
+                        switch (type) {
+                            case VALUE_LONG -> file.get(U64, v + 16);
+                            case VALUE_ENUM, VALUE_ASSET -> 0;
+                            default -> file.get(U32, v + 16);
+                        };
+                String text =
+                        type == VALUE_ENUM || type == VALUE_ASSET
+                                ? string(strings, file, v + 16)
+                                : "";
+                level.setComponentValue(row, string(strings, file, v), type, bits, text);
+            }
+        }
         level.nextId = Math.max(level.nextId, nextId);
         level.version = 0;
         return level;
@@ -1624,7 +1756,15 @@ public final class LevelData {
         long sizesAt = align(rulesAt + (long) RULE_SIZE * ruleCount, 16);
         long settingsAt = align(sizesAt + (long) SIZE_CLASS_SIZE * sizeClassCount, 16);
         long polygonsAt = align(settingsAt + SETTINGS_SIZE, 16);
-        long stringsAt = align(polygonsAt + 4L * polygonFloats, 16);
+        long componentRowsAt = align(polygonsAt + 4L * polygonFloats, 16);
+        int componentValues = 0;
+        for (int i = 0; i < componentRowCount; i++) {
+            componentValues += componentRows[i].count;
+        }
+        long componentValuesAt =
+                align(componentRowsAt + (long) COMPONENT_ROW_SIZE * componentRowCount, 16);
+        long stringsAt =
+                align(componentValuesAt + (long) COMPONENT_VALUE_SIZE * componentValues, 16);
         // Strings are interned in order of first use; the table is built before the bytes.
         ByteBuffer b = ByteBuffer.allocate((int) stringsAt).order(ByteOrder.LITTLE_ENDIAN);
         b.putInt(0, MAGIC);
@@ -1652,6 +1792,30 @@ public final class LevelData {
         b.putLong(120, settingsAt);
         b.putLong(128, polygonsAt);
         b.putLong(136, stringsAt);
+        b.putInt(160, componentRowCount);
+        b.putInt(164, componentValues);
+        b.putLong(168, componentRowsAt);
+        b.putLong(176, componentValuesAt);
+        int valueAt = 0;
+        for (int i = 0; i < componentRowCount; i++) {
+            ComponentRow r = componentRows[i];
+            int at = (int) (componentRowsAt + (long) COMPONENT_ROW_SIZE * i);
+            b.putInt(at, r.object);
+            putString(b, at + 4, strings, r.component);
+            b.putInt(at + 12, valueAt);
+            b.putInt(at + 16, r.count);
+            for (int k = 0; k < r.count; k++) {
+                int v = (int) (componentValuesAt + (long) COMPONENT_VALUE_SIZE * (valueAt + k));
+                putString(b, v, strings, r.column[k]);
+                b.putInt(v + 8, r.type[k]);
+                switch (r.type[k]) {
+                    case VALUE_LONG -> b.putLong(v + 16, r.bits[k]);
+                    case VALUE_ENUM, VALUE_ASSET -> putString(b, v + 16, strings, r.text[k]);
+                    default -> b.putInt(v + 16, (int) r.bits[k]);
+                }
+            }
+            valueAt += r.count;
+        }
         for (int p = 0; p < prefabCount; p++) {
             int at = (int) (prefabsAt + (long) PREFAB_SIZE * p);
             putString(b, at, strings, prefabScene[p]);
@@ -1766,6 +1930,195 @@ public final class LevelData {
         }
     }
 
+    // ---- Component rows (M22, D109) -----------------------------------------------------------
+
+    /** Returns the number of component rows (one per object and component). */
+    public int componentRowCount() {
+        return componentRowCount;
+    }
+
+    /** The object id of row {@code row}. */
+    public int componentRowObject(int row) {
+        return componentRows[row].object;
+    }
+
+    /** The component's simple name of row {@code row}. */
+    public String componentRowComponent(int row) {
+        return componentRows[row].component;
+    }
+
+    /** The row of {@code component} on object {@code objectId}, or -1. */
+    public int componentRow(int objectId, String component) {
+        for (int i = 0; i < componentRowCount; i++) {
+            ComponentRow r = componentRows[i];
+            if (r.object == objectId && r.component.equals(component)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** The first row of object {@code objectId} at or after {@code from}, or -1. */
+    public int nextComponentRowOf(int objectId, int from) {
+        for (int i = Math.max(0, from); i < componentRowCount; i++) {
+            if (componentRows[i].object == objectId) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Adds a row for {@code component} on {@code objectId} with no values (every column at its
+     * default) and returns it; returns the existing row if there is one.
+     */
+    public int addComponentRow(int objectId, String component) {
+        int existing = componentRow(objectId, component);
+        if (existing >= 0) {
+            return existing;
+        }
+        if (componentRowCount == componentRows.length) {
+            componentRows = Arrays.copyOf(componentRows, componentRowCount * 2);
+        }
+        ComponentRow r = new ComponentRow();
+        r.object = objectId;
+        r.component = component;
+        componentRows[componentRowCount] = r;
+        version++;
+        return componentRowCount++;
+    }
+
+    /** Inserts a row at {@code index} (an undo), with no values. */
+    public int insertComponentRow(int index, int objectId, String component) {
+        int existing = componentRow(objectId, component);
+        if (existing >= 0) {
+            return existing;
+        }
+        if (componentRowCount == componentRows.length) {
+            componentRows = Arrays.copyOf(componentRows, componentRowCount * 2);
+        }
+        System.arraycopy(componentRows, index, componentRows, index + 1, componentRowCount - index);
+        ComponentRow r = new ComponentRow();
+        r.object = objectId;
+        r.component = component;
+        componentRows[index] = r;
+        componentRowCount++;
+        version++;
+        return index;
+    }
+
+    /** Removes row {@code row}, keeping the order of the others. */
+    public void removeComponentRow(int row) {
+        int tail = componentRowCount - row - 1;
+        if (tail > 0) {
+            System.arraycopy(componentRows, row + 1, componentRows, row, tail);
+        }
+        componentRowCount--;
+        componentRows[componentRowCount] = null;
+        version++;
+    }
+
+    /** Removes every row of object {@code objectId} (the object went away). */
+    public void removeComponentRowsOf(int objectId) {
+        for (int i = componentRowCount - 1; i >= 0; i--) {
+            if (componentRows[i].object == objectId) {
+                removeComponentRow(i);
+            }
+        }
+    }
+
+    /** Copies every row of {@code fromObject} onto {@code toObject} (a duplicate). */
+    public void copyComponentRows(int fromObject, int toObject) {
+        int n = componentRowCount;
+        for (int i = 0; i < n; i++) {
+            ComponentRow r = componentRows[i];
+            if (r.object == fromObject) {
+                int row = addComponentRow(toObject, r.component);
+                for (int k = 0; k < r.count; k++) {
+                    componentRows[row].set(r.column[k], r.type[k], r.bits[k], r.text[k]);
+                }
+            }
+        }
+    }
+
+    /** Values set on row {@code row} (columns not set keep the component's default). */
+    public int componentValueCount(int row) {
+        return componentRows[row].count;
+    }
+
+    /** The column name of value {@code k} of row {@code row}. */
+    public String componentValueColumn(int row, int k) {
+        return componentRows[row].column[k];
+    }
+
+    /** The value {@code k}'s type ({@code VALUE_*}). */
+    public int componentValueType(int row, int k) {
+        return componentRows[row].type[k];
+    }
+
+    /** The value {@code k}'s number payload (an int, a long, float bits, 0/1 or an object id). */
+    public long componentValueBits(int row, int k) {
+        return componentRows[row].bits[k];
+    }
+
+    /** The value {@code k}'s text payload (an enum constant or an asset path), or "". */
+    public String componentValueText(int row, int k) {
+        return componentRows[row].text[k];
+    }
+
+    /** The index of {@code column}'s value on row {@code row}, or -1 when it is at its default. */
+    public int componentValue(int row, String column) {
+        return componentRows[row].indexOf(column);
+    }
+
+    /** Sets (or adds) {@code column}'s value on row {@code row}. */
+    public void setComponentValue(int row, String column, int type, long bits, String text) {
+        componentRows[row].set(column, type, bits, text);
+        version++;
+    }
+
+    public void setComponentInt(int row, String column, int value) {
+        setComponentValue(row, column, VALUE_INT, value, "");
+    }
+
+    public void setComponentLong(int row, String column, long value) {
+        setComponentValue(row, column, VALUE_LONG, value, "");
+    }
+
+    public void setComponentFloat(int row, String column, float value) {
+        setComponentValue(row, column, VALUE_FLOAT, Float.floatToRawIntBits(value), "");
+    }
+
+    public void setComponentBool(int row, String column, boolean value) {
+        setComponentValue(row, column, VALUE_BOOL, value ? 1 : 0, "");
+    }
+
+    public void setComponentEnum(int row, String column, String constant) {
+        setComponentValue(row, column, VALUE_ENUM, 0, constant);
+    }
+
+    public void setComponentEntity(int row, String column, int objectId) {
+        setComponentValue(row, column, VALUE_ENTITY, objectId, "");
+    }
+
+    public void setComponentAsset(int row, String column, String path) {
+        setComponentValue(row, column, VALUE_ASSET, 0, path);
+    }
+
+    /** Takes {@code column} back to its default on row {@code row}. */
+    public void removeComponentValue(int row, String column) {
+        int k = componentRows[row].indexOf(column);
+        if (k >= 0) {
+            componentRows[row].remove(k);
+            version++;
+        }
+    }
+
+    /** The float of value {@code k} (its bits as a float). */
+    public float componentValueFloat(int row, int k) {
+        return Float.intBitsToFloat((int) componentRows[row].bits[k]);
+    }
+
     // ---- Inspection -------------------------------------------------------------------------
 
     /** Dumps the level as JSON for review (nothing reads it back). */
@@ -1866,7 +2219,26 @@ public final class LevelData {
         sb.append(", \"environmentSpecular\": ").append(s.environmentSpecular);
         sb.append(", \"environmentDiffuse\": ").append(s.environmentDiffuse);
         sb.append(", \"environment\": ");
-        quote(sb, s.environment).append(", \"gridStep\": ").append(s.gridStep).append("}\n}\n");
+        quote(sb, s.environment).append(", \"gridStep\": ").append(s.gridStep).append("}");
+        sb.append(",\n  \"components\": [");
+        for (int i = 0; i < componentRowCount; i++) {
+            ComponentRow r = componentRows[i];
+            sb.append(i == 0 ? "\n" : ",\n").append("    {\"object\": ").append(r.object);
+            sb.append(", \"component\": ");
+            quote(sb, r.component).append(", \"values\": {");
+            for (int k = 0; k < r.count; k++) {
+                sb.append(k == 0 ? "" : ", ");
+                quote(sb, r.column[k]).append(": ");
+                switch (r.type[k]) {
+                    case VALUE_INT, VALUE_LONG, VALUE_ENTITY -> sb.append(r.bits[k]);
+                    case VALUE_FLOAT -> sb.append(Float.intBitsToFloat((int) r.bits[k]));
+                    case VALUE_BOOL -> sb.append(r.bits[k] != 0);
+                    default -> quote(sb, r.text[k]);
+                }
+            }
+            sb.append("}}");
+        }
+        sb.append("\n  ]\n}\n");
         return sb.toString();
     }
 
@@ -1915,6 +2287,8 @@ public final class LevelData {
         linkCount = 0;
         ruleCount = 0;
         sizeClassCount = 0;
+        Arrays.fill(componentRows, 0, componentRowCount, null);
+        componentRowCount = 0;
         for (int p = 0; p < other.prefabCount; p++) {
             appendPrefab(other.prefabScene[p], other.prefabNode[p]);
         }
@@ -1988,6 +2362,13 @@ public final class LevelData {
             float[] d = other.sizeClassData;
             int o = i * SIZE_CLASS_FLOATS;
             addSizeClass(other.sizeClassName[i], d[o], d[o + 1], d[o + 2]);
+        }
+        for (int i = 0; i < other.componentRowCount; i++) {
+            ComponentRow r = other.componentRows[i];
+            int row = addComponentRow(r.object, r.component);
+            for (int k = 0; k < r.count; k++) {
+                componentRows[row].set(r.column[k], r.type[k], r.bits[k], r.text[k]);
+            }
         }
         settings.copyFrom(other.settings);
         nextId = Math.max(nextId, other.nextId);
