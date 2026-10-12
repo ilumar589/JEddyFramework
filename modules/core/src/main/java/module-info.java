@@ -11,6 +11,7 @@ module dev.jeddy.core {
     exports dev.jeddy.core.config;
     exports dev.jeddy.core.handle;
     exports dev.jeddy.core.id;
+    exports dev.jeddy.core.io;
     exports dev.jeddy.core.job;
     exports dev.jeddy.core.json;
     exports dev.jeddy.core.log;

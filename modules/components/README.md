@@ -5,10 +5,10 @@ Module `dev.jeddy.components`. Components and behaviours (DESIGN §22): a compon
 ## Key types
 
 - Annotations: `Component`, `Default`, `Range`, `Angle`, `Color`, `Doc`, `EntityRef`, `AssetRef`; `Behaviour`, `Components`; the phases `OnSpawn`, `OnDespawn`, `OnFixedUpdate(stage)`, `OnUpdate(stage)`, `OnTrigger(kind)`, `OnTurn`, `OnEvent(kind)`; `Optional`, `Without`, `Parallel(grain)`, `ThreadSafe`
-- `Store`: the base of every generated store: membership and rows (`add`, `remove`, `has`, `indexOf`, `entityAt`, `size`, `capacity`), the column hooks the subclass implements, the generic column API by name (`columnIndex`, `getInt`/`setFloat`/..., `enumOrdinal`, `assetKind`) for the level loader, the editor and the snapshots, and `write`/`read`/`skip` (D111)
+- `Store`: the base of every generated store: membership and rows (`add`, `remove`, `has`, `indexOf`, `entityAt`, `size`, `capacity`), the column hooks the subclass implements, the generic column API by name (`columnIndex`, `getInt`/`setFloat`/..., `enumOrdinal`, `assetKind`, `isEntityRef`) for the level loader, the editor and the snapshots, and `write`/`read`/`skip` (D111)
 - `View`: the base of the flyweights (`present`, `row`, `none`)
 - `Levels`: applies a level's component rows to the stores (`Levels.Binding` resolves object ids and asset paths)
-- `SnapshotWriter`, `SnapshotReader`: the little-endian streams the stores write themselves into
+- `EntityIds`: the game's translation between handles and the stable ids a save stores (D114); the stores write into `core.io.ByteWriter` and read from `ByteReader`
 
 The generated registry's entry points: `fixedUpdate(dt)` / `fixedUpdateStage(n, dt)`, `update(dt, alpha)` / `updateStage`, `spawn`, `despawn`, `turn`, `trigger` and `dispatch` (physics trigger events), `signal(kind, entity, a, b)` (the bridge from the engine's event rings), `load(level, binding)` / `loadObject`, `write`/`read`, and an accessor per store. [docs/learn/22-components.md](../../docs/learn/22-components.md) explains every generated line; [lesson L03](../../docs/learn/lessons/03-data-layout.md) the data layout behind it.
 

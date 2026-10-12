@@ -2,6 +2,10 @@ package dev.jeddy.components;
 
 import dev.jeddy.core.collections.SparseSet;
 import dev.jeddy.core.handle.Handles;
+import dev.jeddy.core.io.ByteReader;
+import dev.jeddy.core.io.ByteWriter;
+import dev.jeddy.core.log.Log;
+import dev.jeddy.core.log.Logger;
 import dev.jeddy.scene.EntityPool;
 import dev.jeddy.scene.EntityStore;
 
@@ -25,12 +29,20 @@ import java.util.Arrays;
  * read and write rows of disjoint ranges between structural changes.
  */
 public abstract class Store implements EntityStore {
+    private static final Logger LOG = Log.logger("components");
+
     /** Column types, as {@link #columnType} reports them. */
     public static final int INT = 0;
 
     public static final int LONG = 1;
     public static final int FLOAT = 2;
     public static final int BOOL = 3;
+
+    /**
+     * The snapshot header's type for an {@code @EntityRef} column ({@link #columnType} still says
+     * {@link #INT}): its values are 64-bit stable ids in the stream, not ints.
+     */
+    public static final int ENTITY = 4;
 
     private final EntityPool pool;
     private final String name;
@@ -176,6 +188,9 @@ public abstract class Store implements EntityStore {
     /** For an {@code @AssetRef} column, its asset kind; {@code null} for other columns. */
     public abstract String assetKind(int column);
 
+    /** Whether {@code column} is an {@code @EntityRef}: a handle a save translates (D114). */
+    public abstract boolean isEntityRef(int column);
+
     public abstract int getInt(int row, int column);
 
     public abstract void setInt(int row, int column, int value);
@@ -192,30 +207,37 @@ public abstract class Store implements EntityStore {
 
     public abstract void setBool(int row, int column, boolean value);
 
-    // ---- Snapshots (D111) -----------------------------------------------------------------------
+    // ---- Snapshots (D111, D114) ---------------------------------------------------------------
 
     /**
-     * Writes the store: its name, its columns by name and type, the entity handle per row and the
-     * columns. Allocates; a save-time path.
+     * Writes the store: its name, its columns by name and type, the entity of each row as a stable
+     * id from {@code ids}, and the columns, with every {@code @EntityRef} column as ids too.
+     * Allocates nothing when the writer's buffer is large enough (a save-time path).
      */
-    public final void write(SnapshotWriter w) {
+    public final void write(ByteWriter w, EntityIds ids) {
         w.string(name);
         int columns = columnCount();
         w.int32(columns);
         for (int c = 0; c < columns; c++) {
             w.string(columnName(c));
-            w.int32(columnType(c));
+            w.int32(isEntityRef(c) ? ENTITY : columnType(c));
         }
         int n = size();
         w.int32(n);
         for (int i = 0; i < n; i++) {
-            w.int32(entities[i]);
+            w.int64(ids.idOf(entities[i]));
         }
         for (int c = 0; c < columns; c++) {
             switch (columnType(c)) {
                 case INT -> {
-                    for (int i = 0; i < n; i++) {
-                        w.int32(getInt(i, c));
+                    if (isEntityRef(c)) {
+                        for (int i = 0; i < n; i++) {
+                            w.int64(ids.idOf(getInt(i, c)));
+                        }
+                    } else {
+                        for (int i = 0; i < n; i++) {
+                            w.int32(getInt(i, c));
+                        }
                     }
                 }
                 case LONG -> {
@@ -237,15 +259,22 @@ public abstract class Store implements EntityStore {
         }
     }
 
+    /** {@link #write(ByteWriter, EntityIds)} with handles as ids (one run of the program). */
+    public final void write(ByteWriter w) {
+        write(w, EntityIds.HANDLES);
+    }
+
     /**
      * Reads a store written by {@link #write} into this one, replacing its rows: columns are
      * matched by name (a stored column this store lacks is skipped, a column the file lacks keeps
-     * its default), and every stored entity must be alive in the pool. The name must match; {@link
-     * SnapshotReader#peekString} lets the caller route a store by name first.
+     * its default, a column that changed type keeps its default), each stored entity id is resolved
+     * through {@code ids} and a row whose id resolves to nothing is dropped with a warning. The
+     * name must match; {@link ByteReader#peekString} lets the caller route a store by name first.
+     * Allocates (a load-time path).
      *
      * @throws IllegalStateException if the name is another store's
      */
-    public final void read(SnapshotReader r) {
+    public final void read(ByteReader r, EntityIds ids) {
         String stored = r.string();
         if (!stored.equals(name)) {
             throw new IllegalStateException("snapshot has " + stored + ", store is " + name);
@@ -259,28 +288,49 @@ public abstract class Store implements EntityStore {
         }
         clear();
         int n = r.int32();
-        int[] rows = new int[n];
+        int[] rows = new int[n]; // -1 for a dropped row
+        int dropped = 0;
         for (int i = 0; i < n; i++) {
-            rows[i] = add(r.int32());
+            long id = r.int64();
+            int e = id == EntityIds.NONE ? 0 : ids.entityOf(id);
+            if (e != 0 && pool.isAlive(e)) {
+                rows[i] = add(e);
+            } else {
+                rows[i] = -1;
+                dropped++;
+            }
+        }
+        if (dropped > 0) {
+            LOG.warn(name + ": " + dropped + " of " + n + " saved rows name no entity; dropped");
         }
         for (int c = 0; c < columns; c++) {
             int to = local[c];
-            if (to >= 0 && columnType(to) != types[c]) {
-                to = -1; // a column that changed type keeps its default
+            // The stored type must be the column's: an int column that became a reference (or
+            // the reverse) and any other change of type keeps its default.
+            if (to >= 0 && types[c] != (isEntityRef(to) ? ENTITY : columnType(to))) {
+                to = -1;
             }
             switch (types[c]) {
                 case INT -> {
                     for (int i = 0; i < n; i++) {
                         int v = r.int32();
-                        if (to >= 0) {
+                        if (to >= 0 && rows[i] >= 0) {
                             setInt(rows[i], to, v);
+                        }
+                    }
+                }
+                case ENTITY -> {
+                    for (int i = 0; i < n; i++) {
+                        long id = r.int64();
+                        if (to >= 0 && rows[i] >= 0) {
+                            setInt(rows[i], to, id == EntityIds.NONE ? 0 : ids.entityOf(id));
                         }
                     }
                 }
                 case LONG -> {
                     for (int i = 0; i < n; i++) {
                         long v = r.int64();
-                        if (to >= 0) {
+                        if (to >= 0 && rows[i] >= 0) {
                             setLong(rows[i], to, v);
                         }
                     }
@@ -288,7 +338,7 @@ public abstract class Store implements EntityStore {
                 case FLOAT -> {
                     for (int i = 0; i < n; i++) {
                         float v = r.float32();
-                        if (to >= 0) {
+                        if (to >= 0 && rows[i] >= 0) {
                             setFloat(rows[i], to, v);
                         }
                     }
@@ -296,7 +346,7 @@ public abstract class Store implements EntityStore {
                 default -> {
                     for (int i = 0; i < n; i++) {
                         boolean v = r.bool();
-                        if (to >= 0) {
+                        if (to >= 0 && rows[i] >= 0) {
                             setBool(rows[i], to, v);
                         }
                     }
@@ -305,10 +355,15 @@ public abstract class Store implements EntityStore {
         }
     }
 
+    /** {@link #read(ByteReader, EntityIds)} with handles as ids (one run of the program). */
+    public final void read(ByteReader r) {
+        read(r, EntityIds.HANDLES);
+    }
+
     /**
      * Skips one store in a snapshot (a component this build no longer has) and returns its name.
      */
-    public static String skip(SnapshotReader r) {
+    public static String skip(ByteReader r) {
         String stored = r.string();
         int columns = r.int32();
         int[] types = new int[columns];
@@ -317,17 +372,12 @@ public abstract class Store implements EntityStore {
             types[c] = r.int32();
         }
         int n = r.int32();
-        for (int i = 0; i < n; i++) {
-            r.int32();
-        }
+        r.skip(8 * n);
         for (int c = 0; c < columns; c++) {
-            for (int i = 0; i < n; i++) {
-                switch (types[c]) {
-                    case INT -> r.int32();
-                    case LONG -> r.int64();
-                    case FLOAT -> r.float32();
-                    default -> r.bool();
-                }
+            switch (types[c]) {
+                case INT, FLOAT -> r.skip(4 * n);
+                case LONG, ENTITY -> r.skip(8 * n);
+                default -> r.skip(n);
             }
         }
         return stored;

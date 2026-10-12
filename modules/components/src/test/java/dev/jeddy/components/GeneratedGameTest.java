@@ -20,6 +20,9 @@ import dev.jeddy.components.sample.SampleGame;
 import dev.jeddy.components.sample.Tagged;
 import dev.jeddy.components.sample.TaggedStore;
 import dev.jeddy.components.sample.Team;
+import dev.jeddy.core.handle.Handles;
+import dev.jeddy.core.io.ByteReader;
+import dev.jeddy.core.io.ByteWriter;
 import dev.jeddy.core.job.JobSystem;
 import dev.jeddy.math.Vec3f;
 import dev.jeddy.scene.EntityPool;
@@ -278,7 +281,7 @@ class GeneratedGameTest {
         g.position().add(b, new Position(new Vec3f(1, 2, 3), 0.5f));
         g.tagged().add(b, new Tagged(Team.NEUTRAL, a, 3, false, 99L));
         g.dead().add(a);
-        SnapshotWriter w = new SnapshotWriter();
+        ByteWriter w = new ByteWriter();
         g.write(w);
         byte[] bytes = w.toBytes();
         // Change everything, then restore.
@@ -286,7 +289,7 @@ class GeneratedGameTest {
         g.health().add(b);
         g.position().remove(b);
         g.dead().remove(a);
-        g.read(new SnapshotReader(bytes));
+        g.read(new ByteReader(bytes));
         assertEquals(new Health(4, 8), g.health().get(a));
         assertEquals(1, g.health().size());
         assertEquals(new Position(new Vec3f(1, 2, 3), 0.5f), g.position().get(b));
@@ -295,14 +298,14 @@ class GeneratedGameTest {
         assertFalse(g.dead().has(b));
         // A snapshot of a store this build does not have is skipped; a column it lacks is
         // defaulted; a column the file lacks keeps its default.
-        SnapshotWriter w2 = new SnapshotWriter();
+        ByteWriter w2 = new ByteWriter();
         w2.int32(2);
         w2.string("Ghost");
         w2.int32(1);
         w2.string("boo");
         w2.int32(Store.FLOAT);
         w2.int32(1);
-        w2.int32(a);
+        w2.int64(a);
         w2.float32(1.5f);
         w2.string("Health");
         w2.int32(2);
@@ -311,13 +314,97 @@ class GeneratedGameTest {
         w2.string("armor");
         w2.int32(Store.INT);
         w2.int32(1);
-        w2.int32(b);
+        w2.int64(b);
         w2.int32(6);
         w2.int32(77);
-        g.read(new SnapshotReader(w2.toBytes()));
+        g.read(new ByteReader(w2.toBytes()));
         assertEquals(new Health(6, 10), g.health().get(b), "max kept its default");
         assertFalse(g.health().has(a));
-        assertThrows(IllegalStateException.class, () -> g.read(new SnapshotReader(new byte[2])));
+        assertThrows(IllegalStateException.class, () -> g.read(new ByteReader(new byte[2])));
+    }
+
+    /** The game's translation for the test: entity {@code e} is "kind 2, value index". */
+    private static EntityIds idsOf(EntityPool pool, int[] remap) {
+        return new EntityIds() {
+            @Override
+            public long idOf(int entity) {
+                return pool.isAlive(entity)
+                        ? EntityIds.id(FIRST_GAME_KIND, Handles.index(entity))
+                        : NONE;
+            }
+
+            @Override
+            public int entityOf(long id) {
+                int old = (int) EntityIds.value(id);
+                return old < remap.length ? remap[old] : 0;
+            }
+        };
+    }
+
+    @Test
+    void snapshotsTranslateEntitiesAndReferencesThroughStableIds() {
+        EntityPool pool = new EntityPool(64);
+        SampleGame g = game(pool, null, new Counts());
+        int a = pool.create();
+        int b = pool.create();
+        int c = pool.create();
+        g.health().add(a, new Health(1, 2));
+        g.tagged().add(b, new Tagged(Team.NEUTRAL, a, 3, false, 7L));
+        g.tagged().add(c, new Tagged(Team.NEUTRAL, b, 4, true, 8L));
+        ByteWriter w = new ByteWriter();
+        int[] remap = new int[64];
+        g.write(w, idsOf(pool, remap));
+        // The header says the target column holds entity ids.
+        ByteReader peek = new ByteReader(w.toBytes());
+        assertEquals(4, peek.int32());
+        // "Another run": fresh entities in a different order; c is gone.
+        pool.destroy(a);
+        pool.destroy(b);
+        pool.destroy(c);
+        int b2 = pool.create();
+        int a2 = pool.create();
+        remap[Handles.index(a)] = a2;
+        remap[Handles.index(b)] = b2;
+        g.read(new ByteReader(w.toBytes()), idsOf(pool, remap));
+        assertEquals(new Health(1, 2), g.health().get(a2));
+        assertEquals(1, g.tagged().size(), "the row of the vanished entity was dropped");
+        assertEquals(a2, g.tagged().get(b2).target(), "the reference was translated");
+        assertFalse(g.tagged().has(a2));
+        // A stale handle in a reference column saves as NONE and loads as 0 (same run now).
+        remap[Handles.index(a2)] = a2;
+        remap[Handles.index(b2)] = b2;
+        g.tagged().add(a2, new Tagged(Team.NEUTRAL, c, 0, false, 0L));
+        ByteWriter w3 = new ByteWriter();
+        g.write(w3, idsOf(pool, remap));
+        g.read(new ByteReader(w3.toBytes()), idsOf(pool, remap));
+        assertEquals(0, g.tagged().get(a2).target());
+        assertEquals(EntityIds.OBJECT, EntityIds.kind(EntityIds.object(42)));
+        assertEquals(42, EntityIds.value(EntityIds.object(42)));
+        assertEquals(0, EntityIds.kind(EntityIds.NONE));
+        assertThrows(IllegalArgumentException.class, () -> EntityIds.id(0, 1));
+        assertThrows(IllegalArgumentException.class, () -> EntityIds.id(1, 1L << 56));
+    }
+
+    @Test
+    void aSecondCaptureAllocatesNothing() {
+        EntityPool pool = new EntityPool(64);
+        SampleGame g = game(pool, null, new Counts());
+        for (int i = 0; i < 20; i++) {
+            int e = pool.create();
+            g.health().add(e, new Health(i, 10));
+            g.position().add(e, new Position(new Vec3f(i, 0, 0), 1));
+            g.tagged().add(e, new Tagged(Team.NEUTRAL, e, 3, false, i));
+        }
+        ByteWriter w = new ByteWriter(16);
+        g.write(w);
+        int size = w.size();
+        Allocations.assertNoAllocation(
+                "registry write",
+                () -> {
+                    w.reset();
+                    g.write(w);
+                });
+        assertEquals(size, w.size());
     }
 
     @Test

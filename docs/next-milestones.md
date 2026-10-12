@@ -312,35 +312,38 @@ modifier, expected damage); deterministic simulation; testing rules with fixed s
 ## 5. Save system
 
 **What.** Save and load at any time:
-- quick save, autosave on area change, and named saves;
+- quick save, autosave on a timer or an area change, and named saves;
 - a save made by an older build still loads after the game is patched;
 - no hitch while saving.
 
-**Approach.**
-- A new `save` module:
-  - Each system writes its SoA arrays as tagged, versioned chunks: world entities and transforms,
-    renderables, animation states, crowd agents, AI state, rules state.
-  - A snapshot is taken on the game thread between ticks by copying arrays into a preallocated
-    buffer. Copying is fast because everything is primitive arrays.
-  - Serializing, compressing with zstd and writing to disk happen on a background virtual thread.
-- Handles are remapped on load, because entity indices may differ.
-- Version upgrades are small functions per chunk version.
+**Approach (decided with the owner 2026-10-12, after M22; DESIGN §21).** A save holds the
+**dynamic state only**: the level comes back from its `.jlevel` and the paks, the creatures are
+rebuilt from the rulebook, and the save holds what play changed.
+- `core.io.ByteWriter`/`ByteReader` are the engine's one binary stream (D113); every system with
+  state writes itself (`Crowd`, `Visibility`, `AgentSync`, the generated registry's stores, `Rules`,
+  `Encounter`), next to its arrays.
+- Entities cross a save as stable 64-bit ids through the game's `EntityIds` (D114): level objects
+  by object id, runtime-spawned ones by the game's own kinds (party member *i*, skeleton *i*,
+  fireball *n*).
+- The rules save creatures by content id plus a dynamic overlay and rebuild the rest from the
+  current rulebook (D115): a patch can rebalance what the player already met.
+- A new `save` module (core and compress only) owns the `.jsave` container (D116): header, an
+  uncompressed meta block for the slot list, a zstd payload of tagged, versioned chunks; versions
+  per chunk with a `switch` per old one (D117).
+- The capture runs on the game thread between ticks into buffers kept from the previous save;
+  compression and the file write run on a virtual thread with an atomic replace (D118).
+- Slots in the user's data directory: quick, auto and named (D119).
 
-**Draft tasks.**
-- M13-01 Design.
-- M13-02 Chunk format and writer/reader.
-- M13-03 Snapshots of `World`, `TransformStore` and `Animations`.
-- M13-04 Crowd and AI.
-- M13-05 Background writing and the hitch test.
-- M13-06 Load with handle remapping.
-- M13-07 Version migrations with tests.
-- M13-08 Demo quick save/load (F5/F9).
-- M13-09 Docs.
+**Tasks.** [TASKS.md M16](TASKS.md#m16-save-system-21): M16-01 design · M16-02 the stream and
+entity ids · M16-03 the container · M16-04 background writing · M16-05 slots · M16-06 systems
+write themselves · M16-07 migrations · M16-08 the demo (F5/F9, autosave, the pause menu) ·
+M16-09 docs (chapter 16, lesson L04 on binary formats).
 
-**What you learn.** Binary formats (alignment, endianness, versioning); copy-on-snapshot with a
-background writer; the hard parts of identity (handles across sessions).
+**What you learn.** Binary formats (alignment, endianness, versioning, checksums); copy-on-snapshot
+with a background writer; the hard parts of identity (handles across sessions).
 
-**Read first:** [01 Architecture](learn/01-architecture.md), [10 Assets](learn/10-assets.md).
+**Read first:** [01 Architecture](learn/01-architecture.md), [10 Assets](learn/10-assets.md),
+[22 Components](learn/22-components.md).
 
 ---
 

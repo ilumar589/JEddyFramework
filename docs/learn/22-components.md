@@ -52,7 +52,7 @@ and, with `@Components(name = "CryptGame")` on the package, the game calls
 job system. The result of the milestone:
 
 - `modules/components`: the annotations, `Store` (a sparse set with one array per column),
-  `View`, snapshot streams and the level-row loader.
+  `View`, the snapshot I/O (into `core.io.ByteWriter`, since M16) and the level-row loader.
 - `tools/component-processor`: the processor; JDK only.
 - The demo's skeletons and fireballs are five records and two behaviour classes; the perf
   capture is still at 0 B per frame, and a new row measures the behaviours.
@@ -342,7 +342,7 @@ The other entry points: `update(dt, alpha)` / `updateStage`; `spawn(entity)` and
 `despawn(entity)` for the lifecycle phases (`despawn` then removes every component);
 `turn(entity)`; `trigger(trigger, entity, kind)` and `dispatch(events, count)` over the physics
 trigger buffer; `signal(kind, entity, a, b)`; `load(level, binding)` and `loadObject`;
-`write(SnapshotWriter)` / `read(SnapshotReader)`; and an accessor per store.
+`write(ByteWriter, EntityIds)` / `read(ByteReader, EntityIds)`; and an accessor per store.
 
 **Signals** are the bridge from the engine's event rings. The rules' events name creatures, the
 animation events name characters; the game maps them to entities and raises a signal with a
@@ -420,10 +420,14 @@ separate `generateLevelBindings` task writes them under `build/generated` before
 ### 3.6 Snapshots
 
 `Store.write` emits the store's name, its columns by name and type, the entity per row and the
-columns; `read` matches columns by name, defaults the missing, skips the unknown and refuses a
-changed type. The registry writes all stores and reads them by name, skipping a store this build
-no longer has. That is what M16 needs from the data layer; what M16 adds is the entity remapping
-(a handle is not stable across loads) and everything around the stores.
+columns into a `core.io.ByteWriter`; `read` matches columns by name, defaults the missing, skips
+the unknown and refuses a changed type. The registry writes all stores and reads them by name,
+skipping a store this build no longer has. Entities do not go out as handles — a handle is an
+index and a generation, valid for one run of the program — but as the 64-bit **stable ids** the
+game's `EntityIds` assigns (a level object by its object id, a skeleton by its spawn order, a
+fireball by a counter), and an `@EntityRef` column is written the same way (its header type says
+`ENTITY`, so a reader knows the column holds ids). That is M16's half of the data layer; chapter
+[16](16-saves.md) has the whole save around it.
 
 ### 3.7 What stayed a singleton in the demo
 
@@ -463,7 +467,8 @@ again), so the old index-based code kept working.
 - **Ids as constants (D110).** A string looked up at run time fails at run time; a constant
   fails at compile time. Entity handles cannot be constants because they exist only after load.
 - **Self-describing snapshots (D111).** A hash that rejects every old save on any record change
-  is the wrong default for a game in development.
+  is the wrong default for a game in development. Entities cross a save as the game's stable ids
+  (D114, chapter 16): the engine cannot know that skeleton 7 is skeleton 7 again; the game can.
 
 ## 5. Pitfalls met on the way
 

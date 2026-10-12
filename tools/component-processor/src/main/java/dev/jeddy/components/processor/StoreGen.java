@@ -296,6 +296,14 @@ final class StoreGen {
             }
         }
         b.append("            default -> null;\n        };\n    }\n\n");
+        b.append("    @Override\n    public boolean isEntityRef(int column) {\n");
+        b.append("        return switch (column) {\n");
+        for (int i = 0; i < columnOf.size(); i++) {
+            if (columnOf.get(i).kind == Kind.ENTITY) {
+                b.append("            case ").append(i).append(" -> true;\n");
+            }
+        }
+        b.append("            default -> false;\n        };\n    }\n\n");
         genericAccess(b, "int", "Int", "INT", columnFields, columnOf);
         genericAccess(b, "long", "Long", "LONG", columnFields, columnOf);
         genericAccess(b, "float", "Float", "FLOAT", columnFields, columnOf);

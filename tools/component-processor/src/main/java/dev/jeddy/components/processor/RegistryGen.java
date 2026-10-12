@@ -26,8 +26,9 @@ final class RegistryGen {
         if (!m.registryPackage.isEmpty()) {
             b.append("package ").append(m.registryPackage).append(";\n\n");
         }
-        b.append("import dev.jeddy.components.SnapshotReader;\n");
-        b.append("import dev.jeddy.components.SnapshotWriter;\n");
+        b.append("import dev.jeddy.components.EntityIds;\n");
+        b.append("import dev.jeddy.core.io.ByteReader;\n");
+        b.append("import dev.jeddy.core.io.ByteWriter;\n");
         b.append("import dev.jeddy.components.Store;\n");
         b.append("import dev.jeddy.core.job.JobGraph;\n");
         b.append("import dev.jeddy.core.job.JobKernel;\n");
@@ -324,29 +325,39 @@ final class RegistryGen {
                         + "    }\n\n");
         // Snapshots.
         b.append(
-                "    /** Writes every store (D111). */\n"
-                        + "    public void write(SnapshotWriter w) {\n");
+                "    /** Writes every store with entities as {@code ids} (D111, D114). */\n"
+                        + "    public void write(ByteWriter w, EntityIds ids) {\n");
         b.append(
                 "        w.int32(stores.length);\n"
                         + "        for (Store s : stores) {\n"
-                        + "            s.write(w);\n"
+                        + "            s.write(w, ids);\n"
                         + "        }\n"
+                        + "    }\n\n");
+        b.append(
+                "    /** {@link #write(ByteWriter, EntityIds)} with handles as ids. */\n"
+                        + "    public void write(ByteWriter w) {\n"
+                        + "        write(w, EntityIds.HANDLES);\n"
                         + "    }\n\n");
         b.append(
                 "    /** Reads what {@link #write} wrote: stores by name, unknown ones skipped."
                         + " */\n");
         b.append(
-                "    public void read(SnapshotReader r) {\n"
+                "    public void read(ByteReader r, EntityIds ids) {\n"
                         + "        int n = r.int32();\n"
                         + "        for (int i = 0; i < n; i++) {\n");
         b.append(
                 "            Store s = store(r.peekString());\n"
                         + "            if (s != null) {\n"
-                        + "                s.read(r);\n"
+                        + "                s.read(r, ids);\n"
                         + "            } else {\n"
                         + "                Store.skip(r);\n"
                         + "            }\n"
                         + "        }\n"
+                        + "    }\n\n");
+        b.append(
+                "    /** {@link #read(ByteReader, EntityIds)} with handles as ids. */\n"
+                        + "    public void read(ByteReader r) {\n"
+                        + "        read(r, EntityIds.HANDLES);\n"
                         + "    }\n\n");
         // Behaviour bodies.
         for (Behaviour bh : m.behaviours) {
