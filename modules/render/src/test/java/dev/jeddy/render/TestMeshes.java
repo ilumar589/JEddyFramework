@@ -13,6 +13,15 @@ public final class TestMeshes {
 
     /** A UV sphere of radius {@code r} with normals, tangents along +u and UVs. */
     public static MeshData sphere(Arena arena, float r, int segments, int rings) {
+        return sphere(arena, r, segments, rings, false);
+    }
+
+    /** {@link #sphere}, skinned with every vertex on joint 0 when {@code skinned}. */
+    public static MeshData skinnedSphere(Arena arena, float r, int segments, int rings) {
+        return sphere(arena, r, segments, rings, true);
+    }
+
+    private static MeshData sphere(Arena arena, float r, int segments, int rings, boolean skinned) {
         int verts = (segments + 1) * (rings + 1);
         float[] pos = new float[verts * 3];
         float[] nrm = new float[verts * 3];
@@ -58,14 +67,16 @@ public final class TestMeshes {
                 idx[k++] = b + 1;
             }
         }
-        return read(
-                arena,
-                new MeshWriter()
-                        .positions(pos)
-                        .attributes(nrm, tan, uv, null)
-                        .indices(idx)
-                        .materials(0)
-                        .toBytes());
+        MeshWriter writer = new MeshWriter().positions(pos).attributes(nrm, tan, uv, null);
+        if (skinned) {
+            int[] joints = new int[verts * 4];
+            float[] weights = new float[verts * 4];
+            for (int i = 0; i < verts; i++) {
+                weights[i * 4] = 1;
+            }
+            writer.skin(joints, weights);
+        }
+        return read(arena, writer.indices(idx).materials(0).toBytes());
     }
 
     /** A square of side {@code size} on the XZ plane facing +Y. */
