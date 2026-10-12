@@ -493,7 +493,63 @@ given to `Rules` sizes its stores, so a fight allocates nothing; `RulesTest` sho
 mechanics with chosen seeds. The demo's `Combat` class is the reference integration of both
 modes, attacks of opportunity and the combat log.
 
-## 8. Run
+## 8. Components and behaviours
+
+Per-entity data and logic go through `components` (DESIGN §22, [docs/learn/22-components.md](learn/22-components.md)).
+A component is a public `record` with `@Component`; a behaviour is a `public static` method in
+a `@Behaviour` class; `@Components(name = "MyGame")` on your `package-info.java` makes the
+processor (on the annotation processor path through `dev.jeddy.game`) generate a store, a
+`View` and a `Mut` per record and the `MyGame` registry:
+
+```java
+// package-info.java
+@Components(name = "MyGame")
+package com.example.mygame;
+
+import dev.jeddy.components.Components;
+```
+
+```java
+@Component(doc = "Hit points")
+public record Health(@Default("10") @Range(min = 0, max = 100) int current, @Default("10") int max) {}
+
+@Behaviour
+public final class Regeneration {
+    @OnFixedUpdate
+    public static void regen(HealthMut h, float dt, Rules rules) {     // Rules: a singleton
+        if (h.current() < h.max()) h.setCurrent(h.current() + 1);
+    }
+
+    @OnTrigger(OnTrigger.ENTER)
+    public static void entered(HealthView h, int trigger, int entity, MyGame game) {
+        game.signal(Signals.HEALED, entity, 5, 0);                     // your own signal kinds
+    }
+}
+```
+
+The registry takes the singletons the behaviours ask for, in alphabetical order of their types:
+
+```java
+game = new MyGame(world.entities(), ctx.jobs(), rules);
+game.load(loader.level(), loader::rootOf);           // the level's component rows, then spawn
+// every tick, where it fits between your own systems (stages: @OnFixedUpdate(stage = n))
+game.fixedUpdate(dt);
+game.dispatch(level.triggers.events(), level.triggers.eventCount());
+// every frame
+game.update(dt, alpha);
+// when you create or destroy an entity with components
+game.health().add(entity, new Health(8, 8));
+game.spawn(entity);
+game.despawn(entity);
+```
+
+The editor's inspector lists your components on any placement (`Add component...`), the level
+file carries the rows, and `jeddyAssets { bindingsPackage = "com.example.mygame.levels" }`
+generates `CryptLevel.SPAWN_PARTY_START`-style constants for the level's named objects. Read the
+generated sources under `build/generated/sources/annotationProcessor/java/main`: they are plain
+loops over primitive arrays, and the chapter explains every line.
+
+## 9. Run
 
 ```
 ./gradlew run
@@ -506,7 +562,7 @@ finds the `paks/` folder of its image.
 For smoke tests and CI, `-Djeddy.app.quitAfterFrames=N` quits after N frames. A packaged game
 accepts it through the `JDK_JAVA_OPTIONS` environment variable.
 
-## 9. Package
+## 10. Package
 
 | Task | Output |
 |---|---|
@@ -535,7 +591,7 @@ skips training. The launchers use the cache when `aot/<name>.aot` exists and fal
 when it does not. The cache only loads with the exact JVM flags it was trained with, so leave the
 flags to the plugin.
 
-## 10. Performance rules
+## 11. Performance rules
 
 The framework's hot paths allocate nothing per frame (DESIGN §4). Games should follow the same
 rules in per-frame and per-tick code:

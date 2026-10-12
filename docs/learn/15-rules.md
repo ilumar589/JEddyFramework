@@ -375,7 +375,7 @@ between the rules and the world the earlier milestones built. It builds the part
 `characters` kind and each skeleton from `monsters` when they spawn, keeps the creature handle
 per party member and per enemy, and translates:
 
-- an attack animation's hit frame into `rules.attack` (and the result into `Enemies.flinch`,
+- an attack animation's hit frame into `rules.attack` (and the result into `Enemies.flinch`, since M22 the `HURT` signal `SkeletonAi.flinch` answers,
   `kill`, the party's `down`);
 - `Spells.cast` into a slot check (`hasSlot`), a Reflex save per creature in the burst and
   `applyEffects` with the spell's operations;
@@ -503,4 +503,4 @@ feat's bonus, *Save rules*, and the fight picks it up on the next hit.
 
 ---
 
-[← 14 The level editor](14-editor.md) · [Index](README.md)
+[← 14 The level editor](14-editor.md) · [Index](README.md) · [22 Components →](22-components.md)

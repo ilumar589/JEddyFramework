@@ -1785,10 +1785,11 @@ allocation probe (`--alloc-probe`, chapter 12) and cost one field read when it i
             script(dt);
         }
         a.mark(AllocProbe.SCRIPT);
-        enemies.think(dt, party);
+        game.fixedUpdateStage(0, dt); // the skeletons think (SkeletonAi.think)
         a.mark(AllocProbe.THINK);
         party.tick();
         party.fight(dt, enemies);
+        combat.tick(dt);
         a.mark(AllocProbe.PARTY);
         level.crowd.update(dt);
         a.mark(AllocProbe.CROWD);
@@ -1796,14 +1797,14 @@ allocation probe (`--alloc-probe`, chapter 12) and cost one field read when it i
         a.mark(AllocProbe.SYNC);
         level.collision.update();
         a.mark(AllocProbe.COLLISION);
-        spells.tick(dt, level.collision, enemies);
+        game.fixedUpdateStage(2, dt); // the fireballs fly and explode (Fireballs.fly)
         a.mark(AllocProbe.SPELLS);
         for (int i = 0; i < Party.SIZE; i++) {
             int m = party.agent[i];
             level.visibility.setViewer(i, level.crowd.x(m), level.crowd.z(m), Party.SIGHT);
         }
         level.fog.update();
-        enemies.updateVisibility(level.visibility);
+        game.fixedUpdateStage(1, dt); // see (parallel) and show
         a.mark(AllocProbe.VISIBILITY);
         world.updateTransforms(ctx.jobs());
         a.mark(AllocProbe.TRANSFORMS);
@@ -1815,18 +1816,21 @@ Read it as a data-flow diagram:
 
 ```mermaid
 flowchart LR
-  bt["world.beginTick<br/>curr → prev"] --> ai["enemies.think<br/>party.tick / fight"]
+  bt["world.beginTick<br/>curr → prev"] --> ai["stage 0: SkeletonAi.think<br/>party.tick / fight, combat"]
   ai --> crowd["level.crowd.update<br/>paths, ORCA, collide"]
   crowd --> sync["AgentSync.apply<br/>crowd → transforms"]
   sync --> col["collision.update<br/>broadphase"]
-  col --> sp["spells.tick<br/>overlap queries"]
-  sp --> vis["visibility + fog"]
+  col --> sp["stage 2: Fireballs.fly<br/>overlap queries"]
+  sp --> vis["fog, then stage 1:<br/>SkeletonAi.see / show"]
   vis --> tr["world.updateTransforms<br/>parallel by level"]
 ```
 
 Gameplay decides intentions, the crowd (in `physics`, chapter 11) turns them into positions,
-`AgentSync` copies those into the transform store, collision and spells query the new positions,
-visibility updates the fog, and finally the transform hierarchy is recomputed. `Crowd.update`
+`AgentSync` copies those into the transform store, collision and the fireballs query the new
+positions, visibility updates the fog, and finally the transform hierarchy is recomputed. Since
+M22 the skeletons' and the fireballs' logic are *behaviours* over component stores, run by the
+generated `CryptGame` registry in three stages at the points the old calls were (chapter
+[22](22-components.md)); `game` is that registry. `Crowd.update`
 runs six kernels in sequence (`steerKernel`, `orcaKernel`, `integrateKernel`, then
 `collideKernel`/`applyKernel` iterations, `moveKernel`), each a `parallelFor` over the active
 agents once there are more of them than one chunk (`GRAIN`); below that they run inline.

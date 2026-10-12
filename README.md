@@ -28,8 +28,9 @@ A Java 27 framework for building 3D isometric RPGs in the style of *Pathfinder: 
 | [app](modules/app/README.md) | The two-thread game loop, `World` and `WorldRenderer` |
 | [editor](modules/editor/README.md) | The level editor as a library: `.jlevel` levels, commands with undo, picking, gizmos, docked panels built from `ui` ([screenshot](docs/images/editor-m14.jpg)) |
 | [rules](modules/rules/README.md) | A d20 game-mechanics core: creatures and typed modifiers as SoA stores, checks, attacks and saves, effects as data, encounters with an action economy in turn-based or real time with pause |
+| [components](modules/components/README.md) | Components and behaviours: `@Component` records and `@Behaviour` static methods that an annotation processor (`tools/component-processor`) turns into SoA stores, flyweight views, loops, a job-graph schedule and the game's registry; the editor edits their rows in levels |
 
-Tools: the asset cooker (`tools/cooker`, also the `dev.jeddy.assets` Gradle plugin), the standalone level editor (`tools/editor`, `./gradlew :editor-tool:run --args="--project samples/iso-demo/assets --level levels/crypt.jlevel"`) and the Javadoc site (`tools/site`).
+Tools: the asset cooker (`tools/cooker`, also the `dev.jeddy.assets` Gradle plugin), the component processor (`tools/component-processor`, on every game's annotation processor path through `dev.jeddy.game`), the standalone level editor (`tools/editor`, `./gradlew :editor-tool:run --args="--project samples/iso-demo/assets --level levels/crypt.jlevel"`) and the Javadoc site (`tools/site`).
 
 ## Getting started
 - [Running Jeddy](docs/running.md): how to build, run the tests and benchmarks, play the iso demo, use the editor and read what CI does.
@@ -46,9 +47,9 @@ Tools: the asset cooker (`tools/cooker`, also the `dev.jeddy.assets` Gradle plug
 - [Agent guide](CLAUDE.md)
 
 ## Status
-Pre-alpha. Milestones M0–M13 are implemented: the runtime modules, the cooker, the iso demo with its
-performance capture, packaging, publishing, skeletal animation with GPU skinning, the immediate-mode
-UI, and the docs. Version 0.1.0 is tagged at M12. The CPU-side budgets pass in CI; the GPU
+Pre-alpha. Milestones M0–M15 and M22 are implemented: the runtime modules, the cooker, the iso demo
+with its performance capture, packaging, publishing, skeletal animation with GPU skinning, the
+immediate-mode UI, the level editor, the d20 rules, components and behaviours, and the docs. Version 0.1.0 is tagged at M12. The CPU-side budgets pass in CI; the GPU
 and main-thread budgets still need a run on the reference hardware (docs/perf/m10.md, O1–O2).
 
 ## License

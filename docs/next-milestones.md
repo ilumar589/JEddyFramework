@@ -1,6 +1,6 @@
 # Next milestones: the roadmap
 
-Milestones M0 to M15 are done (see [TASKS.md](TASKS.md)). This page is the plan for what comes
+Milestones M0 to M15 and M22 are done (see [TASKS.md](TASKS.md)). This page is the plan for what comes
 next, decided with the owner on 2026-10-11, and the reference for every option.
 
 **How the work goes.** Claude implements the milestones in the order below and asks the owner
@@ -561,6 +561,18 @@ calls over primitive arrays (0 B per frame, inlined by C2).
 - M22-08 Save: stores snapshot and restore themselves (what M16 needs; M16 then shrinks).
 - M22-09 Docs: chapter 22 and a lesson on data layout (SoA, sparse sets, cache lines, why the
   flyweight view is free after inlining).
+
+**Done (2026-10-12).** Shipped as planned, as M22-01 to M22-09 in [TASKS.md](TASKS.md), ahead of
+M16 as decided with the owner: `modules/components` and `tools/component-processor` (D105–D108),
+component rows in `.jlevel` version 2 with the inspector section and the cooker's validation
+(D109), level bindings (D110), self-describing snapshots (D111). Two things decided on the way:
+`@OnFixedUpdate(stage)` so that a game can interleave behaviours with its own systems (the demo's
+crowd and fog), and that the demo's `Party` and `Combat` stay singletons — a system becomes
+components when it has many entities with the same fields, which the skeletons and the
+fireballs did. The parallel visibility behaviour measured slower than inline on the 2-core
+container, which became the chapter's rule for when `@Parallel` pays. The chapter is
+[22 Components](learn/22-components.md), the lesson
+[L03 Data layout](learn/lessons/03-data-layout.md).
 
 **What you learn.** Annotation processing and code generation (the JDK's own tooling); data
 layout and the cache (SoA against AoS, sparse sets, iteration order); why a static call through

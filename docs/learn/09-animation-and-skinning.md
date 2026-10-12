@@ -1679,7 +1679,7 @@ rate change.
 An attack, cast or hit reaction plays once. `actionLeft` ends the action `FADE` seconds before the
 clip does, and the next `locomotion` call starts a 0.2 s crossfade back, so the fade completes just
 as the one-shot reaches its last frame. `die` plays `DEATH` once and holds the last frame (the body
-stays on the floor; `Enemies` hides it after `CORPSE_SECONDS = 2.5`). `revive` sets the mode back and plays
+stays on the floor; `SkeletonAi.think` hides it after `Enemies.CORPSE_SECONDS = 2.5`). `revive` sets the mode back and plays
 `AWAKEN`, the skeletons' "rise from the ground" clip; a hero rig has none, so it falls back to idle.
 `update` skips dead and inactive characters, so a skeleton hidden in the fog keeps its pose and its
 action timer.

@@ -680,23 +680,21 @@ meter below the impact point, against the `UNITS` layer:
 
 ```java
 // samples/iso-demo/src/main/java/dev/jeddy/samples/iso/Spells.java
-private void explode(int i, CollisionWorld world, Enemies enemies) {
+void explode(FireballView f) {
     hits.clear();
-    world.overlapCylinder(
-            toX[i], toY[i] - 0.5f, toZ[i], RADIUS, HEIGHT, Level.UNITS, hits, query);
-    for (int k = 0; k < hits.size(); k++) {
-        int a = hits.get(k);
-        float dx = world.bodies().x[world.bodies().indexOf(a)] - toX[i];
-        float dz = world.bodies().z[world.bodies().indexOf(a)] - toZ[i];
-        float t = Math.min(1, (float) Math.sqrt(dx * dx + dz * dz) / RADIUS);
-        enemies.damage(a, CENTER_DAMAGE + (EDGE_DAMAGE - CENTER_DAMAGE) * t);
-    }
+    collision.overlapCylinder(
+            f.toX(), f.toY() - 0.5f, f.toZ(), RADIUS, HEIGHT, Level.UNITS, hits, query);
+    combat.fireball(f.caster(), hits, hits.size());
     // ... sound
 }
 ```
 
-Damage falls off linearly from 40 at the center to 18 at the edge. The `IntList` and the
-`QueryContext` were sized for every body at construction, so the explosion allocates nothing.
+The bodies the cylinder caught become the spell's targets: since M15 the rules roll each one's
+Reflex save and deal `5d6` (halved on a success, chapter [15](15-rules.md)); before that the
+demo scaled a flat damage by the distance. Since M22 a fireball is an entity with a `Fireball`
+component and the flight is the `Fireballs.fly` behaviour (chapter [22](22-components.md)),
+which calls `explode` with the view of its row. The `IntList` and the `QueryContext` were sized
+for every body at construction, so the explosion allocates nothing.
 
 **Try it.**
 
@@ -1599,10 +1597,11 @@ systems explicitly (D67):
 
 ```java
 // samples/iso-demo/src/main/java/dev/jeddy/samples/iso/DemoGame.java
-enemies.think(dt, party);
+game.fixedUpdateStage(0, dt); // the skeletons think (SkeletonAi.think)
 // ...
 party.tick();
 party.fight(dt, enemies);
+combat.tick(dt);
 // ...
 level.crowd.update(dt);
 // ...
@@ -1610,14 +1609,14 @@ sync.apply(dt);
 // ...
 level.collision.update();
 // ...
-spells.tick(dt, level.collision, enemies);
+game.fixedUpdateStage(2, dt); // the fireballs fly and explode (Fireballs.fly)
 // ...
 for (int i = 0; i < Party.SIZE; i++) {
     int m = party.agent[i];
     level.visibility.setViewer(i, level.crowd.x(m), level.crowd.z(m), Party.SIGHT);
 }
 level.fog.update();
-enemies.updateVisibility(level.visibility);
+game.fixedUpdateStage(1, dt); // see (parallel) and show
 // ...
 world.updateTransforms(ctx.jobs());
 ```
@@ -1628,7 +1627,7 @@ world.updateTransforms(ctx.jobs());
   `NavMeshQuery` and a `QueryFilter`, a `Crowd` over the level's bounds, a `CollisionWorld` over the
   `.jcol` BVH **and the crowd's own `Bodies`** (every agent is a cylinder on layer `UNITS` whose
   entity id is its agent index), and a `Visibility` plus `FogOfWarFeed` over the `.jocc` grid.
-- **AI and gameplay** (`Enemies.think`, `Party.tick`, `Party.fight`) issue move requests and
+- **AI and gameplay** (`SkeletonAi.think`, `Party.tick`, `Party.fight`) issue move requests and
   `FormationMove` orders.
 - **`Crowd.update`** moves the agents and writes their positions into the bodies.
 - **[`AgentSync`](../../modules/app/src/main/java/dev/jeddy/app/world/AgentSync.java)** copies each

@@ -191,6 +191,7 @@ written to the combat log at the bottom right with the rolls.
 | `--turn-based` | Start in turn-based mode |
 | `--echo-combat` | Also print the combat log to the console (scripted and headless runs) |
 | `--auto-turns` | Scripted play: the party marches on the skeletons and ends its own turns; for smoke tests |
+| `--inline-behaviours` | Run the `@Parallel` behaviours on the game thread (compare the perf report's behaviours row) |
 | `--profiler` | Start with the profiler overlay on |
 | `--show-ui` | Start with the inventory and the menu open (UI screenshots) |
 | `--screenshot FILE --screenshot-at S` | Write a PNG S seconds after loading (default 3) |
@@ -291,7 +292,10 @@ the watcher re-cooks them and the game rebuilds its creatures from the new conte
 
 The tool cooks the project into `<project>/../build/cooked` (`--cooked DIR` to choose, `--no-cook`
 to skip), watches the source tree and re-cooks what you save, and hot-reloads the cooked assets the
-level uses. `--size WxH`, `--frames N`, `--screenshot FILE` and `--command CMD` serve smoke runs:
+level uses. The inspector's *Components* section comes from the game's schema,
+`--components FILE` (default: the sibling `build/classes/java/main/META-INF/jeddy/components.json`
+the last compile wrote). `--size WxH`, `--frames N`, `--screenshot FILE` and `--command CMD`
+serve smoke runs:
 
 ```
 ./gradlew :editor-tool:run --args="--project samples/iso-demo/assets --level levels/crypt.jlevel --shader-include modules/render/src/main/resources/dev/jeddy/render/shaders --size 1280x720 --frames 30 --screenshot build/editor.png --command \"select 150 151\""
@@ -313,10 +317,14 @@ it, or packing:
 ./gradlew :cooker:run --args="cook --source samples/iso-demo/assets --out build/cooked --cache build/cook-cache --report build/cook-report --shader-include modules/render/src/main/resources/dev/jeddy/render/shaders"
 ./gradlew :cooker:run --args="cook --source samples/iso-demo/assets --out build/cooked --watch"
 ./gradlew :cooker:run --args="pak --cooked build/cooked --out build/paks --layout samples/iso-demo/paks.json"
+./gradlew :cooker:run --args="bindings --source samples/iso-demo/assets --out build/bindings --package dev.jeddy.samples.iso.levels"
 ```
 
 `--force` recooks everything, `--prune` deletes outputs whose sources are gone, `--threads N`
-sets the parallelism. The report directory gets a `report.json` with what was cooked, cached or
+sets the parallelism, `--components FILE` validates the levels' component rows against the
+game's schema (DESIGN §22; the `dev.jeddy.assets` plugin passes it once a compile wrote one), and
+`bindings` writes a `<Name>Level.java` per level with its named objects' ids (the plugin's
+`generateLevelBindings` task, when `jeddyAssets.bindingsPackage` is set). The report directory gets a `report.json` with what was cooked, cached or
 failed and why. In a game project, `./gradlew cookAssets packAssets` are the same two steps as
 Gradle tasks of the `dev.jeddy.assets` plugin.
 

@@ -16,4 +16,6 @@ dependencies {
     implementation(project(":audio"))
     implementation(project(":animation"))
     implementation(project(":ui"))
+    implementation(project(":components"))
+    annotationProcessor(project(":component-processor"))
 }

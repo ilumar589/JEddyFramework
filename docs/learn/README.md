@@ -1,7 +1,8 @@
 # Learning guide: Jeddy from the inside
 
-This guide explains everything built in milestones M0 to M15, so you can understand the code and
-learn the 3D math and OpenGL behind it. From M13 on, each milestone ships with its own chapter.
+This guide explains everything built in milestones M0 to M15 and M22, so you can understand the
+code and learn the 3D math and OpenGL behind it. From M13 on, each milestone ships with its own
+chapter, numbered after the milestone (22 comes before 16: it was built first).
 
 Each chapter takes one part of the engine and follows the same path:
 1. **Concept.** The idea and the intuition behind it.
@@ -9,7 +10,7 @@ Each chapter takes one part of the engine and follows the same path:
 3. **The real code.** A walkthrough with excerpts copied from the repository; file links sit next
    to them.
 4. **Why it is built this way.** The performance reasons and the design decisions, with their
-   numbers (D1–D104) in [DESIGN.md](../DESIGN.md) §17.
+   numbers (D1–D111) in [DESIGN.md](../DESIGN.md) §17.
 5. **Try it.** Tests to run, demo flags and experiments.
 6. **Exercises.** Each one has a hint, and most are checked by a test.
 
@@ -39,6 +40,7 @@ at "what is a vertex shader".
 | 13 | [The user interface: immediate mode, flex layout and distance-field text](13-ui.md) | Immediate-mode UI, the six-pass flex layout derived and checked, hit testing against last frame's rectangles, drag and drop and focus, the exact Euclidean distance transform behind SDF fonts, the one-draw UI renderer with per-vertex clipping and premultiplied blending, widgets, the demo's screens | `ui`, `render/ui`, `app/ui`, `cooker/font`, `DemoUi` |
 | 14 | [The level editor: a binary level format, commands with undo, picking, gizmos and docked panels](14-editor.md) | The `.jlevel` composition format and an editable SoA store with stable ids, placements as entity groups that follow edits, commands with explicit inverse data and merging, picking through inverse transforms, the gizmo math derived (ray–axis, ray–plane, signed angles, snapping, pixels at any depth), rotating a selection about a pivot, immediate-mode panels and id scopes, the standalone tool with the cooker watching | `editor`, `LevelData`, `LevelLoader`, `World.pick`, `cooker/level`, `tools/editor` |
 | 15 | [Rules: a d20 engine without objects](15-rules.md) | The mathematics of a d20 game (modifiers, the 5 %-per-point check, criticals and expected damage, saves, stacking, dying, rounds and the real-time clock); dice packed in an `int`; creatures and modifiers as SoA stores; checks, attacks and damage; events instead of strings; content as flat effect operations in `.jrules`; encounters, action budgets, the turn-based and real-time drivers; the demo's `Combat` | `rules`, `math.Dice`, `math.Rng`, `cooker/rules`, `RulesSchema`, `Combat` |
+| 22 | [Components and behaviours: a gameplay API generated at compile time](22-components.md) | Records as components and static methods as behaviours; what an annotation processor generates (SoA stores over sparse sets, flyweight views, backwards loops, job graphs from declared reads and writes, the registry, the schema); why the flyweight is free after inlining; stages, signals, the demo's skeletons and fireballs as components; component rows in levels and the inspector; level bindings; self-describing snapshots; the parallel measurement and its rule | `components`, `tools/component-processor`, `SkeletonAi`, `CryptGame`, `LevelData` v2, `InspectorPanel` |
 
 ## Lessons: math and GPU deep dives
 
@@ -51,19 +53,19 @@ one. They assume the chapters they name.
 |---|---|---|---|
 | L01 | [Buffers in flight](lessons/01-buffers-in-flight.md) | The GPU as a second computer and the command stream; immutable storage and its flags; the three ways to change a buffer and their ordering; fences, the three-frame ring and its sizing; barriers; the three findings of the first run on an Intel GPU and the bisect method that found the dropped write | 05, 06 |
 | L02 | [Dice and probability](lessons/02-dice-and-probability.md) | A die as a random variable (mean and variance derived); sums of dice, convolution and the bell; why the flat d20 makes every +1 worth 5 % and a 3d6 system does not; criticals as conditional trials and the expected-damage formula; save-for-half; a Markov chain for rounds-to-kill; Lemire's unbiased `nextInt` and xoshiro256**; testing randomness by choosing seeds and tolerances from the variance | 15, 12 |
+| L03 | [Data layout](lessons/03-data-layout.md) | Cache lines and the prefetcher; an object per entity against an array per field with the bytes worked out; the sparse set derived; why a flyweight view compiles to the hand-written array access (monomorphic inlining, load elimination) and what breaks it; the fixed cost of a job and the inequality that says when a parallel loop pays | 22, 01, 12 |
 
 Planned next (one per milestone, in the order the milestones need them): binary formats,
 alignment and endianness (M16); two-bone IK and quaternion
 deltas, derived (M18); compute shaders, workgroups and atomics (M19); A* and admissible
-heuristics (M20); data layout, cache lines and the flyweight view (M22); rendering for tools
-(M23). Standing requests from the owner for the GPU side, to be scheduled: the projection
+heuristics (M20); rendering for tools (M23). Standing requests from the owner for the GPU side, to be scheduled: the projection
 matrix and depth precision with numbers, the rendering equation to `pbr.frag` step by step,
 texture memory (mips, block compression bit layouts, bandwidth), the pipeline stage by stage.
 
 ## Reading paths
 
-- **Everything, in order:** 01 → 15. Each chapter links back to earlier ones when it builds on
-  them.
+- **Everything, in order:** 01 → 15, then 22. Each chapter links back to earlier ones when it
+  builds on them.
 - **3D math:**
   1. 02 Math foundations
   2. 03 Rotations
@@ -90,6 +92,8 @@ texture memory (mips, block compression bit layouts, bandwidth), the pipeline st
   5. 13 The user interface (an immediate-mode module on top of the renderer)
   6. 14 The level editor (commands, a level format, tools built from the same modules)
   7. 15 Rules (a gameplay module with the same discipline: SoA stores, `int` handles, events)
+  8. 22 Components (the discipline generated: records, static behaviours, a processor) and
+     lesson L03
 
 ## Conventions at a glance
 
@@ -120,9 +124,12 @@ texture memory (mips, block compression bit layouts, bandwidth), the pipeline st
 | `physics` | 11 |
 | `animation` | 09 |
 | `app` (`JeddyApp`, `World`, `WorldRenderer`) | 01, 06, 09 |
+| `ui` | 13 |
+| `editor`, `tools/editor` | 14, 22 (the Components section of the inspector) |
 | `rules` | 15, lesson L02 |
-| `tools/cooker` | 10, 15 (`RulesImporter`) |
-| `samples/iso-demo` | 01, 09 (animation), 12 (perf capture), 15 (`Combat`, the drivers) |
+| `components`, `tools/component-processor` | 22, lesson L03 |
+| `tools/cooker` | 10, 15 (`RulesImporter`), 22 (row validation, level bindings) |
+| `samples/iso-demo` | 01, 09 (animation), 12 (perf capture), 15 (`Combat`, the drivers), 22 (`SkeletonAi`, `Fireballs`, `CryptGame`) |
 
 ## Running things
 
@@ -164,6 +171,9 @@ Each term links to the chapter that explains it best.
 - **Cascaded shadow maps:** several sun shadow maps that cover the view at increasing distances
   ([07](07-lighting-and-shadows.md)).
 - **Check, DC, threat range, action budget:** the d20 vocabulary ([15](15-rules.md)).
+- **Component, behaviour, registry, view:** a record of per-entity data, a static method over
+  views of it, the generated class that owns the stores and runs the phases, and the flyweight
+  that reads one row ([22](22-components.md)).
 - **Clustered forward+:** lights binned into a 3D grid of view-space cells, so each pixel shades
   only nearby lights ([07](07-lighting-and-shadows.md)).
 - **Cook (cooker), pak:** offline conversion of source assets to engine formats, and the archive
