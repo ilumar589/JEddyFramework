@@ -139,6 +139,7 @@ public final class ComponentSchema {
      * @param phase the phase's name ({@code fixedUpdate}, {@code spawn}, ...)
      * @param parallel whether it runs on the job system
      * @param order its declared order
+     * @param stage its stage within the phase (tick phases)
      * @param reads components it takes as views
      * @param writes components it takes as muts
      * @param optional components it takes as optional
@@ -149,6 +150,7 @@ public final class ComponentSchema {
             String phase,
             boolean parallel,
             int order,
+            int stage,
             List<String> reads,
             List<String> writes,
             List<String> optional,
@@ -234,6 +236,7 @@ public final class ComponentSchema {
                             Json.string(b, "phase", ""),
                             Json.bool(b, "parallel", false),
                             Json.integer(b, "order", 0),
+                            Json.integer(b, "stage", 0),
                             strings(b, "reads"),
                             strings(b, "writes"),
                             strings(b, "optional"),

@@ -38,14 +38,17 @@ final class PerfCapture {
     static final double LOAD_BUDGET_MS = 3000;
     static final double ANIMATION_BUDGET_MS = 1;
     static final double UI_BUDGET_MS = 0.5;
+    static final double BEHAVIOUR_BUDGET_MS = 1;
 
     private final int capacity;
     private final boolean headless;
+    private final boolean inlineBehaviours;
 
     // Game thread.
     private final long[] gameNanos;
     private final long[] animationNanos;
     private final long[] uiNanos;
+    private final long[] behaviourNanos;
     private int gameFrames;
     private final long[] gameAllocated;
     private final long[] workerAllocated;
@@ -96,12 +99,14 @@ final class PerfCapture {
     private double[] passSum = new double[0];
     private String[] passNames = new String[0];
 
-    PerfCapture(int capacity, boolean headless) {
+    PerfCapture(int capacity, boolean headless, boolean inlineBehaviours) {
         this.capacity = capacity;
         this.headless = headless;
+        this.inlineBehaviours = inlineBehaviours;
         gameNanos = new long[capacity];
         animationNanos = new long[capacity];
         uiNanos = new long[capacity];
+        behaviourNanos = new long[capacity];
         gameAllocated = new long[capacity];
         workerAllocated = new long[capacity];
         gameStamp = new long[capacity];
@@ -155,11 +160,18 @@ final class PerfCapture {
      * build and layout took), instance and light counts, and the game and worker allocation
      * counters. Allocates nothing.
      */
-    void recordGame(long nanos, int frameInstances, int frameLights, long animation, long ui) {
+    void recordGame(
+            long nanos,
+            int frameInstances,
+            int frameLights,
+            long animation,
+            long ui,
+            long behaviours) {
         if (gameFrames < capacity) {
             gameNanos[gameFrames] = nanos;
             animationNanos[gameFrames] = animation;
             uiNanos[gameFrames] = ui;
+            behaviourNanos[gameFrames] = behaviours;
             gameAllocated[gameFrames] = currentThreadAllocated();
             workerAllocated[gameFrames] = workerSum();
             gameStamp[gameFrames] = System.nanoTime();
@@ -270,6 +282,7 @@ final class PerfCapture {
         Stats game = Stats.of(gameNanos, gameFrames);
         Stats animation = Stats.of(animationNanos, gameFrames);
         Stats ui = Stats.of(uiNanos, gameFrames);
+        Stats behaviours = Stats.of(behaviourNanos, gameFrames);
         Stats main = Stats.of(mainNanos, mainFrames);
         Stats gpu = Stats.ofMillis(gpuMillis, mainFrames);
         long gcCount = gcCountEnd - gcCountStart;
@@ -361,6 +374,8 @@ final class PerfCapture {
         json.put("mainFrames", (double) mainFrames);
         json.put("gameMs", game.toJson());
         json.put("uiMs", ui.toJson());
+        json.put("behavioursMs", behaviours.toJson());
+        json.put("behavioursInline", inlineBehaviours);
         json.put("mainMs", main.toJson());
         json.put("gpuMs", gpu.toJson());
         Map<String, Object> passes = new LinkedHashMap<>();
@@ -418,6 +433,19 @@ final class PerfCapture {
                         "<= 0.5 ms",
                         fmt("avg %.2f / p99 %.2f / max %.2f ms", ui.avg, ui.p99, ui.max),
                         ui.p99 <= UI_BUDGET_MS));
+        rows.add(
+                row(
+                        "behaviours",
+                        "Component behaviours per tick ("
+                                + agents
+                                + " skeletons think, see"
+                                + (inlineBehaviours ? " inline" : " on jobs")
+                                + ", show; the fireballs fly)",
+                        "<= 1 ms",
+                        fmt(
+                                "avg %.2f / p99 %.2f / max %.2f ms",
+                                behaviours.avg, behaviours.p99, behaviours.max),
+                        behaviours.p99 <= BEHAVIOUR_BUDGET_MS));
         rows.add(
                 row(
                         "main",

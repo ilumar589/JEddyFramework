@@ -189,6 +189,7 @@ final class Model {
         int kindValue;
 
         int order;
+        int stage;
         int sourceIndex;
         boolean parallel;
         int grain = 64;
@@ -338,6 +339,29 @@ final class Model {
                 out.add(b);
             }
         }
+        return out;
+    }
+
+    /** The behaviours of {@code phase} with {@code stage}, in order. */
+    List<Behaviour> ofStage(Phase phase, int stage) {
+        List<Behaviour> out = new ArrayList<>();
+        for (Behaviour b : ofPhase(phase)) {
+            if (b.stage == stage) {
+                out.add(b);
+            }
+        }
+        return out;
+    }
+
+    /** The distinct stages of {@code phase}, ascending. */
+    List<Integer> stages(Phase phase) {
+        List<Integer> out = new ArrayList<>();
+        for (Behaviour b : ofPhase(phase)) {
+            if (!out.contains(b.stage)) {
+                out.add(b.stage);
+            }
+        }
+        java.util.Collections.sort(out);
         return out;
     }
 }

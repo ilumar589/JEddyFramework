@@ -29,6 +29,7 @@ import java.nio.file.Path;
  *                         with SDL_VIDEO_DRIVER=dummy)
  *   --warmup-frames N     perf: also wait this many frames before measuring (default 600)
  *   --alloc-probe         perf: attribute game-thread allocation to systems in the report
+ *   --inline-behaviours   run the @Parallel behaviours on the game thread (to compare)
  *   --quit-after-first-frame  prints the time from JVM start to the first frame, then quits
  *   --fail-on KEYS        perf: exit with code 4 if these budgets fail (comma separated: game,
  *                         animation, main, gpu, alloc, flags, gc, load)
@@ -57,6 +58,7 @@ final class DemoOptions {
     boolean headless;
     int warmupFrames = 600;
     boolean allocProbe;
+    boolean inlineBehaviours;
 
     /** Echo the combat log to the console log (scripted and headless runs). */
     boolean echoCombat;
@@ -124,6 +126,7 @@ final class DemoOptions {
                 case "--show-ui" -> o.showUi = true;
                 case "--headless" -> o.headless = true;
                 case "--alloc-probe" -> o.allocProbe = true;
+                case "--inline-behaviours" -> o.inlineBehaviours = true;
                 case "--echo-combat" -> o.echoCombat = true;
                 case "--turn-based" -> o.turnBased = true;
                 case "--auto-turns" -> o.autoTurns = true;
@@ -226,6 +229,7 @@ final class DemoOptions {
           --lights N            dynamic point lights in total (perf default 256)
           --report DIR          perf report directory (default build/perf)
           --alloc-probe         perf: game-thread allocation by system in the report
+          --inline-behaviours   run the @Parallel behaviours on the game thread (to compare)
           --fail-on KEYS        perf: exit 4 if these budgets fail
                                 (game,animation,main,gpu,alloc,flags,gc,load)
           --editor              start with the level editor open (F10 toggles it)

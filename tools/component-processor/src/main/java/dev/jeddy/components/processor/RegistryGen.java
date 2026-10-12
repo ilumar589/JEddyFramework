@@ -99,18 +99,19 @@ final class RegistryGen {
                 b.append("    private final int ").append(bh.id()).append("_node;\n");
             }
         }
-        // Parallel groups.
+        // Parallel groups: maximal runs of consecutive parallel behaviours within a stage.
         Map<String, List<Behaviour>> groups = new LinkedHashMap<>();
         for (Phase phase : new Phase[] {Phase.FIXED_UPDATE, Phase.UPDATE}) {
-            List<List<Behaviour>> runs = runs(m.ofPhase(phase));
             int g = 0;
-            for (List<Behaviour> run : runs) {
-                if (run.get(0).parallel) {
-                    String name = phase.json + "Group" + g++;
-                    groups.put(name, run);
-                    b.append("    private final JobGraph ")
-                            .append(name)
-                            .append(" = new JobGraph();\n");
+            for (int stage : m.stages(phase)) {
+                for (List<Behaviour> run : runs(m.ofStage(phase, stage))) {
+                    if (run.get(0).parallel) {
+                        String name = phase.json + "Group" + g++;
+                        groups.put(name, run);
+                        b.append("    private final JobGraph ")
+                                .append(name)
+                                .append(" = new JobGraph();\n");
+                    }
                 }
             }
         }
@@ -118,8 +119,8 @@ final class RegistryGen {
         b.append(
                 "\n"
                     + "    /** Creates the stores (registered with {@code entities}) and keeps the"
-                    + " singletons; {@code jobs} may be null, then parallel behaviours run inline."
-                    + " */\n");
+                    + " singletons, which come in alphabetical order of their types' simple names;"
+                    + " {@code jobs} may be null, then parallel behaviours run inline. */\n");
         b.append("    public ")
                 .append(m.registryName)
                 .append("(EntityPool entities, JobSystem jobs");
@@ -385,52 +386,80 @@ final class RegistryGen {
     private static void tickPhase(
             StringBuilder b, Model m, Phase phase, Map<String, List<Behaviour>> groups) {
         boolean update = phase == Phase.UPDATE;
+        List<Integer> stages = m.stages(phase);
+        String pass = update ? "dt, alpha" : "dt";
         b.append(
                 update
-                        ? "    /** Runs the update behaviours for this frame. */\n"
+                        ? "    /** Runs the update behaviours of every stage for this frame. */\n"
                                 + "    public void update(float dt, float alpha) {\n"
-                                + "        this.dt = dt;\n"
-                                + "        this.alpha = alpha;\n"
-                        : "    /** Runs the fixed-update behaviours for this tick. */\n"
-                                + "    public void fixedUpdate(float dt) {\n"
-                                + "        this.dt = dt;\n");
-        int g = 0;
-        for (List<Behaviour> run : runs(m.ofPhase(phase))) {
-            if (run.get(0).parallel) {
-                String name = phase.json + "Group" + g++;
-                for (Behaviour bh : run) {
-                    b.append("        ")
-                            .append(bh.id())
-                            .append("_drive = ")
-                            .append(driveExpression(bh))
-                            .append(";\n");
-                }
-                b.append("        if (jobs == null) {\n");
-                for (Behaviour bh : run) {
-                    b.append("            ")
-                            .append(bh.id())
-                            .append("_range(0, ")
-                            .append(bh.id())
-                            .append("_drive.size(), 0);\n");
-                }
-                b.append("        } else {\n");
-                for (Behaviour bh : run) {
-                    b.append("            ")
-                            .append(name)
-                            .append(".setCount(")
-                            .append(bh.id())
-                            .append("_node, ")
-                            .append(bh.id())
-                            .append("_drive.size());\n");
-                }
-                b.append("            ").append(name).append(".run(jobs);\n        }\n");
-            } else {
-                for (Behaviour bh : run) {
-                    b.append("        ").append(bh.id()).append("_loop();\n");
-                }
-            }
+                        : "    /** Runs the fixed-update behaviours of every stage for this tick."
+                                + " */\n"
+                                + "    public void fixedUpdate(float dt) {\n");
+        for (int stage : stages) {
+            b.append("        ")
+                    .append(update ? "updateStage" : "fixedUpdateStage")
+                    .append("(")
+                    .append(stage)
+                    .append(", ")
+                    .append(pass)
+                    .append(");\n");
         }
         b.append("    }\n\n");
+        b.append(
+                update
+                        ? "    /** Runs the update behaviours of one stage (a game that interleaves"
+                              + " its own systems). */\n"
+                              + "    public void updateStage(int stage, float dt, float alpha) {\n"
+                              + "        this.dt = dt;\n"
+                              + "        this.alpha = alpha;\n"
+                        : "    /** Runs the fixed-update behaviours of one stage (a game that"
+                                + " interleaves its own systems). */\n"
+                                + "    public void fixedUpdateStage(int stage, float dt) {\n"
+                                + "        this.dt = dt;\n");
+        b.append("        switch (stage) {\n");
+        int g = 0;
+        for (int stage : stages) {
+            b.append("            case ").append(stage).append(" -> {\n");
+            for (List<Behaviour> run : runs(m.ofStage(phase, stage))) {
+                if (run.get(0).parallel) {
+                    String name = phase.json + "Group" + g++;
+                    for (Behaviour bh : run) {
+                        b.append("                ")
+                                .append(bh.id())
+                                .append("_drive = ")
+                                .append(driveExpression(bh))
+                                .append(";\n");
+                    }
+                    b.append("                if (jobs == null) {\n");
+                    for (Behaviour bh : run) {
+                        b.append("                    ")
+                                .append(bh.id())
+                                .append("_range(0, ")
+                                .append(bh.id())
+                                .append("_drive.size(), 0);\n");
+                    }
+                    b.append("                } else {\n");
+                    for (Behaviour bh : run) {
+                        b.append("                    ")
+                                .append(name)
+                                .append(".setCount(")
+                                .append(bh.id())
+                                .append("_node, ")
+                                .append(bh.id())
+                                .append("_drive.size());\n");
+                    }
+                    b.append("                    ")
+                            .append(name)
+                            .append(".run(jobs);\n                }\n");
+                } else {
+                    for (Behaviour bh : run) {
+                        b.append("                ").append(bh.id()).append("_loop();\n");
+                    }
+                }
+            }
+            b.append("            }\n");
+        }
+        b.append("            default -> {}\n        }\n    }\n\n");
     }
 
     private static String driveExpression(Behaviour bh) {

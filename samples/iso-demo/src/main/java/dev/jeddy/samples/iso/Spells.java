@@ -6,13 +6,16 @@ import dev.jeddy.core.collections.IntList;
 import dev.jeddy.physics.query.CollisionWorld;
 import dev.jeddy.physics.query.QueryContext;
 import dev.jeddy.render.RenderPacket;
+import dev.jeddy.scene.EntityPool;
 
 /**
  * Fireball (TASKS M10-04): an area-of-effect template decal while aiming, a glowing projectile with
  * a particle trail, then an explosion that catches every unit in a vertical cylinder (one overlap
  * query) and hands them to the rules as the spell's targets (TASKS M15-07: a Reflex save halves),
  * flashes a decaying point light, bursts particles, leaves a fading scorch ring and plays a
- * positional sound.
+ * positional sound. Since M22 each fireball is an entity with a {@link Fireball} component and the
+ * flight is the {@link Fireballs#fly} behaviour; this class casts, explodes and extracts over the
+ * store's columns.
  *
  * <p>Thread ownership: the game thread. Allocates nothing after construction.
  */
@@ -30,23 +33,16 @@ final class Spells {
     float aimZ;
     int casts;
 
-    private final float[] fromX = new float[MAX];
-    private final float[] fromY = new float[MAX];
-    private final float[] fromZ = new float[MAX];
-    private final float[] toX = new float[MAX];
-    private final float[] toY = new float[MAX];
-    private final float[] toZ = new float[MAX];
-    private final float[] age = new float[MAX];
-    private final boolean[] active = new boolean[MAX];
-    private final boolean[] exploded = new boolean[MAX];
-    private final boolean[] burstPending = new boolean[MAX];
-    private final int[] caster = new int[MAX]; // the creature whose spell it is
     private final IntList hits;
     private final QueryContext query;
     private final Audio audio;
     private final int[] emitters;
     private int nextEmitter;
     private SoundClip boom;
+    private CryptGame game;
+    private EntityPool entities;
+    private CollisionWorld collision;
+    private Combat combat;
 
     /** {@code maxBodies}: the most units one explosion can catch (all of them). */
     Spells(Audio audio, int maxBodies) {
@@ -61,59 +57,49 @@ final class Spells {
         }
     }
 
+    /** Connects the registry whose store holds the fireballs, and what an explosion needs. */
+    void attach(CryptGame game, EntityPool entities, CollisionWorld collision) {
+        this.game = game;
+        this.entities = entities;
+        this.collision = collision;
+    }
+
+    void setCombat(Combat combat) {
+        this.combat = combat;
+    }
+
     void setSound(SoundClip clip) {
         boom = clip;
     }
 
     /** Launches creature {@code casterCreature}'s fireball; false when too many are in flight. */
     boolean cast(int casterCreature, float sx, float sy, float sz, float tx, float ty, float tz) {
-        for (int i = 0; i < MAX; i++) {
-            if (!active[i]) {
-                caster[i] = casterCreature;
-                fromX[i] = sx;
-                fromY[i] = sy + 1.6f;
-                fromZ[i] = sz;
-                toX[i] = tx;
-                toY[i] = ty;
-                toZ[i] = tz;
-                age[i] = 0;
-                active[i] = true;
-                exploded[i] = false;
-                burstPending[i] = false;
-                casts++;
-                return true;
-            }
+        FireballStore store = game.fireball();
+        if (store.size() >= MAX) {
+            return false;
         }
-        return false;
+        int row = store.add(entities.create()); // the columns, not the record: no allocation
+        store.fromX()[row] = sx;
+        store.fromY()[row] = sy + 1.6f;
+        store.fromZ()[row] = sz;
+        store.toX()[row] = tx;
+        store.toY()[row] = ty;
+        store.toZ()[row] = tz;
+        store.caster()[row] = casterCreature;
+        casts++;
+        return true;
     }
 
-    /** Advances flights and explosions; an explosion resolves through {@code combat}. */
-    void tick(float dt, CollisionWorld world, Combat combat) {
-        for (int i = 0; i < MAX; i++) {
-            if (!active[i]) {
-                continue;
-            }
-            age[i] += dt;
-            if (!exploded[i] && age[i] >= TRAVEL) {
-                exploded[i] = true;
-                burstPending[i] = true;
-                explode(i, world, combat);
-            }
-            if (age[i] >= TRAVEL + EXPLOSION) {
-                active[i] = false;
-            }
-        }
-    }
-
-    private void explode(int i, CollisionWorld world, Combat combat) {
+    /** The explosion: the units in the cylinder become the spell's targets; the boom plays. */
+    void explode(FireballView f) {
         hits.clear();
-        world.overlapCylinder(
-                toX[i], toY[i] - 0.5f, toZ[i], RADIUS, HEIGHT, Level.UNITS, hits, query);
-        combat.fireball(caster[i], hits, hits.size());
+        collision.overlapCylinder(
+                f.toX(), f.toY() - 0.5f, f.toZ(), RADIUS, HEIGHT, Level.UNITS, hits, query);
+        combat.fireball(f.caster(), hits, hits.size());
         if (audio != null && boom != null) {
             int e = emitters[nextEmitter];
             nextEmitter = (nextEmitter + 1) % emitters.length;
-            audio.setEmitter(e, toX[i], toY[i] + 1, toZ[i]);
+            audio.setEmitter(e, f.toX(), f.toY() + 1, f.toZ());
             audio.play(boom, Audio.BUS_SFX, 1f, 5, 0, 0, e);
         }
     }
@@ -123,10 +109,17 @@ final class Spells {
         if (targeting && aimValid) {
             p.addAoeCircle(aimX, aimY, aimZ, RADIUS, 1f, 0.45f, 0.1f, 0.85f);
         }
-        for (int i = 0; i < MAX; i++) {
-            if (!active[i]) {
-                continue;
-            }
+        FireballStore s = game.fireball();
+        float[] fromX = s.fromX();
+        float[] fromY = s.fromY();
+        float[] fromZ = s.fromZ();
+        float[] toX = s.toX();
+        float[] toY = s.toY();
+        float[] toZ = s.toZ();
+        float[] age = s.age();
+        boolean[] exploded = s.exploded();
+        boolean[] burstPending = s.burstPending();
+        for (int i = 0, n = s.size(); i < n; i++) {
             if (!exploded[i]) {
                 float t = age[i] / TRAVEL;
                 float x = fromX[i] + (toX[i] - fromX[i]) * t;
@@ -168,12 +161,6 @@ final class Spells {
 
     /** Number of fireballs in flight or exploding. */
     int activeCount() {
-        int n = 0;
-        for (int i = 0; i < MAX; i++) {
-            if (active[i]) {
-                n++;
-            }
-        }
-        return n;
+        return game.fireball().size();
     }
 }

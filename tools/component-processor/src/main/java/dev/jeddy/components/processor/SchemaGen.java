@@ -52,6 +52,7 @@ final class SchemaGen {
             string(b, bh.phase.json);
             b.append(", \"parallel\": ").append(bh.parallel);
             b.append(", \"order\": ").append(bh.order);
+            b.append(", \"stage\": ").append(bh.stage);
             if (bh.phase == Model.Phase.TRIGGER || bh.phase == Model.Phase.EVENT) {
                 b.append(", \"kind\": ").append(bh.kindValue);
             }

@@ -102,7 +102,9 @@ final class DemoGame implements Game {
     private Enemies enemies;
     private Animator animator;
     private long animationNanos;
+    private long behaviourNanos; // the registry's fixed stages this tick
     private Spells spells;
+    private CryptGame game;
     private Combat combat;
     private AgentSync sync;
     private Audio audio;
@@ -358,6 +360,39 @@ final class DemoGame implements Game {
                         center[0],
                         center[2]);
         spells = new Spells(audio, characters);
+        // The generated registry (DESIGN §22): the stores of the skeletons and the fireballs
+        // and the singletons their behaviours take. Built after the systems it refers to.
+        game =
+                new CryptGame(
+                        world.entities(),
+                        options.inlineBehaviours ? null : ctx.jobs(),
+                        sync,
+                        animator,
+                        level.crowd,
+                        enemies,
+                        level,
+                        party,
+                        rng,
+                        spells,
+                        level.visibility,
+                        world);
+        enemies.attach(game);
+        spells.attach(game, world.entities(), level.collision);
+        // The level's component rows go on the placements' root entities (D109), and the
+        // editor's inspector can add, remove and edit them live: a change despawns the object's
+        // entity and loads its rows again.
+        dev.jeddy.components.Levels.Binding binding = levelLoader::rootOf;
+        game.load(levelLoader.level(), binding);
+        editor.attachSchema(
+                Editor.schemaOf(DemoGame.class),
+                (lvl, id) -> {
+                    int e = levelLoader.rootOf(id);
+                    if (e != 0) {
+                        game.despawn(e);
+                        game.loadObject(lvl, id, e, binding);
+                        game.spawn(e);
+                    }
+                });
         buildCombat();
         if (audio != null) {
             audioSync = new AudioSync(audio, world);
@@ -374,7 +409,7 @@ final class DemoGame implements Game {
             level.visibility.setViewer(i, level.crowd.x(a), level.crowd.z(a), Party.SIGHT);
         }
         level.fog.update();
-        enemies.updateVisibility(level.visibility);
+        game.fixedUpdateStage(1, 0); // see and show: the first visibility
         world.updateTransforms(ctx.jobs());
         levelBuilt = true;
         following |= options.autoTurns; // a scripted run keeps the party in view
@@ -477,7 +512,9 @@ final class DemoGame implements Game {
             script(dt);
         }
         a.mark(AllocProbe.SCRIPT);
-        enemies.think(dt, party);
+        long b0 = System.nanoTime();
+        game.fixedUpdateStage(0, dt); // the skeletons think (SkeletonAi.think)
+        behaviourNanos = System.nanoTime() - b0;
         a.mark(AllocProbe.THINK);
         party.tick();
         party.fight(dt, enemies);
@@ -496,14 +533,18 @@ final class DemoGame implements Game {
         a.mark(AllocProbe.SYNC);
         level.collision.update();
         a.mark(AllocProbe.COLLISION);
-        spells.tick(dt, level.collision, combat);
+        b0 = System.nanoTime();
+        game.fixedUpdateStage(2, dt); // the fireballs fly and explode (Fireballs.fly)
+        behaviourNanos += System.nanoTime() - b0;
         a.mark(AllocProbe.SPELLS);
         for (int i = 0; i < Party.SIZE; i++) {
             int m = party.agent[i];
             level.visibility.setViewer(i, level.crowd.x(m), level.crowd.z(m), Party.SIGHT);
         }
         level.fog.update();
-        enemies.updateVisibility(level.visibility);
+        b0 = System.nanoTime();
+        game.fixedUpdateStage(1, dt); // see (parallel) and show
+        behaviourNanos += System.nanoTime() - b0;
         a.mark(AllocProbe.VISIBILITY);
         world.updateTransforms(ctx.jobs());
         a.mark(AllocProbe.TRANSFORMS);
@@ -562,6 +603,7 @@ final class DemoGame implements Game {
             } else {
                 handleInput(ctx, in);
             }
+            game.update(dt, alpha); // the skeletons' outlines (SkeletonAi.outline)
         }
         probe.mark(AllocProbe.INPUT);
         if (levelBuilt) {
@@ -672,7 +714,7 @@ final class DemoGame implements Game {
             }
             u.selectedCount = party.selectionCount;
             u.enemiesAlive = enemies.alive;
-            u.enemiesVisible = enemies.visibleCount;
+            u.enemiesVisible = enemies.visibleCount();
             u.formation = party.formation;
             u.boxSelecting = g.isBoxSelecting() && !spells.targeting && !u.ui.wantsMouse();
             float k = in.uiScale(); // the gestures are in window coordinates, the UI in logical
@@ -818,7 +860,6 @@ final class DemoGame implements Game {
             order(groundX, groundY, groundZ);
         }
         party.updateHighlights();
-        enemies.updateHighlights();
 
         if (turnBasedOn) {
             updateTurnBased();
@@ -955,6 +996,7 @@ final class DemoGame implements Game {
         combat.turnBasedMode = turnBasedBefore;
         party.combat = combat;
         enemies.combat = combat;
+        spells.setCombat(combat);
         demoUi.combat = combat;
         if (!levelBuilt && options.turnBased) {
             setTurnBased(true);
@@ -1243,7 +1285,8 @@ final class DemoGame implements Game {
         lastGameNanos = frameStart == 0 ? 0 : now - frameStart;
         frameStart = 0;
         if (measuring) {
-            perf.recordGame(lastGameNanos, p.count(), lights, animationNanos, uiNanos);
+            perf.recordGame(
+                    lastGameNanos, p.count(), lights, animationNanos, uiNanos, behaviourNanos);
         }
         hud.gameNanos[index] = lastGameNanos;
     }

@@ -32,7 +32,9 @@ public final class IsoDemo {
         Vfs vfs = mount(options.assets);
         RenderPackets packets = new RenderPackets(8192);
         DemoHud hud = new DemoHud();
-        PerfCapture perf = new PerfCapture(options.perf() ? 1 << 18 : 1, options.headless);
+        PerfCapture perf =
+                new PerfCapture(
+                        options.perf() ? 1 << 18 : 1, options.headless, options.inlineBehaviours);
         if (options.perf()) {
             // Tells JIT warm-up from engine allocation in the report (D70).
             Path jit = options.report.resolve("jit.log");

@@ -175,8 +175,11 @@ class GeneratedGameTest {
             g.health().add(e[i], new Health(i % 2 == 0 ? -5 : 5, 10));
             g.position().add(e[i]);
         }
-        g.fixedUpdate(0.1f);
+        g.fixedUpdateStage(0, 0.1f);
+        assertEquals(10, g.health().size(), "the reaper is in stage 1");
+        g.fixedUpdateStage(1, 0.1f);
         assertEquals(5, g.health().size(), "every other entity was despawned");
+        g.fixedUpdate(0.1f); // both stages: nothing else dies (regen keeps the living above 0)
         assertEquals(5, g.position().size(), "despawn removes every component");
         assertEquals(5, counts.despawned);
         for (int i = 0; i < e.length; i++) {

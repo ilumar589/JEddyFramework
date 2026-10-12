@@ -276,7 +276,7 @@ final class Party {
             return false;
         }
         int a = agent[i];
-        int ea = enemies.agent[enemy];
+        int ea = enemies.agent(enemy);
         float dx = crowd.x(ea) - crowd.x(a);
         float dz = crowd.z(ea) - crowd.z(a);
         if (dx * dx + dz * dz > (Enemies.REACH + 0.4f) * (Enemies.REACH + 0.4f)) {

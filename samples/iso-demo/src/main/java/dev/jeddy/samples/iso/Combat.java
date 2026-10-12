@@ -171,9 +171,9 @@ final class Combat implements TurnListener {
         if (enemyCreature[i] >= 0) {
             creatures.destroy(enemyCreature[i]);
         }
-        int c = rules.buildMonster(monsterRow[enemies.model[i]], TEAM_UNDEAD);
+        int c = rules.buildMonster(monsterRow[enemies.model(i)], TEAM_UNDEAD);
         enemyCreature[i] = c;
-        bind(c, enemies.agent[i], -1, i);
+        bind(c, enemies.agent(i), -1, i);
     }
 
     // ---- Lookups ------------------------------------------------------------------------------
@@ -525,7 +525,7 @@ final class Combat implements TurnListener {
                     int e = enemyOf(one[0]);
                     if (e >= 0) {
                         animator.action(
-                                enemies.character[e], Characters.ENEMY_ATTACK[enemies.model[e]]);
+                                enemies.character(e), Characters.ENEMY_ATTACK[enemies.model(e)]);
                     }
                 }
             }
@@ -616,7 +616,7 @@ final class Combat implements TurnListener {
                 if (swings > 0 && e >= 0) {
                     enemies.face(e, crowd.x(pa), crowd.z(pa));
                     animator.action(
-                            enemies.character[e], Characters.ENEMY_ATTACK[enemies.model[e]]);
+                            enemies.character(e), Characters.ENEMY_ATTACK[enemies.model(e)]);
                 }
             }
             aiCreature = -1;

@@ -140,8 +140,12 @@ public final class ComponentProcessor extends AbstractProcessor {
                             + " package-info.java");
             ok = false;
         }
+        // The registry's constructor takes the singletons in alphabetical order of their field
+        // names, whatever the order the behaviours mention them in: stable across edits.
+        model.singletons.sort(Comparator.comparing(sg -> sg.field));
         model.behaviours.sort(
-                Comparator.comparingInt((Behaviour b) -> b.order)
+                Comparator.comparingInt((Behaviour b) -> b.stage)
+                        .thenComparingInt(b -> b.order)
                         .thenComparing(b -> b.owner)
                         .thenComparingInt(b -> b.sourceIndex));
         return ok;
@@ -351,6 +355,7 @@ public final class ComponentProcessor extends AbstractProcessor {
             b.order = order;
             b.sourceIndex = index++;
             b.kindValue = integer(phaseAnnotation, "value", 0);
+            b.stage = integer(phaseAnnotation, "stage", 0);
             if (!m.getModifiers().contains(Modifier.STATIC)
                     || m.getModifiers().contains(Modifier.PRIVATE)) {
                 error(m, "a behaviour is a non-private static method");
