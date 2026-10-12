@@ -497,11 +497,41 @@ final class RegistryGen {
     /** The membership tests, view positioning and call for one entity {@code e}; false to skip. */
     private static void match(
             StringBuilder b, Behaviour bh, String indent, String skip, boolean perThread) {
+        match(b, bh, indent, skip, perThread, null);
+    }
+
+    /**
+     * The membership tests, view positioning and call for one entity {@code e}. With {@code
+     * driverRow} set (a loop over the one required store), that store's row is the loop index: no
+     * lookup for it.
+     */
+    private static void match(
+            StringBuilder b,
+            Behaviour bh,
+            String indent,
+            String skip,
+            boolean perThread,
+            String driverRow) {
         int i = 0;
         int r = 0;
         List<Integer> rowOf = new ArrayList<>();
+        List<Component> required = bh.required();
+        Component driver = driverRow != null && required.size() == 1 ? required.get(0) : null;
+        boolean driverUsed = false;
         for (Param p : bh.params) {
             if (p.kind == ParamKind.VIEW || p.kind == ParamKind.MUT) {
+                if (p.component == driver && !p.optional && !driverUsed) {
+                    driverUsed = true; // the driving store: its row is the loop index
+                    b.append(indent)
+                            .append("int r")
+                            .append(r)
+                            .append(" = ")
+                            .append(driverRow)
+                            .append(";\n");
+                    rowOf.add(r++);
+                    i++;
+                    continue;
+                }
                 b.append(indent)
                         .append("int r")
                         .append(r)
@@ -585,7 +615,7 @@ final class RegistryGen {
                         + "                continue; // rows went away under the loop\n"
                         + "            }\n");
         b.append("            int e = drive.entityAt(i);\n");
-        match(b, bh, "            ", "continue;", false);
+        match(b, bh, "            ", "continue;", false, "i");
         b.append("        }\n    }\n\n");
     }
 
@@ -600,7 +630,7 @@ final class RegistryGen {
         }
         b.append("        for (int i = start; i < end; i++) {\n");
         b.append("            int e = drive.entityAt(i);\n");
-        match(b, bh, "            ", "continue;", true);
+        match(b, bh, "            ", "continue;", true, "i");
         b.append("        }\n    }\n\n");
     }
 

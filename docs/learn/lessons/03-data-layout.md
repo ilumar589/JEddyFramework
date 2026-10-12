@@ -113,13 +113,18 @@ It looks like an object per access. It is not, after the JIT:
    and the element load. That is exactly the hand-written `timer[i]`.
 
 The benchmark `ComponentsBench` ([`bench/`](../../../bench/src/main/java/dev/jeddy/bench/ComponentsBench.java))
-has the three shapes over 10,000 entities: `objectsWithVirtualUpdate`, `soaColumnsByHand` and
-`generatedBehaviour`. The first is slow for two reasons that compound: the objects are scattered
-(§2) and the call site sees three classes (`Warrior`, `Archer`, `Mage`), so the inline cache
-gives up (a *megamorphic* call: a type check that fails, then a vtable load and an indirect
-jump the branch predictor cannot learn). The last two should be within a few percent of each
-other; what separates them is the sparse-set lookup per row (`indexOf`: two loads and a
-compare), not the view. Run it: `./gradlew :bench:jmh -Pjmh.includes=ComponentsBench`.
+has the three shapes over 10,000 entities: `objectsWithVirtualUpdate` (142 µs on CI's smoke
+run), `soaColumnsByHand` (4 µs) and `generatedBehaviour` (22 µs). The first is slow for two
+reasons that compound: the objects are scattered (§2) and the call site sees three classes
+(`Warrior`, `Archer`, `Mage`), so the inline cache gives up (a *megamorphic* call: a type check
+that fails, then a vtable load and an indirect jump the branch predictor cannot learn). Between
+the last two lie 18 µs, about two nanoseconds a row: the entity indirection (`entityAt`, a load
+that the next loads depend on), the size guard, the view's two field stores, and in the demo's
+loops the membership tests of the other stores (`indexOf`: two loads and a compare each). That
+is the price of a *sparse set* — rows reachable from an entity in $O(1)$ — over a dense array
+that is simply indexed, and it is the same whether the body is a view or hand-written. The body
+is free; the query is not, and it is two nanoseconds. Run it:
+`./gradlew :bench:jmh -Pjmh.includes=ComponentsBench`.
 
 **What breaks the argument.** A view that *escapes* — stored in a field, passed to a method the
 JIT does not inline, captured by a lambda — stays an object, and its loads stay loads. A
