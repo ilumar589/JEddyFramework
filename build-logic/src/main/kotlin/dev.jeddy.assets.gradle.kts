@@ -78,6 +78,8 @@ val cookAssets = tasks.register<CookAssets>("cookAssets") {
 
 // Level bindings (DESIGN §22, D110): only when jeddyAssets.bindingsPackage is set; dev.jeddy.game
 // (and the demo) add the output directory to the main source set.
+// A local, so the onlyIf lambda captures a Property and no script object (configuration cache).
+val bindingsPackage = extension.bindingsPackage
 tasks.register<GenerateLevelBindings>("generateLevelBindings") {
     group = "jeddy"
     description = "Writes <Name>Level.java for every .jlevel, with the named objects' ids."
@@ -87,7 +89,7 @@ tasks.register<GenerateLevelBindings>("generateLevelBindings") {
     threads = extension.threads
     cookerClasspath.from(cookerRuntime)
     launcher = cookerLauncher
-    onlyIf("jeddyAssets.bindingsPackage is set") { extension.bindingsPackage.isPresent }
+    onlyIf("jeddyAssets.bindingsPackage is set") { bindingsPackage.isPresent }
 }
 
 tasks.register<PackAssets>("packAssets") {
