@@ -1,7 +1,9 @@
 package dev.jeddy.app.world;
 
 import dev.jeddy.asset.AssetLoader;
+import dev.jeddy.asset.format.DialogueData;
 import dev.jeddy.asset.format.LevelData;
+import dev.jeddy.asset.format.QuestData;
 import dev.jeddy.asset.format.RulesData;
 import dev.jeddy.asset.format.SceneData;
 import dev.jeddy.physics.bvh.Bvh;
@@ -47,6 +49,16 @@ public final class WorldAssets {
      */
     public static AssetLoader<RulesData> rules() {
         return (id, data, context) -> RulesData.read(data);
+    }
+
+    /** Loads {@code .jdlg} conversations (DESIGN §24). */
+    public static AssetLoader<DialogueData> dialogues() {
+        return (id, data, context) -> DialogueData.read(data);
+    }
+
+    /** Loads {@code .jquest} quest tables (DESIGN §24). */
+    public static AssetLoader<QuestData> quests() {
+        return (id, data, context) -> QuestData.read(data);
     }
 
     /** Loads {@code .jocc} occlusion grids. */

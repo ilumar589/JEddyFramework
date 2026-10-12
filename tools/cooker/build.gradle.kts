@@ -11,6 +11,7 @@ dependencies {
     implementation(project(":compress"))
     implementation(project(":asset"))
     implementation(project(":physics"))
+    implementation(project(":script"))
 }
 
 // Regenerate with ./gradlew :cooker:regenerateBindings -Pjextract.home=<dir> (DESIGN §6.4).
