@@ -11,6 +11,7 @@
 // projects normally apply it through dev.jeddy.game.
 
 import dev.jeddy.gradle.CookAssets
+import dev.jeddy.gradle.GenerateLevelBindings
 import dev.jeddy.gradle.JEDDY_VERSION
 import dev.jeddy.gradle.JeddyAssetsExtension
 import dev.jeddy.gradle.JeddyPlatforms
@@ -29,6 +30,8 @@ extension.pakLayout.convention(layout.projectDirectory.file("paks.json").let { f
 extension.pakLevel.convention(19)
 extension.threads.convention(Runtime.getRuntime().availableProcessors())
 extension.validateShaders.convention(true)
+extension.bindingsDir.convention(layout.buildDirectory.dir("generated/sources/jeddy/java/main"))
+extension.componentsSchema.convention(layout.buildDirectory.file("classes/java/main/META-INF/jeddy/components.json"))
 
 val cookerDependencies = configurations.dependencyScope("jeddyCooker")
 val cookerRuntime = configurations.resolvable("jeddyCookerClasspath") {
@@ -68,8 +71,23 @@ val cookAssets = tasks.register<CookAssets>("cookAssets") {
     validateShaders = extension.validateShaders
     threads = extension.threads
     extraArguments = providers.gradleProperty("jeddy.cook.args").map { it.split(' ').filter(String::isNotBlank) }.orElse(emptyList())
+    componentsSchema = extension.componentsSchema
     cookerClasspath.from(cookerRuntime)
     launcher = cookerLauncher
+}
+
+// Level bindings (DESIGN §22, D110): only when jeddyAssets.bindingsPackage is set; dev.jeddy.game
+// (and the demo) add the output directory to the main source set.
+tasks.register<GenerateLevelBindings>("generateLevelBindings") {
+    group = "jeddy"
+    description = "Writes <Name>Level.java for every .jlevel, with the named objects' ids."
+    sourceDir = extension.sourceDir
+    bindingsPackage = extension.bindingsPackage
+    outputDir = extension.bindingsDir
+    threads = extension.threads
+    cookerClasspath.from(cookerRuntime)
+    launcher = cookerLauncher
+    onlyIf("jeddyAssets.bindingsPackage is set") { extension.bindingsPackage.isPresent }
 }
 
 tasks.register<PackAssets>("packAssets") {

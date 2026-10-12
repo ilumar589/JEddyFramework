@@ -16,6 +16,8 @@ import java.util.List;
  * @param force ignore the cache and cook everything again
  * @param shaderIncludeDirs extra roots for {@code #include} (engine shaders)
  * @param validateShaders run {@code glslangValidator} when it is on the {@code PATH}
+ * @param componentsSchema the game's {@code components.json} the level importer validates component
+ *     rows against (DESIGN §22, D109), or {@code null}
  */
 public record CookerConfig(
         Path sourceRoot,
@@ -25,7 +27,8 @@ public record CookerConfig(
         int threads,
         boolean force,
         List<Path> shaderIncludeDirs,
-        boolean validateShaders) {
+        boolean validateShaders,
+        Path componentsSchema) {
     /** Normalizes the paths. */
     public CookerConfig {
         sourceRoot = sourceRoot.toAbsolutePath().normalize();
@@ -35,6 +38,8 @@ public record CookerConfig(
         threads = Math.max(1, threads);
         shaderIncludeDirs =
                 shaderIncludeDirs.stream().map(p -> p.toAbsolutePath().normalize()).toList();
+        componentsSchema =
+                componentsSchema == null ? null : componentsSchema.toAbsolutePath().normalize();
         if (outputRoot.startsWith(sourceRoot) || sourceRoot.startsWith(outputRoot)) {
             throw new IllegalArgumentException(
                     "the source and output trees must not contain each other");
@@ -56,7 +61,8 @@ public record CookerConfig(
                 Runtime.getRuntime().availableProcessors(),
                 false,
                 List.of(),
-                true);
+                true,
+                null);
     }
 
     /** Returns a copy with {@code force} set. */
@@ -69,7 +75,8 @@ public record CookerConfig(
                 threads,
                 value,
                 shaderIncludeDirs,
-                validateShaders);
+                validateShaders,
+                componentsSchema);
     }
 
     /** Returns a copy with another thread count. */
@@ -82,7 +89,8 @@ public record CookerConfig(
                 value,
                 force,
                 shaderIncludeDirs,
-                validateShaders);
+                validateShaders,
+                componentsSchema);
     }
 
     /** Returns a copy with another cache directory (the report moves with it). */
@@ -95,7 +103,8 @@ public record CookerConfig(
                 threads,
                 force,
                 shaderIncludeDirs,
-                validateShaders);
+                validateShaders,
+                componentsSchema);
     }
 
     /** Returns a copy with another report directory. */
@@ -108,12 +117,35 @@ public record CookerConfig(
                 threads,
                 force,
                 shaderIncludeDirs,
-                validateShaders);
+                validateShaders,
+                componentsSchema);
     }
 
     /** Returns a copy with shader include roots and validation. */
     public CookerConfig withShaders(List<Path> includeDirs, boolean validate) {
         return new CookerConfig(
-                sourceRoot, outputRoot, cacheDir, reportDir, threads, force, includeDirs, validate);
+                sourceRoot,
+                outputRoot,
+                cacheDir,
+                reportDir,
+                threads,
+                force,
+                includeDirs,
+                validate,
+                componentsSchema);
+    }
+
+    /** Returns a copy validating component rows against {@code schema} (null: no validation). */
+    public CookerConfig withComponents(Path schema) {
+        return new CookerConfig(
+                sourceRoot,
+                outputRoot,
+                cacheDir,
+                reportDir,
+                threads,
+                force,
+                shaderIncludeDirs,
+                validateShaders,
+                schema);
     }
 }

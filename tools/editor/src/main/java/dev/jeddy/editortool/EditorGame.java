@@ -106,6 +106,17 @@ final class EditorGame implements Game {
         if (java.nio.file.Files.isDirectory(rules)) {
             editor.attachRules(rules); // the Rules panel edits assets/rules/*.json
         }
+        if (java.nio.file.Files.isRegularFile(options.components)) {
+            try {
+                editor.attachSchema(
+                        dev.jeddy.asset.format.ComponentSchema.parse(
+                                java.nio.file.Files.readAllBytes(options.components)),
+                        null); // no game runs here: rows are edited, not applied
+                editor.context().console().info("components " + options.components);
+            } catch (java.io.IOException | RuntimeException e) {
+                editor.context().console().warn("components.json: " + e.getMessage());
+            }
+        }
         editor.loadSettings(ctx.settings());
         loader.load(level);
         editor.open(level, levelFile);

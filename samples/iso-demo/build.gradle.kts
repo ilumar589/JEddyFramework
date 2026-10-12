@@ -7,7 +7,10 @@ dependencies {
     implementation(project(":app"))
     implementation(project(":editor"))
     implementation(project(":rules"))
+    implementation(project(":components"))
     implementation(project(":gl"))
+    // @Component records and @Behaviour classes become generated stores and the registry (§22).
+    annotationProcessor(project(":component-processor"))
 }
 
 application {
@@ -18,6 +21,13 @@ application {
 jeddyAssets {
     // Engine shader includes (#include "engine/...") for the cook-time shader checks.
     shaderIncludeDirs.from(rootProject.layout.projectDirectory.dir("modules/render/src/main/resources/dev/jeddy/render/shaders"))
+    // CryptLevel and friends: the levels' named objects as constants (DESIGN §22, D110).
+    bindingsPackage = "dev.jeddy.samples.iso.levels"
+}
+
+// The generated level bindings compile with the demo (dev.jeddy.game does this for game projects).
+sourceSets.named("main") {
+    java.srcDir(tasks.named<dev.jeddy.gradle.GenerateLevelBindings>("generateLevelBindings").flatMap { it.outputDir })
 }
 
 // The demo mounts build/paks (relative to the project directory, the run task's working directory).

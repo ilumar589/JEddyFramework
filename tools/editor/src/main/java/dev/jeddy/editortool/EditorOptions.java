@@ -24,6 +24,7 @@ final class EditorOptions {
     int frames; // quit after this many frames (CI), 0 for never
     Path screenshot;
     List<String> commands = new ArrayList<>();
+    Path components; // the game's components.json; default: the sibling build's class output
 
     static EditorOptions parse(String[] args) {
         EditorOptions o = new EditorOptions();
@@ -44,6 +45,7 @@ final class EditorOptions {
                 case "--frames" -> o.frames = Integer.parseInt(value(args, ++i, a));
                 case "--screenshot" -> o.screenshot = Path.of(value(args, ++i, a));
                 case "--command" -> o.commands.add(value(args, ++i, a));
+                case "--components" -> o.components = Path.of(value(args, ++i, a));
                 case "--help", "-h" -> {
                     System.out.println(usage());
                     System.exit(0);
@@ -64,6 +66,13 @@ final class EditorOptions {
         }
         if (o.level == null) {
             o.level = findLevel(o.project);
+        }
+        if (o.components == null) {
+            // A game project keeps its assets beside build/: the schema the last compile wrote.
+            o.components =
+                    o.project
+                            .resolveSibling("build")
+                            .resolve("classes/java/main/META-INF/jeddy/components.json");
         }
         return o;
     }
@@ -97,6 +106,8 @@ final class EditorOptions {
           --level PATH          the .jlevel to open, relative to the project (default: the first found)
           --shader-include DIR  extra shader include directory for the cooker (repeatable)
           --no-cook             do not run the cooker (use the cooked output as it is)
+          --components FILE     the game's components.json for the inspector (default: the
+                                sibling build/classes/java/main/META-INF/jeddy/components.json)
           --size WxH            window size (default 1600x900)
           --frames N            quit after N frames (CI smoke runs)
           --screenshot FILE     write a PNG of the last frame before quitting

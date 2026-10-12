@@ -35,6 +35,14 @@ public final class ObjectRow {
     public String payload = "";
     public final float[] data = new float[LevelData.LIGHT_FLOATS];
 
+    /** The object's component rows (DESIGN §22): names, and per row its values. */
+    public String[] components = new String[0];
+
+    public String[][] columns = new String[0][];
+    public int[][] types = new int[0][];
+    public long[][] bits = new long[0][];
+    public String[][] texts = new String[0][];
+
     /** Fills this row from object {@code id} of {@code level}. */
     public ObjectRow capture(LevelData level, int objectId) {
         kind = level.kindOf(objectId);
@@ -66,6 +74,35 @@ public final class ObjectRow {
             default -> throw new IllegalArgumentException("no object " + objectId);
         }
         LevelObjects.copyRow(level, objectId, data, 0);
+        int n = 0;
+        for (int r = level.nextComponentRowOf(objectId, 0);
+                r >= 0;
+                r = level.nextComponentRowOf(objectId, r + 1)) {
+            n++;
+        }
+        components = new String[n];
+        columns = new String[n][];
+        types = new int[n][];
+        bits = new long[n][];
+        texts = new String[n][];
+        int c = 0;
+        for (int r = level.nextComponentRowOf(objectId, 0);
+                r >= 0;
+                r = level.nextComponentRowOf(objectId, r + 1)) {
+            int count = level.componentValueCount(r);
+            components[c] = level.componentRowComponent(r);
+            columns[c] = new String[count];
+            types[c] = new int[count];
+            bits[c] = new long[count];
+            texts[c] = new String[count];
+            for (int k = 0; k < count; k++) {
+                columns[c][k] = level.componentValueColumn(r, k);
+                types[c][k] = level.componentValueType(r, k);
+                bits[c][k] = level.componentValueBits(r, k);
+                texts[c][k] = level.componentValueText(r, k);
+            }
+            c++;
+        }
         return this;
     }
 
@@ -83,6 +120,11 @@ public final class ObjectRow {
         kind2 = other.kind2;
         payload = other.payload;
         System.arraycopy(other.data, 0, data, 0, data.length);
+        components = other.components.clone();
+        columns = other.columns.clone();
+        types = other.types.clone();
+        bits = other.bits.clone();
+        texts = other.texts.clone();
         return this;
     }
 
@@ -104,6 +146,12 @@ public final class ObjectRow {
         }
         if (kind != LevelData.KIND_PLACEMENT) {
             LevelObjects.writeRow(level, id, data, 0);
+        }
+        for (int c = 0; c < components.length; c++) {
+            int row = level.addComponentRow(id, components[c]);
+            for (int k = 0; k < columns[c].length; k++) {
+                level.setComponentValue(row, columns[c][k], types[c][k], bits[c][k], texts[c][k]);
+            }
         }
     }
 

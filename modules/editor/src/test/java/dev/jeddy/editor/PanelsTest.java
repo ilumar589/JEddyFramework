@@ -189,6 +189,73 @@ class PanelsTest {
     }
 
     @Test
+    void inspectorShowsComponentRowsFromTheSchema() {
+        Editor editor = new Editor();
+        LevelData level = WorldFixture.level();
+        dev.jeddy.asset.format.ComponentSchema schema =
+                dev.jeddy.asset.format.ComponentSchema.parse(
+                        "{\"version\": 1, \"registry\": \"t.Game\", \"components\": [{\"name\":"
+                            + " \"Health\", \"type\": \"t.Health\", \"doc\": \"Hit points\","
+                            + " \"fields\": [{\"name\": \"current\", \"type\": \"int\","
+                            + " \"default\": 10},{\"name\": \"team\", \"type\": \"enum\","
+                            + " \"values\": [\"A\", \"B\"], \"default\": \"B\"},{\"name\": \"pos\","
+                            + " \"type\": \"vec3\", \"default\": [1, 2, 3]},{\"name\": \"owner\","
+                            + " \"type\": \"entity\"},{\"name\": \"sound\", \"type\": \"asset\","
+                            + " \"asset\": \"sound\"},{\"name\": \"angle\", \"type\": \"float\","
+                            + " \"angle\": true},{\"name\": \"on\", \"type\": \"bool\","
+                            + " \"default\": true}]},{\"name\": \"Dead\", \"type\": \"t.Dead\","
+                            + " \"fields\": []}], \"behaviours\": []}");
+        int[] synced = new int[1];
+        editor.attachSchema(schema, (l, id) -> synced[0]++);
+        editor.open(level, null);
+        editor.setShown(true);
+        in.height = 1600; // room for every row of the inspector
+        int wall = level.placementId(0);
+        int row = level.addComponentRow(wall, "Health");
+        level.setComponentInt(row, "current", 3);
+        level.addComponentRow(wall, "Dead");
+        editor.context().selection().select(wall);
+        frame(editor);
+        frame(editor);
+        assertTrue(out.commandCount() > 0);
+        // Both rows draw their fields (the "current" number field of row 0, field 0), and the
+        // "Add component" dropdown is absent: the wall has every component of the schema.
+        long current = id(Dock.RIGHT, 2, 0, 0, 20L);
+        assertTrue(ui.lastRecord(current) >= 0, "the current field was declared");
+        assertTrue(ui.lastRecord(id(Dock.RIGHT, 2, 22L)) < 0, "nothing left to add");
+        // Removing Dead through its "x" button is a command; afterwards the dropdown appears.
+        long remove = id(Dock.RIGHT, 2, 1, 21L);
+        int r = ui.lastRecord(remove);
+        assertTrue(r >= 0, "the remove button of row 1 was declared");
+        assertTrue(ui.recordY(r) < in.height, "visible: y " + ui.recordY(r));
+        click(
+                editor,
+                ui.recordX(r) + ui.recordWidth(r) * 0.5f,
+                ui.recordY(r) + ui.recordHeight(r) * 0.5f);
+        frame(editor);
+        assertEquals(-1, level.componentRow(wall, "Dead"));
+        assertEquals("Remove Dead", editor.context().undo().undoName());
+        assertEquals(1, synced[0]);
+        frame(editor);
+        assertTrue(ui.lastRecord(id(Dock.RIGHT, 2, 22L)) >= 0, "Dead can be added again");
+        editor.undo();
+        frame(editor);
+        assertTrue(level.componentRow(wall, "Dead") >= 0);
+    }
+
+    private void click(Editor editor, float x, float y) {
+        in.mouseX = x;
+        in.mouseY = y;
+        frame(editor);
+        in.buttonsPressed = UiInput.LEFT;
+        in.buttonsDown = UiInput.LEFT;
+        frame(editor);
+        in.buttonsDown = 0;
+        in.buttonsReleased = UiInput.LEFT;
+        frame(editor);
+    }
+
+    @Test
     void inspectorFieldsPushMergedCommands() {
         Editor editor = new Editor();
         LevelData level = WorldFixture.level();

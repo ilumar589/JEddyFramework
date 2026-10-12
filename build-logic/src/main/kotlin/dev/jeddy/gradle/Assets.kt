@@ -55,6 +55,22 @@ abstract class JeddyAssetsExtension {
 
     /** Compile shaders with `glslangValidator` when it is on the PATH (default true). */
     abstract val validateShaders: Property<Boolean>
+
+    /**
+     * The Java package of the generated level bindings (`CryptLevel` and friends, DESIGN §22,
+     * D110); unset: no bindings. The game plugin compiles them with the game.
+     */
+    abstract val bindingsPackage: Property<String>
+
+    /** Where the bindings go (default `build/generated/sources/jeddy/java/main`). */
+    abstract val bindingsDir: DirectoryProperty
+
+    /**
+     * The game's `components.json` the cooker validates level component rows against (default:
+     * the one the last compile wrote into `build/classes/java/main`); validation is skipped while
+     * the file does not exist.
+     */
+    abstract val componentsSchema: RegularFileProperty
 }
 
 /** Common launcher settings of the cooker tasks. */
@@ -118,6 +134,10 @@ abstract class CookAssets : CookerTask() {
     @get:Input
     abstract val extraArguments: ListProperty<String>
 
+    /** The schema file; checked for existence when the task runs (it comes from a compile). */
+    @get:Internal
+    abstract val componentsSchema: RegularFileProperty
+
     @TaskAction
     fun cook() {
         val args = mutableListOf(
@@ -131,8 +151,43 @@ abstract class CookAssets : CookerTask() {
         if (!validateShaders.get()) {
             args += "--no-validate"
         }
+        val schema = componentsSchema.orNull?.asFile
+        if (schema != null && schema.isFile) {
+            args += listOf("--components", schema.absolutePath)
+        }
         args += extraArguments.get()
         runCooker(args)
+    }
+}
+
+/**
+ * Writes one `<Name>Level.java` per `.jlevel` under the source tree with the stable ids of its
+ * named objects as constants (`jeddy-cook bindings`, DESIGN §22, D110).
+ */
+@DisableCachingByDefault(because = "Cheap to regenerate")
+abstract class GenerateLevelBindings : CookerTask() {
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    @get:IgnoreEmptyDirectories
+    abstract val sourceDir: DirectoryProperty
+
+    @get:Optional
+    @get:Input
+    abstract val bindingsPackage: Property<String>
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun generate() {
+        runCooker(
+            listOf(
+                "bindings",
+                "--source", sourceDir.get().asFile.absolutePath,
+                "--out", outputDir.get().asFile.absolutePath,
+                "--package", bindingsPackage.get(),
+            ),
+        )
     }
 }
 

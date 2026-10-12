@@ -103,6 +103,32 @@ public final class Editor {
     }
 
     /**
+     * Gives the inspector the game's component schema (DESIGN §22, D109) and the hook a running
+     * game uses to re-apply an object's rows when they change; either may be null.
+     */
+    public void attachSchema(
+            dev.jeddy.asset.format.ComponentSchema schema, EditorContext.ComponentSync sync) {
+        ctx.setSchema(schema, sync);
+    }
+
+    /**
+     * Loads a component schema from the game's class output or jar ({@code
+     * META-INF/jeddy/components.json} through {@code owner}'s class loader), or returns an empty
+     * schema when the game has none.
+     */
+    public static dev.jeddy.asset.format.ComponentSchema schemaOf(Class<?> owner) {
+        try (java.io.InputStream in =
+                owner.getResourceAsStream("/" + dev.jeddy.asset.format.ComponentSchema.RESOURCE)) {
+            return in == null
+                    ? dev.jeddy.asset.format.ComponentSchema.EMPTY
+                    : dev.jeddy.asset.format.ComponentSchema.parse(in.readAllBytes());
+        } catch (java.io.IOException | RuntimeException e) {
+            dev.jeddy.core.log.Log.logger("editor").warn("components.json: " + e.getMessage());
+            return dev.jeddy.asset.format.ComponentSchema.EMPTY;
+        }
+    }
+
+    /**
      * Loads the rules content of {@code dir} ({@code assets/rules}: one JSON file per kind) for the
      * Rules panel; edits go through the history and {@link #saveRules} writes the files back.
      * Returns whether it loaded.

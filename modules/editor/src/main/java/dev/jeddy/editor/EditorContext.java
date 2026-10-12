@@ -4,6 +4,7 @@ import dev.jeddy.app.world.LevelLoader;
 import dev.jeddy.app.world.World;
 import dev.jeddy.asset.AssetType;
 import dev.jeddy.asset.Vfs;
+import dev.jeddy.asset.format.ComponentSchema;
 import dev.jeddy.asset.format.LevelData;
 import dev.jeddy.asset.format.SceneData;
 import dev.jeddy.editor.rules.RulesSource;
@@ -38,6 +39,17 @@ public final class EditorContext {
     private Vfs vfs;
     private AssetType<SceneData> scenes;
     private RulesSource rules;
+    private ComponentSchema schema = ComponentSchema.EMPTY;
+    private ComponentSync componentSync;
+
+    /**
+     * What a running game does when the editor changes an object's component rows (DESIGN §22):
+     * typically {@code despawn} the object's entity and {@code loadObject} its rows again.
+     */
+    public interface ComponentSync {
+        /** Object {@code objectId}'s rows in {@code level} changed. */
+        void componentsChanged(LevelData level, int objectId);
+    }
 
     /** Creates a context editing {@code level} (may be {@code null} until one is opened). */
     public EditorContext(LevelData level, int undoCapacity) {
@@ -120,7 +132,17 @@ public final class EditorContext {
         return rules;
     }
 
+    /** Returns the game's component schema (the inspector's Components section); never null. */
+    public ComponentSchema schema() {
+        return schema;
+    }
+
     // ---- Wiring (the Editor) ------------------------------------------------------------------
+
+    void setSchema(ComponentSchema schema, ComponentSync sync) {
+        this.schema = schema == null ? ComponentSchema.EMPTY : schema;
+        this.componentSync = sync;
+    }
 
     void setRules(RulesSource rules) {
         this.rules = rules;
@@ -174,6 +196,16 @@ public final class EditorContext {
     public void syncPrefab(int id) {
         if (showing() && level.kindOf(id) == LevelData.KIND_PLACEMENT) {
             loader.placementReplaced(level.placementIndex(id));
+        }
+    }
+
+    /**
+     * Tells the game that object {@code id}'s component rows changed (when a loader is attached,
+     * only while it shows this level).
+     */
+    public void syncComponents(int id) {
+        if (componentSync != null && (loader == null || showing())) {
+            componentSync.componentsChanged(level, id);
         }
     }
 }

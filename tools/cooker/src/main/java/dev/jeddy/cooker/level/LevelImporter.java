@@ -1,6 +1,7 @@
 package dev.jeddy.cooker.level;
 
 import dev.jeddy.asset.AssetPaths;
+import dev.jeddy.asset.format.ComponentSchema;
 import dev.jeddy.asset.format.LevelData;
 import dev.jeddy.cooker.CookContext;
 import dev.jeddy.cooker.ImportSettings;
@@ -51,12 +52,65 @@ public final class LevelImporter implements Importer {
 
     @Override
     public int version() {
-        return 1;
+        return 2; // component rows validated (M22)
     }
 
     @Override
     public boolean accepts(String path, ImportSettings settings) {
         return path.toLowerCase(Locale.ROOT).endsWith(".jlevel");
+    }
+
+    /**
+     * Checks the component rows against the game's schema when the cook has one ({@code
+     * --components}, DESIGN §22, D109): unknown components, columns and enum constants are
+     * warnings, since the runtime skips them too. The schema is a dependency, so a changed game
+     * re-cooks the level.
+     */
+    private static void validateComponents(CookContext ctx, LevelData level) throws IOException {
+        Path schemaFile = ctx.config().componentsSchema();
+        if (schemaFile == null || level.componentRowCount() == 0) {
+            return;
+        }
+        if (!Files.isRegularFile(schemaFile)) {
+            ctx.recordAbsentDependency(schemaFile);
+            ctx.warn("components schema " + schemaFile + " is missing: rows not validated");
+            return;
+        }
+        ComponentSchema schema;
+        try {
+            schema = ComponentSchema.parse(ctx.readDependency(schemaFile));
+        } catch (RuntimeException e) {
+            ctx.warn("components schema " + schemaFile + ": " + e.getMessage());
+            return;
+        }
+        for (int row = 0; row < level.componentRowCount(); row++) {
+            String name = level.componentRowComponent(row);
+            int object = level.componentRowObject(row);
+            ComponentSchema.Component c = schema.component(name);
+            if (c == null) {
+                ctx.warn("object " + object + ": unknown component " + name);
+                continue;
+            }
+            for (int k = 0; k < level.componentValueCount(row); k++) {
+                String column = level.componentValueColumn(row, k);
+                ComponentSchema.Field f = c.fieldOfColumn(column);
+                if (f == null) {
+                    ctx.warn("object " + object + ": " + name + " has no column " + column);
+                } else if (f.type() == ComponentSchema.Type.ENUM
+                        && level.componentValueType(row, k) == LevelData.VALUE_ENUM
+                        && !f.enumValues().contains(level.componentValueText(row, k))) {
+                    ctx.warn(
+                            "object "
+                                    + object
+                                    + ": "
+                                    + name
+                                    + "."
+                                    + column
+                                    + " has no constant "
+                                    + level.componentValueText(row, k));
+                }
+            }
+        }
     }
 
     @Override
@@ -68,6 +122,8 @@ public final class LevelImporter implements Importer {
         ctx.stat("lights", level.lightCount());
         ctx.stat("spawns", level.spawnCount());
         ctx.stat("triggers", level.triggerCount());
+        ctx.stat("componentRows", level.componentRowCount());
+        validateComponents(ctx, level);
 
         List<Rule> rules = new ArrayList<>();
         for (int r = 0; r < level.ruleCount(); r++) {

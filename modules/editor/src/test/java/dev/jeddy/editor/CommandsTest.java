@@ -9,8 +9,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.jeddy.asset.format.LevelData;
 import dev.jeddy.core.handle.Handles;
 import dev.jeddy.editor.command.AddObjectsCommand;
+import dev.jeddy.editor.command.ComponentRowCommand;
 import dev.jeddy.editor.command.DeleteObjectsCommand;
 import dev.jeddy.editor.command.ObjectField;
+import dev.jeddy.editor.command.SetComponentValueCommand;
 import dev.jeddy.editor.command.SetFloatCommand;
 import dev.jeddy.editor.command.SetIntCommand;
 import dev.jeddy.editor.command.SetSettingsCommand;
@@ -50,6 +52,106 @@ class CommandsTest {
         checkApplied.run();
         ctx.undo().undo();
         assertArrayEquals(before, ctx.level().toBytes());
+    }
+
+    @Test
+    void componentRowsAreCommandsAndFollowDeletesAndDuplicates() {
+        LevelData level = WorldFixture.level();
+        EditorContext ctx = new EditorContext(level, 16);
+        int wall = level.placementId(0);
+        int table = level.placementId(1);
+        int[] synced = new int[1];
+        ctx.setSchema(null, (l, id) -> synced[0]++);
+        // Add a component to two objects, set a value, remove it.
+        roundTrip(
+                ctx,
+                ComponentRowCommand.add(level, ids(wall, table), 2, "Health"),
+                () -> {
+                    assertTrue(level.componentRow(wall, "Health") >= 0);
+                    assertTrue(level.componentRow(table, "Health") >= 0);
+                    assertEquals(2, level.componentRowCount());
+                });
+        assertEquals(0, level.componentRowCount(), "undone");
+        ctx.undo().push(ComponentRowCommand.add(level, ids(wall), 1, "Health"));
+        assertEquals(1, level.componentRowCount());
+        roundTrip(
+                ctx,
+                new SetComponentValueCommand(
+                        level,
+                        ids(wall, table),
+                        2,
+                        "Health",
+                        "current",
+                        LevelData.VALUE_INT,
+                        7,
+                        ""),
+                () -> {
+                    int row = level.componentRow(wall, "Health");
+                    assertEquals(
+                            7, level.componentValueBits(row, level.componentValue(row, "current")));
+                    assertEquals(-1, level.componentRow(table, "Health"), "no row, nothing set");
+                });
+        // Merging: two edits of the same column make one entry.
+        ctx.undo().redo(); // back to the applied state (the round trip ends undone)
+        int entries = ctx.undo().size();
+        ctx.undo()
+                .push(
+                        new SetComponentValueCommand(
+                                level,
+                                ids(wall),
+                                1,
+                                "Health",
+                                "current",
+                                LevelData.VALUE_INT,
+                                8,
+                                ""),
+                        true);
+        ctx.undo()
+                .push(
+                        new SetComponentValueCommand(
+                                level,
+                                ids(wall),
+                                1,
+                                "Health",
+                                "current",
+                                LevelData.VALUE_INT,
+                                9,
+                                ""),
+                        true);
+        assertEquals(entries + 1, ctx.undo().size());
+        ctx.undo().undo();
+        assertEquals(
+                7,
+                level.componentValueBits(level.componentRow(wall, "Health"), 0),
+                "back to the value before the merged pair");
+        ctx.undo().redo();
+        assertEquals(9, level.componentValueBits(level.componentRow(wall, "Health"), 0));
+        // Removing a row remembers its values.
+        roundTrip(
+                ctx,
+                ComponentRowCommand.remove(level, ids(wall), 1, "Health"),
+                () -> assertEquals(-1, level.componentRow(wall, "Health")));
+        assertEquals(
+                9,
+                level.componentValueBits(level.componentRow(wall, "Health"), 0),
+                "restored with its value");
+        // Deleting the object takes the row along and undo brings both back; a duplicate copies.
+        roundTrip(
+                ctx,
+                new DeleteObjectsCommand(level, ids(wall), 1),
+                () -> assertEquals(0, level.componentRowCount()));
+        assertEquals(9, level.componentValueBits(level.componentRow(wall, "Health"), 0));
+        AddObjectsCommand dup = AddObjectsCommand.duplicate(level, ids(wall), 1, 1, 0, 0);
+        roundTrip(
+                ctx,
+                dup,
+                () -> {
+                    assertEquals(2, level.componentRowCount());
+                    int row = level.componentRow(dup.id(0), "Health");
+                    assertTrue(row >= 0, "the copy has the component");
+                    assertEquals(9, level.componentValueBits(row, 0));
+                });
+        assertTrue(synced[0] > 0, "the game was told about the changes");
     }
 
     @Test

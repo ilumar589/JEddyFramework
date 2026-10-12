@@ -1,12 +1,15 @@
 package dev.jeddy.editor.panel;
 
+import dev.jeddy.asset.format.ComponentSchema;
 import dev.jeddy.asset.format.LevelData;
 import dev.jeddy.editor.EditorContext;
 import dev.jeddy.editor.GizmoMath;
 import dev.jeddy.editor.LevelObjects;
 import dev.jeddy.editor.Selection;
 import dev.jeddy.editor.Text;
+import dev.jeddy.editor.command.ComponentRowCommand;
 import dev.jeddy.editor.command.ObjectField;
+import dev.jeddy.editor.command.SetComponentValueCommand;
 import dev.jeddy.editor.command.SetFloatCommand;
 import dev.jeddy.editor.command.SetIntCommand;
 import dev.jeddy.editor.command.SetStringCommand;
@@ -20,9 +23,11 @@ import dev.jeddy.ui.Widgets;
  * A property grid for the primary selected object (DESIGN §19): name, layer, prefab, flags and the
  * transform of a placement (rotation as yaw, pitch and roll in degrees); type, color, intensity,
  * range, cone and flags of a light; kind and facing of a spawn; kind, payload, extents and flags of
- * a trigger. Every change is a command on the whole selection (the same value for every selected
- * object of a kind that has the field), pushed with {@code merge} so typing or dragging a field
- * makes one history entry.
+ * a trigger; then the object's component rows from the game's schema (DESIGN §22, D109), one block
+ * per component with a field per record component, a remove button and an "Add component" dropdown.
+ * Every change is a command on the whole selection (the same value for every selected object of a
+ * kind that has the field, or that has the component), pushed with {@code merge} so typing or
+ * dragging a field makes one history entry.
  *
  * <p>The text buffers mirror the level and are re-read when the primary changes or the level is
  * edited elsewhere, except for a field being typed into.
@@ -48,6 +53,10 @@ public final class InspectorPanel extends Panel {
     private static final long CONE = 16;
     private static final long YAW = 17;
     private static final long SIZE = 18;
+    private static final long COMPONENT = 19;
+    private static final long COMPONENT_FIELD = 20;
+    private static final long COMPONENT_REMOVE = 21;
+    private static final long COMPONENT_ADD = 22;
 
     private static final CharSequence[] LIGHT_TYPES = {"Point", "Spot"};
     private static final String[] PLACEMENT_FLAG_NAMES = {
@@ -74,6 +83,16 @@ public final class InspectorPanel extends Panel {
     private CharSequence[] prefabLabels = new CharSequence[0];
     private int prefabLabelsFor = -1;
     private LevelData prefabLabelsLevel;
+    private final TextBuffer assetPath = new TextBuffer(128);
+    private int assetPathRow = -1;
+    private String assetPathColumn = "";
+    private final java.util.IdentityHashMap<ComponentSchema.Field, CharSequence[]> enumLabels =
+            new java.util.IdentityHashMap<>();
+    private CharSequence[] objectLabels = new CharSequence[0];
+    private int[] objectIds = new int[0];
+    private int objectLabelsVersion = -1;
+    private CharSequence[] addLabels = new CharSequence[0];
+    private String[] addNames = new String[0];
 
     /** Creates the panel. */
     public InspectorPanel() {
@@ -130,6 +149,305 @@ public final class InspectorPanel extends Panel {
             case LevelData.KIND_SPAWN -> spawn(ctx, w, level, sel, index);
             default -> trigger(ctx, w, level, sel, index);
         }
+        components(ctx, w, level, sel, id);
+    }
+
+    // ---- Components (DESIGN §22, D109) --------------------------------------------------------
+
+    /**
+     * The object's component rows from the game's schema: one collapsible block per row with a
+     * field per record component, a remove button, and an "Add component" dropdown of the
+     * components the object does not have yet.
+     */
+    private void components(EditorContext ctx, Widgets w, LevelData level, Selection sel, int id) {
+        ComponentSchema schema = ctx.schema();
+        if (schema.components().isEmpty()) {
+            return;
+        }
+        Ui ui = w.ui;
+        w.heading("Components");
+        int present = 0;
+        for (int row = level.nextComponentRowOf(id, 0);
+                row >= 0;
+                row = level.nextComponentRowOf(id, row + 1)) {
+            String name = level.componentRowComponent(row);
+            ComponentSchema.Component c = schema.component(name);
+            ui.pushId(present++);
+            if (w.treeNode(COMPONENT, name, true)) {
+                if (c == null) {
+                    w.small("Not in the game's schema (kept as is)");
+                } else {
+                    if (!c.doc().isEmpty()) {
+                        w.small(c.doc());
+                    }
+                    for (int f = 0; f < c.fields().size(); f++) {
+                        ui.pushId(f);
+                        field(ctx, w, level, sel, row, c, c.fields().get(f));
+                        ui.popId();
+                    }
+                }
+                boolean remove = w.button(COMPONENT_REMOVE, "Remove");
+                w.treeEnd();
+                if (remove) {
+                    push(ctx, ComponentRowCommand.remove(level, ids(sel), sel.size(), name));
+                    ui.popId();
+                    return; // the rows changed under the loop; draw them next frame
+                }
+            }
+            ui.popId();
+        }
+        // Add component.
+        int n = 0;
+        for (ComponentSchema.Component c : schema.components()) {
+            if (level.componentRow(id, c.name()) < 0) {
+                n++;
+            }
+        }
+        if (n > 0) {
+            if (addLabels.length != n + 1) {
+                addLabels = new CharSequence[n + 1];
+                addNames = new String[n + 1];
+            }
+            addLabels[0] = "Add component...";
+            addNames[0] = null;
+            int k = 1;
+            for (ComponentSchema.Component c : schema.components()) {
+                if (level.componentRow(id, c.name()) < 0) {
+                    addLabels[k] = c.name();
+                    addNames[k++] = c.name();
+                }
+            }
+            int chosen = w.dropdown(COMPONENT_ADD, 0, addLabels);
+            if (chosen > 0) {
+                push(ctx, ComponentRowCommand.add(level, ids(sel), sel.size(), addNames[chosen]));
+            }
+        }
+    }
+
+    /** One record component of a row: reads the value (or the default), writes a command. */
+    private void field(
+            EditorContext ctx,
+            Widgets w,
+            LevelData level,
+            Selection sel,
+            int row,
+            ComponentSchema.Component c,
+            ComponentSchema.Field f) {
+        Ui ui = w.ui;
+        w.beginProperty(f.name());
+        String column = f.name();
+        int k = level.componentValue(row, column);
+        switch (f.type()) {
+            case INT, LONG -> {
+                double value = k < 0 ? f.defaults()[0] : level.componentValueBits(row, k);
+                float min = f.hasRange() ? (float) f.min() : -1e9f;
+                float max = f.hasRange() ? (float) f.max() : 1e9f;
+                float now = w.numberField(COMPONENT_FIELD, (float) value, 1, min, max, 0);
+                if (Math.round(now) != Math.round(value)) {
+                    int type =
+                            f.type() == ComponentSchema.Type.LONG
+                                    ? LevelData.VALUE_LONG
+                                    : LevelData.VALUE_INT;
+                    push(
+                            ctx,
+                            new SetComponentValueCommand(
+                                    level,
+                                    ids(sel),
+                                    sel.size(),
+                                    c.name(),
+                                    column,
+                                    type,
+                                    Math.round(now),
+                                    ""));
+                }
+            }
+            case FLOAT -> {
+                float value = k < 0 ? (float) f.defaults()[0] : level.componentValueFloat(row, k);
+                float shown = f.angle() ? MathF.toDegrees(value) : value;
+                float min = f.hasRange() ? (float) f.min() : -1e9f;
+                float max = f.hasRange() ? (float) f.max() : 1e9f;
+                float now =
+                        w.numberField(
+                                COMPONENT_FIELD,
+                                shown,
+                                f.angle() ? 0.5f : 0.05f,
+                                min,
+                                max,
+                                f.angle() ? 1 : 3);
+                if (now != shown) {
+                    float stored = f.angle() ? MathF.toRadians(now) : now;
+                    push(
+                            ctx,
+                            new SetComponentValueCommand(
+                                    level,
+                                    ids(sel),
+                                    sel.size(),
+                                    c.name(),
+                                    column,
+                                    LevelData.VALUE_FLOAT,
+                                    Float.floatToRawIntBits(stored),
+                                    ""));
+                }
+                if (f.angle()) {
+                    ui.text("deg").fontSize(w.theme.fontSizeSmall).color(w.theme.textDim);
+                }
+            }
+            case BOOL -> {
+                boolean value =
+                        k < 0 ? f.defaults()[0] != 0 : level.componentValueBits(row, k) != 0;
+                boolean now = w.checkbox(COMPONENT_FIELD, "", value);
+                if (now != value) {
+                    push(
+                            ctx,
+                            new SetComponentValueCommand(
+                                    level,
+                                    ids(sel),
+                                    sel.size(),
+                                    c.name(),
+                                    column,
+                                    LevelData.VALUE_BOOL,
+                                    now ? 1 : 0,
+                                    ""));
+                }
+            }
+            case ENUM -> {
+                int index =
+                        k < 0
+                                ? (int) f.defaults()[0]
+                                : Math.max(
+                                        0,
+                                        f.enumValues().indexOf(level.componentValueText(row, k)));
+                CharSequence[] labels = enumLabels.get(f);
+                if (labels == null) {
+                    labels = f.enumValues().toArray(new CharSequence[0]);
+                    enumLabels.put(f, labels);
+                }
+                int chosen = w.dropdown(COMPONENT_FIELD, index, labels);
+                if (chosen != index) {
+                    push(
+                            ctx,
+                            new SetComponentValueCommand(
+                                    level,
+                                    ids(sel),
+                                    sel.size(),
+                                    c.name(),
+                                    column,
+                                    LevelData.VALUE_ENUM,
+                                    0,
+                                    f.enumValues().get(chosen)));
+                }
+            }
+            case VEC2, VEC3 -> {
+                int n = f.type().columns();
+                java.util.List<String> columns = f.columns();
+                for (int i = 0; i < n; i++) {
+                    int ki = level.componentValue(row, columns.get(i));
+                    vec2[i] = ki < 0 ? (float) f.defaults()[i] : level.componentValueFloat(row, ki);
+                }
+                int changed =
+                        f.color()
+                                ? w.colorField(COMPONENT_FIELD, vec2, 0, 10)
+                                : w.vectorField(COMPONENT_FIELD, vec2, 0, n, 0.05f, -1e9f, 1e9f, 3);
+                for (int i = 0; i < n; i++) {
+                    if ((changed & 1 << i) != 0) {
+                        push(
+                                ctx,
+                                new SetComponentValueCommand(
+                                        level,
+                                        ids(sel),
+                                        sel.size(),
+                                        c.name(),
+                                        columns.get(i),
+                                        LevelData.VALUE_FLOAT,
+                                        Float.floatToRawIntBits(vec2[i]),
+                                        ""));
+                    }
+                }
+            }
+            case ENTITY -> {
+                objectLabels(level);
+                int target = k < 0 ? 0 : (int) level.componentValueBits(row, k);
+                int index = 0;
+                for (int i = 1; i < objectIds.length; i++) {
+                    if (objectIds[i] == target) {
+                        index = i;
+                    }
+                }
+                int chosen = w.dropdown(COMPONENT_FIELD, index, objectLabels);
+                if (chosen != index) {
+                    push(
+                            ctx,
+                            new SetComponentValueCommand(
+                                    level,
+                                    ids(sel),
+                                    sel.size(),
+                                    c.name(),
+                                    column,
+                                    LevelData.VALUE_ENTITY,
+                                    objectIds[chosen],
+                                    ""));
+                }
+            }
+            case ASSET -> {
+                String value = k < 0 ? "" : level.componentValueText(row, k);
+                boolean same = assetPathRow == row && assetPathColumn.equals(column);
+                if (!same || (!ui.focused(COMPONENT_FIELD) && !Text.equals(assetPath, value))) {
+                    assetPath.set(value);
+                    assetPathRow = row;
+                    assetPathColumn = column;
+                }
+                if (w.textField(COMPONENT_FIELD, assetPath, f.assetKind() + " path")) {
+                    push(
+                            ctx,
+                            new SetComponentValueCommand(
+                                    level,
+                                    ids(sel),
+                                    sel.size(),
+                                    c.name(),
+                                    column,
+                                    LevelData.VALUE_ASSET,
+                                    0,
+                                    assetPath.toString()));
+                }
+            }
+        }
+        if (!f.doc().isEmpty()) {
+            ui.text(f.doc()).fontSize(w.theme.fontSizeSmall).color(w.theme.textDim);
+        }
+        w.endProperty();
+    }
+
+    /** The labels of every level object (for entity references), rebuilt when the level changes. */
+    private void objectLabels(LevelData level) {
+        if (objectLabelsVersion == level.version() && objectLabels.length > 0) {
+            return;
+        }
+        int n =
+                level.placementCount()
+                        + level.lightCount()
+                        + level.spawnCount()
+                        + level.triggerCount();
+        objectLabels = new CharSequence[n + 1];
+        objectIds = new int[n + 1];
+        objectLabels[0] = "(none)";
+        int k = 1;
+        for (int i = 0; i < level.placementCount(); i++) {
+            objectIds[k] = level.placementId(i);
+            objectLabels[k++] = level.placementName(i) + " #" + level.placementId(i);
+        }
+        for (int i = 0; i < level.lightCount(); i++) {
+            objectIds[k] = level.lightId(i);
+            objectLabels[k++] = level.lightName(i) + " #" + level.lightId(i);
+        }
+        for (int i = 0; i < level.spawnCount(); i++) {
+            objectIds[k] = level.spawnId(i);
+            objectLabels[k++] = level.spawnName(i) + " #" + level.spawnId(i);
+        }
+        for (int i = 0; i < level.triggerCount(); i++) {
+            objectIds[k] = level.triggerId(i);
+            objectLabels[k++] = level.triggerName(i) + " #" + level.triggerId(i);
+        }
+        objectLabelsVersion = level.version();
     }
 
     private static int[] ids(Selection sel) {

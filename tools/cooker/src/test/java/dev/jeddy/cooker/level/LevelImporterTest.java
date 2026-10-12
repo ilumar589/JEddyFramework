@@ -226,4 +226,68 @@ class LevelImporterTest {
                 q.findNearestPoly(6, 0, 6, 0.3f, 1, 0.3f, new QueryFilter(), p) != 0,
                 "walkable where the block stood");
     }
+
+    @Test
+    void componentRowsAreValidatedAgainstTheSchemaAndBoundToJava() throws Exception {
+        Path src = Files.createDirectories(dir.resolve("src/levels"));
+        writeLibrary(src.resolve("Dungeon.gltf"));
+        LevelData level = new LevelData();
+        int floor = level.prefab("levels/dungeon.jscene", "floor");
+        int altar =
+                level.placementId(
+                        level.addPlacement(
+                                floor, "the Altar", "floor", 0, 2, 0, 2, 0, 0, 0, 1, 1, 1, 1));
+        int torch = level.lightId(level.addPointLight("brazier 2", 0, 1, 0, 1, 1, 1, 5, 10, 0));
+        int spawn = level.spawnId(level.addSpawn("party start", "party", 0, 0, 0, 0));
+        int gate =
+                level.triggerId(level.addTrigger("entrance", "area", "", 0, 0, 0, 0, 1, 1, 1, 0));
+        level.addTrigger("entrance", "area", "", 0, 2, 0, 0, 1, 1, 1, 0); // a name clash
+        level.addTrigger("", "area", "", 0, 2, 0, 0, 1, 1, 1, 0); // unnamed
+        int row = level.addComponentRow(altar, "Loot");
+        level.setComponentInt(row, "gold", 5);
+        level.setComponentInt(row, "silver", 5); // no such column
+        level.setComponentEnum(row, "rarity", "MYTHIC"); // no such constant
+        level.addComponentRow(altar, "Ghost"); // no such component
+        level.addRule("*", 0, 0, 0);
+        Files.write(src.resolve("old-crypt.jlevel"), level.toBytes());
+        Path schema = dir.resolve("components.json");
+        Files.writeString(
+                schema,
+                "{\"version\": 1, \"registry\": \"t.Game\", \"components\": [{\"name\": \"Loot\","
+                    + " \"type\": \"t.Loot\", \"fields\": [{\"name\": \"gold\", \"type\": \"int\"},"
+                    + " {\"name\": \"rarity\", \"type\": \"enum\", \"values\": [\"COMMON\","
+                    + " \"RARE\"]}]}], \"behaviours\": []}");
+        try (Cooker c =
+                new Cooker(
+                        CookerConfig.of(dir.resolve("src"), dir.resolve("cooked"))
+                                .withComponents(schema))) {
+            CookReport r = c.cookAll();
+            CookReport.Item item = r.item("levels/old-crypt.jlevel");
+            assertEquals(CookReport.Status.COOKED, item.status(), r.toJson());
+            String warnings = String.join("\n", item.warnings());
+            assertTrue(warnings.contains("unknown component Ghost"), warnings);
+            assertTrue(warnings.contains("Loot has no column silver"), warnings);
+            assertTrue(warnings.contains("Loot.rarity has no constant MYTHIC"), warnings);
+            assertFalse(warnings.contains("gold"), warnings);
+        }
+        // The bindings: one class per level with the named objects' ids.
+        Path gen = dir.resolve("gen");
+        assertEquals(1, LevelBindings.generateAll(dir.resolve("src"), gen, "t.levels"));
+        String java = Files.readString(gen.resolve("t/levels/OldCryptLevel.java"));
+        assertTrue(java.contains("package t.levels;"), java);
+        assertTrue(java.contains("public final class OldCryptLevel"), java);
+        assertTrue(java.contains("PATH = \"levels/old-crypt.jlevel\""), java);
+        assertTrue(java.contains("PLACEMENT_THE_ALTAR = " + altar + ";"), java);
+        assertTrue(java.contains("LIGHT_BRAZIER_2 = " + torch + ";"), java);
+        assertTrue(java.contains("SPAWN_PARTY_START = " + spawn + ";"), java);
+        assertFalse(java.contains("TRIGGER_ENTRANCE ="), "a repeated name gets no constant");
+        assertTrue(java.contains("Repeated names, no constant: TRIGGER_ENTRANCE"), java);
+        assertTrue(gate > 0);
+        assertFalse(java.contains("UNNAMED"), "unnamed objects are skipped");
+        assertEquals("OldCryptLevel", LevelBindings.className("old-crypt.jlevel"));
+        assertEquals("L3Level", LevelBindings.className("3.jlevel"));
+        assertEquals("PARTY_START", LevelBindings.identifier("party start"));
+        assertEquals("CAMP_FIRE_2", LevelBindings.identifier("campFire-2"));
+        assertEquals("_7TH_DOOR", LevelBindings.identifier("7th door"));
+    }
 }

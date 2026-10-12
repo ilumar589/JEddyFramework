@@ -43,6 +43,15 @@ dependencies {
     "annotationProcessor"("dev.jeddy:jeddy-component-processor:$JEDDY_VERSION")
 }
 
+// Level bindings (D110): with jeddyAssets { bindingsPackage = "..." } the generated
+// <Name>Level.java classes compile with the game.
+val generateLevelBindings = tasks.named<dev.jeddy.gradle.GenerateLevelBindings>("generateLevelBindings")
+extensions.configure<SourceSetContainer> {
+    named("main") {
+        java.srcDir(generateLevelBindings.flatMap { it.outputDir })
+    }
+}
+
 val packAssets = tasks.named<PackAssets>("packAssets")
 
 extensions.configure<JeddyPackagingExtension> {

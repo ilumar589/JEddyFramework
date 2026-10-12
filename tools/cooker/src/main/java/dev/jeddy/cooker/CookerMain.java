@@ -44,6 +44,7 @@ public final class CookerMain {
             return switch (command) {
                 case "cook" -> cook(a, out);
                 case "pak" -> pak(a, out);
+                case "bindings" -> bindings(a, out);
                 case "help", "--help", "-h" -> {
                     usage(out);
                     yield 0;
@@ -64,9 +65,11 @@ public final class CookerMain {
         out.println(
                 "                         [--force] [--prune] [--watch] [--shader-include DIR]..."
                         + " [--no-validate]");
+        out.println("                         [--components FILE]");
         out.println(
                 "       jeddy-cook pak --cooked DIR --out DIR [--layout FILE] [--level N]"
                         + " [--threads N] [--no-names]");
+        out.println("       jeddy-cook bindings --source DIR --out DIR --package NAME");
     }
 
     private static int cook(List<String> a, PrintStream out) throws Exception {
@@ -79,10 +82,12 @@ public final class CookerMain {
         boolean prune = false;
         boolean watch = false;
         boolean validate = true;
+        Path components = null;
         List<Path> includes = new ArrayList<>();
         for (int i = 0; i < a.size(); i++) {
             String opt = a.get(i);
             switch (opt) {
+                case "--components" -> components = Path.of(value(a, ++i, opt));
                 case "--source" -> source = Path.of(value(a, ++i, opt));
                 case "--out" -> output = Path.of(value(a, ++i, opt));
                 case "--cache" -> cache = Path.of(value(a, ++i, opt));
@@ -110,7 +115,7 @@ public final class CookerMain {
         if (report != null) {
             config = config.withReport(report);
         }
-        config = config.withShaders(includes, validate);
+        config = config.withShaders(includes, validate).withComponents(components);
         try (Cooker cooker = new Cooker(config)) {
             CookReport r = cooker.cookAll();
             print(r, out);
@@ -160,6 +165,31 @@ public final class CookerMain {
             }
         }
         out.println(r.summary());
+    }
+
+    /**
+     * {@code bindings --source DIR --out DIR --package NAME}: writes one {@code <Name>Level.java}
+     * per {@code .jlevel} under the source tree into {@code out} (DESIGN §22, D110).
+     */
+    private static int bindings(List<String> a, PrintStream out) throws Exception {
+        Path source = null;
+        Path output = null;
+        String pkg = null;
+        for (int i = 0; i < a.size(); i++) {
+            String opt = a.get(i);
+            switch (opt) {
+                case "--source" -> source = Path.of(value(a, ++i, opt));
+                case "--out" -> output = Path.of(value(a, ++i, opt));
+                case "--package" -> pkg = value(a, ++i, opt);
+                default -> throw new IllegalArgumentException("unknown option " + opt);
+            }
+        }
+        if (source == null || output == null || pkg == null) {
+            throw new IllegalArgumentException("--source, --out and --package are required");
+        }
+        int n = dev.jeddy.cooker.level.LevelBindings.generateAll(source, output, pkg);
+        out.println("wrote " + n + " level binding" + (n == 1 ? "" : "s") + " to " + output);
+        return 0;
     }
 
     private static int pak(List<String> a, PrintStream out) throws Exception {
