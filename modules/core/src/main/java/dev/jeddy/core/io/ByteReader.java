@@ -16,7 +16,7 @@ public final class ByteReader {
     public static final class Truncated extends IllegalStateException {
         private static final long serialVersionUID = 1L;
 
-        Truncated(int at, int needed) {
+        Truncated(int at, long needed) {
             super("stream truncated at byte " + at + " (needed " + needed + " more)");
         }
     }
@@ -41,7 +41,9 @@ public final class ByteReader {
     }
 
     private void need(int n) {
-        if (n < 0 || at + n > end) {
+        // n > end - at, not at + n > end: a huge n from a damaged file must not overflow the sum
+        // into a negative number that passes the check.
+        if (n < 0 || n > end - at) {
             throw new Truncated(at, n);
         }
     }
@@ -118,7 +120,12 @@ public final class ByteReader {
         if (n < 0) {
             throw new IllegalStateException("negative count " + n + " at byte " + (at - 4));
         }
-        need(n * elementBytes);
+        // In long arithmetic: a count of 0x20000001 longs is 2^32 + 8 bytes, which as an int
+        // would wrap to 8, pass the check, and then allocate a 4 GiB array.
+        long length = (long) n * elementBytes;
+        if (length > end - at) {
+            throw new Truncated(at, length);
+        }
         return n;
     }
 

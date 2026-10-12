@@ -136,7 +136,7 @@ play, and hit points set last, since the rebuild and the equipment set them to t
 the edit: the warrior comes back with 14 more maximum hit points and the same wound.
 
 The random generator's state goes with it (`Rng.saveState`, four longs of xoshiro256** state,
-lesson [L02](lessons/02-dice-and-probability.md) §7), so a loaded game rolls the dice the saved
+lesson [L02](lessons/02-dice-and-probability.md) §12), so a loaded game rolls the dice the saved
 one would have: `assertEquals(a.rng().d20(), b.rng().d20())` ten times in a row.
 
 ### 2.4 A format that lasts (D116, D117)

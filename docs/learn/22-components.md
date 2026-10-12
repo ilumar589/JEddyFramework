@@ -148,17 +148,20 @@ cannot defers the removal to a later stage.
 `MindView.timer()` is `return store.timer[row];` — a field load (`store`), a field load
 (`timer`), a field load (`row`), an array load. The behaviour calls it through a parameter of
 static type `MindView`; the only subclass is `MindMut`, the method is `final`, so the call site
-is monomorphic and C2 inlines it. After inlining and escape analysis, the view object does not
-exist in the compiled loop: `store` and `row` live in registers, and the body is the same
-`iaload`/`iastore` sequence a hand-written column loop produces. The JMH benchmark
+is monomorphic and C2 inlines it. After inlining, the loads of `store` and `row` that follow
+`at(store, row)` are replaced by the values just stored (load elimination): they live in registers,
+and the body is the same `iaload`/`iastore` sequence a hand-written column loop produces. The view
+itself stays an object (a registry field), so its two field stores remain; stores are cheap. The JMH benchmark
 (`ComponentsBench`, §6) measures it: over 10,000 entities one tick costs **4.8 µs** as a
 hand-written SoA loop, **6.5 µs** through the generated loop, and **142 µs** as an object per
-entity with a virtual `update()` — the `MonoBehaviour` shape — whose call site is megamorphic
-(three subclasses already defeat inline caching) and whose objects are scattered (CI's smoke
-run, 2026-10-12). The 1.7 µs between the first two is not the view: it is the *query*, a sixth
-of a nanosecond a row for the entity indirection (`entityAt`), the size guard and the view's two
-field stores; a loop with several required stores adds a sparse lookup (two loads and a
-compare) per extra store. The body itself compiles to the same instructions. Against the object
+entity with a virtual `update()` — the `MonoBehaviour` shape — whose call site is megamorphic,
+since three subclasses already defeat inline caching (CI's smoke run, 2026-10-12). In the benchmark
+the objects are allocated in one loop and sit close together, so that gap is mostly the
+megamorphic call; in a game, where objects are allocated over time and scattered, cache misses
+add to it (lesson L03 §2 measures both). The 1.7 µs between the first two is not the view: it is
+the *query*, a sixth of a nanosecond a row for the entity indirection (`entityAt`), the size
+guard and the view's two field stores; a loop with several required stores looks the entity up
+in each of them (two loads and a compare per store, the driving store included). The body itself compiles to the same instructions. Against the object
 shape the generated loop is twenty times faster, and the gap grows with the heap: scattered
 objects miss the cache more the more there are.
 
@@ -531,8 +534,8 @@ again), so the old index-based code kept working.
    the skeletons without a `Flash` component (there are none; remove one in the debugger or
    through `game.flash().remove(e)` to see it count). *Hint: `present()`.*
 3. Compute, for the `think` loop, the bytes read per tick from the four stores at 300 rows, and
-   the number of cache lines; compare with 300 objects of the same fields (with a 12-byte
-   header, 8-byte aligned). *Hint: lesson L03 §2.*
+   the number of cache lines; compare with 300 objects of the same fields (with JDK 27's 8-byte
+   header, 8-byte aligned). *Hint: lesson L03 §3–4.*
 4. Derive the dependency edges the processor emits for the test sample's `Movers` (`turnLeft`
    writes Position; `rise` writes Position and reads Health; `bleed` writes Health) and check
    them against the generated `SampleGame` constructor. *Hint: §2.5's three hazards; `bleed`

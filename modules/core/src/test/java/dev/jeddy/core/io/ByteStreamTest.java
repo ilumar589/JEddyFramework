@@ -87,6 +87,24 @@ class ByteStreamTest {
     }
 
     @Test
+    void hugeSizesFailWithoutOverflowing() {
+        // 0x20000001 longs are 2^32 + 8 bytes: in int arithmetic that is 8, which the 8 bytes
+        // that follow would satisfy, and the reader would then allocate a 4 GiB array.
+        ByteWriter w = new ByteWriter();
+        w.int32(0x2000_0001);
+        w.int64(0);
+        assertThrows(ByteReader.Truncated.class, () -> new ByteReader(w.toBytes()).longs());
+        assertThrows(
+                ByteReader.Truncated.class,
+                () -> new ByteReader(w.toBytes()).longsInto(new long[1]));
+        // A skip near Integer.MAX_VALUE from a non-zero position must not wrap around.
+        ByteReader r = new ByteReader(w.toBytes());
+        r.int32();
+        assertThrows(ByteReader.Truncated.class, () -> r.skip(Integer.MAX_VALUE));
+        assertEquals(8, r.remaining(), "a failed read moves nothing");
+    }
+
+    @Test
     void patchSliceAndSeek() {
         ByteWriter w = new ByteWriter();
         int lengthAt = w.size();

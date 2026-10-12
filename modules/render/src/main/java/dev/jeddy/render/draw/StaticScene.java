@@ -444,7 +444,14 @@ public final class StaticScene implements AutoCloseable {
         state.bindStorage(
                 3, device.buffers().glName(batchBuffer), 0, device.buffers().size(batchBuffer));
         glDispatchCompute((commandCount + GROUP - 1) / GROUP, 1, 1);
-        glMemoryBarrier(GL_COMMAND_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
+        // Command: the draws read these commands and counts as indirect parameters. Storage: later
+        // shaders that read this view's buffers as storage. Buffer update: the next cull of this
+        // view resets the commands with a copy and a clear, which GL orders after shader writes
+        // only with this bit.
+        glMemoryBarrier(
+                GL_COMMAND_BARRIER_BIT
+                        | GL_SHADER_STORAGE_BARRIER_BIT
+                        | GL_BUFFER_UPDATE_BARRIER_BIT);
     }
 
     /**

@@ -28,6 +28,11 @@ meta block and every chunk are padded to 8 bytes.
 
 The two checksums tell a damaged file from a foreign one: a wrong magic is "not a save", a wrong
 header CRC is "damaged", and a wrong payload CRC is "damaged" before anything is decompressed.
+The reader also refuses a `chunkCount` larger than `payloadBytes / 16` (every chunk has a 16-byte
+header) and a last chunk whose padding is missing, so a crafted file ends in a
+`SaveFormatException` rather than a huge allocation or an unchecked exception. The meta block is
+covered by neither checksum: damage there can show a wrong slot entry or refuse a load (the demo
+checks the `level` entry), but cannot change the loaded state, which is all in the payload.
 
 ## Meta block (at 48, `metaBytes` long)
 

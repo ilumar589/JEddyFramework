@@ -151,6 +151,29 @@ class SaveFileTest {
         assertMessage(plain, "claims");
     }
 
+    @Test
+    void hostileSizesAreReportedNotThrownThrough() {
+        // A chunk count the payload cannot hold (the header re-signed, as a crafted file would be).
+        SaveWriter w = capture(new SaveWriter(), 64 * 8);
+        byte[] many = SaveFile.encode(w, 0);
+        many[8] = (byte) 0xFF;
+        many[9] = (byte) 0xFF;
+        many[10] = (byte) 0xFF;
+        many[11] = (byte) 0x7F;
+        resignHeader(many);
+        assertMessage(many, "out of range");
+        // A last chunk whose padding is missing: one byte of data, the payload cut after it.
+        SaveWriter one = new SaveWriter();
+        one.chunk(GAME, 1).int8(1);
+        one.finish();
+        byte[] full = SaveFile.encode(one, 0);
+        byte[] cut = Arrays.copyOf(full, full.length - 7);
+        cut[16] = 17; // payload bytes: 16 of header + 1 of data, no padding
+        cut[24] = 17; // stored bytes
+        resignPayload(cut);
+        assertMessage(cut, "not padded");
+    }
+
     private static void assertMessage(byte[] file, String fragment) {
         SaveFormatException e = assertThrows(SaveFormatException.class, () -> SaveFile.read(file));
         assertTrue(e.getMessage().contains(fragment), fragment + " in: " + e.getMessage());

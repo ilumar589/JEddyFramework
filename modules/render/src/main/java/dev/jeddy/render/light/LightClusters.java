@@ -216,7 +216,9 @@ public final class LightClusters implements AutoCloseable {
         bind(state, ring);
         state.useProgram(programs.getBlocking(cullProgram, 0));
         glDispatchCompute(groups, 1, 1);
-        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        // Storage: the shading pass reads the lists. Buffer update: next frame's counter reset is
+        // a buffer copy over memory these atomics wrote, which GL orders only after this bit.
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_BUFFER_UPDATE_BARRIER_BIT);
     }
 
     /** Binds the lights, decals, ranges and index list for shading. */

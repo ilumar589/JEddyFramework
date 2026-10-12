@@ -52,3 +52,11 @@ whenever a decision is theirs (scope, trade-offs with no clear winner, anything 
   explain what the driver and the hardware do (pipeline stage, memory, synchronization, what can
   go wrong), not only the GL calls. Each milestone also adds at least one standalone lesson to
   `docs/learn/lessons/` (listed in `docs/learn/README.md`) on one math or GPU topic it touched.
+- **Lessons teach a beginner to build it (owner's request, 2026-10-12).** A lesson assumes no math
+  or GPU knowledge beyond `docs/learn/lessons/00-foundations.md` (cite its sections) and reads like
+  a chapter of a book on building the engine: it writes its part of the engine from empty files in
+  the order a reader would, with the real code, what every function and non-obvious line does,
+  every decision with the alternatives rejected, formulas derived with worked numbers, what the
+  driver and hardware do, the tests, exercises with hints and full solutions, and a glossary.
+  Before committing, have an independent agent check every number and code quote against the
+  repository.

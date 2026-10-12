@@ -19,7 +19,9 @@ the file and read the surrounding code too. The excerpts are short on purpose. R
 chapter points to and change things: the exercises are designed for that.
 
 **What you need.** Solid Java. No graphics background: the math starts at vectors, and OpenGL starts
-at "what is a vertex shader".
+at "what is a vertex shader". If binary numbers, bit operations, caches or what a GPU does are new
+to you, read lesson [L00 Foundations](lessons/00-foundations.md) first; the lessons assume nothing
+beyond it.
 
 ## Chapters
 
@@ -45,26 +47,34 @@ at "what is a vertex shader".
 
 ## Lessons: math and GPU deep dives
 
-From 2026-10-12 the guide also has standalone **lessons** in [`lessons/`](lessons/): one topic
-each, derived from definitions to the line in the code, with numeric examples and exercises,
-and with what the driver and the hardware do behind the GL calls. Every milestone adds at least
-one. They assume the chapters they name.
+The guide also has standalone **lessons** in [`lessons/`](lessons/). Since 2026-10-12 they are
+written for a reader who knows no math and no GPU programming (the owner's request): lesson L00
+teaches the foundations, and every other lesson is a chapter of a book on building the engine. It
+starts from empty files and writes the repository's real code step by step, says what every
+function and every non-obvious line does, gives each decision with the alternatives that were
+rejected, derives every formula from definitions with worked numbers, and explains what the driver
+and the hardware do behind each GPU call. Each lesson ends with exercises that have hints and full
+solutions, and a glossary. Every milestone adds at least one lesson.
 
-| # | Lesson | What you learn | Builds on |
+| # | Lesson | What you build and learn | Needs |
 |---|---|---|---|
-| L01 | [Buffers in flight](lessons/01-buffers-in-flight.md) | The GPU as a second computer and the command stream; immutable storage and its flags; the three ways to change a buffer and their ordering; fences, the three-frame ring and its sizing; barriers; the three findings of the first run on an Intel GPU and the bisect method that found the dropped write | 05, 06 |
-| L02 | [Dice and probability](lessons/02-dice-and-probability.md) | A die as a random variable (mean and variance derived); sums of dice, convolution and the bell; why the flat d20 makes every +1 worth 5 % and a 3d6 system does not; criticals as conditional trials and the expected-damage formula; save-for-half; a Markov chain for rounds-to-kill; Lemire's unbiased `nextInt` and xoshiro256**; testing randomness by choosing seeds and tolerances from the variance | 15, 12 |
-| L03 | [Data layout](lessons/03-data-layout.md) | Cache lines and the prefetcher; an object per entity against an array per field with the bytes worked out; the sparse set derived; why a flyweight view compiles to the hand-written array access (monomorphic inlining, load elimination) and what breaks it; the fixed cost of a job and the inequality that says when a parallel loop pays | 22, 01, 12 |
-| L04 | [Binary formats](lessons/04-binary-formats.md) | Bytes, endianness derived with the signed-byte trap, natural alignment and why blocks pad to 8, the order a reader checks a file it did not write (magic, header checksum, version, sizes, payload checksum), CRC-32C in a paragraph, a real `.jsave` read byte by byte, versions at three levels and golden files | 16, 10, 12 |
+| L00 | [Foundations](lessons/00-foundations.md) | The math notation (sums, powers, logarithms, `mod`, rounding up to a multiple, big-O); binary and hexadecimal; bits, bytes and Java's number types; two's complement and the signed-byte trap; bit operations, masks and packing; how a `float` is stored; memory, the heap, native memory and alignment; the CPU, caches, cache lines and dependent loads; threads, `volatile` and compare-and-set; what a GPU, a driver, OpenGL and a frame are; FFM | Java |
+| L01 | [Build a frame ring](lessons/01-buffers-in-flight.md) | `GpuBuffers` and `FrameRing` from empty files: the command stream and "in flight", GPU memory, mapping and write-combining, immutable storage and its flags, the three ways to change a buffer, fences, coherence and barriers; the three-region design, the lock-free allocator, the GPU-side copy; the ring's users (instance records, the material table, a GPU counter, GPU culling); its test; the three driver findings on an Intel GPU and the bisect that found them | L00 §6, §8–11 |
+| L02 | [Build the dice](lessons/02-dice-and-probability.md) | Probability from counting (events, independence, means, variances, sums of dice and the bell, the flat d20 and its 5 % per point, conditional probability, criticals, saves, a Markov chain for fight length); `Rng` from empty file (SplitMix64, xoshiro256**, Lemire's unbiased `nextInt`, floats from bits); `Dice` packed in an `int`; `Rules.check` and `attack`; testing randomness with chosen seeds and with tolerances derived from the variance | L00 §2, §4–6 |
+| L03 | [Build a component store](lessons/03-data-layout.md) | A measured experiment on access order; what a Java object costs; AoS against SoA with the cache lines counted; handles and the handle pool; the sparse set; the store base class, the generated columns, flyweight views and the generated loop; what the JIT does to them; the benchmark; when a parallel loop pays | L00 §6, §8–9 |
+| L04 | [Build a save file format](lessons/04-binary-formats.md) | Byte order, floats as bits, UTF-8, alignment and padding, checksums from parity to CRC-32C, compression and versions; `ByteWriter`, `ByteReader` (and the three hostile-file gaps the lesson's review closed), `SaveWriter`, `SaveFile` encode and parse in the right order, the atomic replace, golden files; a real `.jsave` read byte by byte | L00 §3–8 |
 
-Planned next (one per milestone, in the order the milestones need them): two-bone IK and quaternion
-deltas, derived (M18); compute shaders, workgroups and atomics (M19); A* and admissible
+Planned next (one per milestone, in the order the milestones need them): a script compiler and a
+stack machine — grammars, recursive descent, bytecode (M17); two-bone IK and quaternion deltas,
+derived (M18); compute shaders, workgroups and atomics (M19); A* and admissible
 heuristics (M20); rendering for tools (M23). Standing requests from the owner for the GPU side, to be scheduled: the projection
 matrix and depth precision with numbers, the rendering equation to `pbr.frag` step by step,
 texture memory (mips, block compression bit layouts, bandwidth), the pipeline stage by stage.
 
 ## Reading paths
 
+- **New to programming close to the machine:** lesson L00, then the lessons L01–L04 (each builds a
+  real part of the engine from empty files), then the chapters in order.
 - **Everything, in order:** 01 → 15, then 22, then 16 (it uses the stores of 22). Each chapter
   links back to earlier ones when it builds on them.
 - **3D math:**

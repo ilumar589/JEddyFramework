@@ -312,7 +312,10 @@ public final class SaveFile {
                 || payloadBytes < 0
                 || storedBytes < 0
                 || payloadBytes > MAX_PAYLOAD
-                || storedBytes > MAX_PAYLOAD) {
+                || storedBytes > MAX_PAYLOAD
+                || (long) chunkCount * SaveWriter.CHUNK_HEADER_BYTES > payloadBytes) {
+            // Every chunk has a 16-byte header, so a count the payload cannot hold is damage (and
+            // would otherwise size the chunk list before anything checks it).
             throw new SaveFormatException("header sizes are out of range");
         }
         Map<String, String> meta = new LinkedHashMap<>();
@@ -376,7 +379,12 @@ public final class SaveFile {
                                 + " remain");
             }
             chunks.add(new Chunk(tag, chunkVersion, p.slice(length)));
-            p.skip((8 - (length & 7)) & 7);
+            int pad = (8 - (length & 7)) & 7;
+            if (pad > p.remaining()) {
+                throw new SaveFormatException(
+                        "chunk " + tagName(tag) + " is not padded to 8 bytes (payload is short)");
+            }
+            p.skip(pad);
         }
         return new SaveFile(version, meta, chunks);
     }

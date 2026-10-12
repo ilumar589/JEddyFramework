@@ -1406,10 +1406,14 @@ void main() {
 }
 ```
 
-Barriers make the steps see each other: `GL_SHADER_STORAGE_BARRIER_BIT` between cull and compact
-(compact reads the counts the atomics wrote), and `GL_COMMAND_BARRIER_BIT |
-GL_SHADER_STORAGE_BARRIER_BIT` after compact (the draw reads commands as indirect arguments and
-records as storage).
+Barriers make the steps see each other. A barrier covers every command issued after it, so
+`GL_SHADER_STORAGE_BARRIER_BIT` between cull and compact serves both the compact pass (it reads
+the counts the atomics wrote) and the later draws (their vertex shaders read the records cull
+wrote). After compact, `GL_COMMAND_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT |
+GL_BUFFER_UPDATE_BARRIER_BIT`: the draw reads the commands as indirect arguments, later shaders may
+read them as storage, and the next cull of this view resets them with a buffer copy and a clear,
+which GL orders after shader writes only with the buffer-update bit (lesson
+[L01](lessons/01-buffers-in-flight.md) §15).
 
 **Drawing.** `submit` binds the view's records at storage binding 0 and its command buffer both as
 the draw-indirect buffer and as `GL_PARAMETER_BUFFER`, then issues one
