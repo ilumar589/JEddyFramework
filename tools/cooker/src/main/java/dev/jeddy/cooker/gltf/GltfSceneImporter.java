@@ -100,7 +100,8 @@ public final class GltfSceneImporter implements Importer {
     @Override
     public void cook(CookContext ctx) throws Exception {
         GltfDocument doc = GltfDocument.read(ctx.file(), ctx.bytes(), ctx::readDependency);
-        Scene scene = GltfImporter.importScene(doc);
+        Scene scene =
+                GltfImporter.importScene(doc, ctx.settings().strings("excludeNodes", List.of()));
         for (String w : scene.warnings()) {
             ctx.warn(w);
         }

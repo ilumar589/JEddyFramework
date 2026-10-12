@@ -1,10 +1,12 @@
 package dev.jeddy.cooker.gltf;
 
+import dev.jeddy.cooker.pak.Glob;
 import dev.jeddy.core.json.Json;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -132,8 +134,21 @@ public final class GltfImporter {
             List<Animation> animations,
             List<String> warnings) {}
 
-    /** Imports {@code doc}. */
+    /** Imports {@code doc} with nothing excluded. */
     public static Scene importScene(GltfDocument doc) throws IOException {
+        return importScene(doc, List.of());
+    }
+
+    /**
+     * Imports {@code doc}. The nodes whose names match a pattern in {@code excludeNodes} (globs,
+     * case-insensitive; the {@code "excludeNodes"} import setting) and every node under them lose
+     * their mesh, light and skin, so neither the cooked scene nor the collision and navmesh bakes
+     * see them, while node indices stay valid for skins and animations. This is how a kit piece
+     * sheds a part the level does not want: the demo's dungeon kit builds its doorway with a closed
+     * door leaf as a child node, and the crypt wants open archways (D104).
+     */
+    public static Scene importScene(GltfDocument doc, List<String> excludeNodes)
+            throws IOException {
         List<String> warnings = new ArrayList<>();
         List<Mesh> meshes = new ArrayList<>();
         for (int m = 0; m < doc.list("meshes").size(); m++) {
@@ -177,7 +192,7 @@ public final class GltfImporter {
                                                 Json.number(spot, "outerConeAngle", Math.PI / 4)));
             }
         }
-        List<Node> nodes = nodes(doc);
+        List<Node> nodes = detach(nodes(doc), excludeNodes, warnings);
         List<Skin> skins = new ArrayList<>();
         for (int i = 0; i < doc.list("skins").size(); i++) {
             Map<String, Object> skin = doc.get("skins", i);
@@ -414,6 +429,59 @@ public final class GltfImporter {
                             Json.integer(node, "skin", -1)));
         }
         return nodes;
+    }
+
+    /**
+     * Returns {@code nodes} with the subtrees rooted at nodes matching {@code patterns} detached
+     * (mesh, light and skin set to none); a pattern that matches nothing is reported.
+     */
+    static List<Node> detach(List<Node> nodes, List<String> patterns, List<String> warnings) {
+        if (patterns.isEmpty()) {
+            return nodes;
+        }
+        boolean[] excluded = new boolean[nodes.size()];
+        for (String pattern : patterns) {
+            Glob glob = Glob.of(pattern);
+            boolean matched = false;
+            for (int i = 0; i < nodes.size(); i++) {
+                if (glob.matches(nodes.get(i).name().toLowerCase(Locale.ROOT))) {
+                    excluded[i] = true;
+                    matched = true;
+                }
+            }
+            if (!matched) {
+                warnings.add("excludeNodes: no node matches \"" + pattern + "\"");
+            }
+        }
+        // Parents precede children in glTF order? Not guaranteed: propagate until stable.
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (int i = 0; i < nodes.size(); i++) {
+                int parent = nodes.get(i).parent();
+                if (!excluded[i] && parent >= 0 && excluded[parent]) {
+                    excluded[i] = true;
+                    changed = true;
+                }
+            }
+        }
+        List<Node> out = new ArrayList<>(nodes.size());
+        for (int i = 0; i < nodes.size(); i++) {
+            Node n = nodes.get(i);
+            out.add(
+                    excluded[i]
+                            ? new Node(
+                                    n.name(),
+                                    n.parent(),
+                                    n.translation(),
+                                    n.rotation(),
+                                    n.scale(),
+                                    -1,
+                                    -1,
+                                    -1)
+                            : n);
+        }
+        return out;
     }
 
     /** Splits a column-major affine matrix into translation, rotation (quaternion) and scale. */

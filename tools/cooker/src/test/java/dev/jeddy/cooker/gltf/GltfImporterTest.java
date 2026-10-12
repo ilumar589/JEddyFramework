@@ -205,6 +205,24 @@ class GltfImporterTest {
     }
 
     @Test
+    void excludedNodesLoseTheirSubtreesButKeepTheirIndices() throws IOException {
+        GltfDocument doc = GltfDocument.read(cubeScene().writeGlb(dir.resolve("a.glb")));
+        // "root" holds "cube" (a mesh) and "lamp" (a light): excluding the root detaches both.
+        Scene s = GltfImporter.importScene(doc, List.of("ROOT"));
+        assertEquals(3, s.nodes().size(), "indices stay");
+        assertEquals(-1, s.nodes().get(1).mesh(), "the cube under the excluded root");
+        assertEquals(-1, s.nodes().get(2).light(), "the lamp under the excluded root");
+        assertEquals("cube", s.nodes().get(1).name());
+        assertTrue(s.warnings().isEmpty(), s.warnings().toString());
+        // A glob on the leaf alone keeps the lamp; a pattern that matches nothing is reported.
+        s = GltfImporter.importScene(doc, List.of("cu*", "door_*"));
+        assertEquals(-1, s.nodes().get(1).mesh());
+        assertEquals(0, s.nodes().get(2).light());
+        assertEquals(1, s.warnings().size());
+        assertTrue(s.warnings().get(0).contains("door_*"), s.warnings().get(0));
+    }
+
+    @Test
     void imageNamesComeFromTheUri() throws IOException {
         GltfDocument doc = GltfDocument.read(cubeScene().writeGltf(dir.resolve("a.gltf")));
         assertThrows(IOException.class, () -> doc.image(0)); // the PNG does not exist

@@ -875,7 +875,6 @@ final class DemoGame implements Game {
     private float autoTurnTimer;
 
     private float marchTimer = 7;
-    private boolean spawnsLogged;
 
     /**
      * Scripted turn-based play ({@code --auto-turns}): the party marches on the nearest skeleton
@@ -883,22 +882,6 @@ final class DemoGame implements Game {
      * ends its turn.
      */
     private void autoTurn(float dt) {
-        if (!spawnsLogged) {
-            spawnsLogged = true;
-            StringBuilder sb = new StringBuilder("auto-turns: enemy spawns");
-            for (int i = 0; i + 2 < level.enemySpawns.length; i += 3) {
-                sb.append(' ')
-                        .append(level.enemySpawns[i])
-                        .append(',')
-                        .append(level.enemySpawns[i + 2]);
-            }
-            sb.append(" party ")
-                    .append(level.partySpawns[0])
-                    .append(',')
-                    .append(level.partySpawns[2]);
-            sb.append(" sight ").append(enemies.visibleCount);
-            LOG.info(sb.toString());
-        }
         marchTimer += dt;
         if (!combat.active() && marchTimer > 8) {
             marchTimer = 0; // the perf tour's waypoints pass every post
@@ -906,12 +889,7 @@ final class DemoGame implements Game {
             float z = TOUR[tourIndex * 2 + 1];
             tourIndex = (tourIndex + 1) % (TOUR.length / 2);
             if (level.snap(x, 0, z, 3f, scratch)) {
-                if (System.getProperty("jeddy.debug.single") != null) {
-                    party.select(0, false);
-                    party.order(scratch[0], scratch[1], scratch[2]);
-                } else {
-                    party.orderAll(scratch[0], scratch[1], scratch[2]);
-                }
+                party.orderAll(scratch[0], scratch[1], scratch[2]);
             }
             LOG.info(
                     "auto-turns: party at "
@@ -921,9 +899,7 @@ final class DemoGame implements Game {
                             + " -> "
                             + x
                             + ", "
-                            + z
-                            + " seen "
-                            + enemies.visibleCount);
+                            + z);
         }
         if (!turnBasedOn || !combat.active()) {
             return;

@@ -28,6 +28,10 @@ public final class CookContext {
     private final JobSystem jobs;
     private final int threads;
     private final Map<String, byte[]> outputs = new LinkedHashMap<>();
+
+    /** The recorded hash of a dependency that must stay absent. */
+    public static final String ABSENT = "";
+
     private final Map<String, String> dependencies = new LinkedHashMap<>();
     private final List<String> warnings = new ArrayList<>();
     private final Map<String, Object> stats = new LinkedHashMap<>();
@@ -128,12 +132,37 @@ public final class CookContext {
 
     /** Records a dependency whose bytes were read elsewhere. */
     public void recordDependency(Path dependency, byte[] data) {
+        put(dependency, CookCache.sha256(data));
+    }
+
+    /**
+     * Records that {@code dependency} did not exist: the source is cooked again if the file appears
+     * (a sidecar written after the first cook, say).
+     */
+    public void recordAbsentDependency(Path dependency) {
+        put(dependency, ABSENT);
+    }
+
+    /**
+     * Depends on another source's import settings: every settings file they came from, and every
+     * one that was looked for and missing, so the source follows them when they change or appear.
+     */
+    public void dependOnSettings(ImportSettings settings) throws IOException {
+        for (Path p : settings.probed()) {
+            if (Files.isRegularFile(p)) {
+                readDependency(p);
+            } else {
+                recordAbsentDependency(p);
+            }
+        }
+    }
+
+    private void put(Path dependency, String hash) {
         Path abs = dependency.toAbsolutePath().normalize();
         String key =
                 abs.startsWith(config.sourceRoot())
                         ? config.sourceRoot().relativize(abs).toString().replace('\\', '/')
                         : abs.toString();
-        String hash = CookCache.sha256(data);
         synchronized (dependencies) {
             dependencies.put(key, hash);
         }

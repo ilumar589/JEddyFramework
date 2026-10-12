@@ -203,5 +203,27 @@ class LevelImporterTest {
         assertTrue(occ.blocked(occ.cellX(6), occ.cellZ(6)), "the block blocks sight");
         assertFalse(occ.blocked(occ.cellX(2), occ.cellZ(10)), "decor does not");
         assertTrue(ignored >= 0);
+
+        // A sidecar written after the first cook excludes the block's mesh node from the kit:
+        // the level depends on the (absent, then present) settings file, cooks again, and the
+        // space under the block becomes walkable. The demo's crypt does this to its door leaves.
+        Files.writeString(src.resolve("Dungeon.gltf.meta"), "{\"excludeNodes\": [\"block_mesh\"]}");
+        try (Cooker c = new Cooker(CookerConfig.of(dir.resolve("src"), dir.resolve("cooked")))) {
+            CookReport r = c.cookAll();
+            assertEquals(
+                    CookReport.Status.COOKED, r.item("levels/crypt.jlevel").status(), r.toJson());
+            assertEquals(CookReport.Status.COOKED, r.item("levels/Dungeon.gltf").status());
+            assertEquals(
+                    CookReport.Status.CACHED, c.cookAll().item("levels/crypt.jlevel").status());
+        }
+        bvh = Bvh.read(ByteBuffer.wrap(Files.readAllBytes(out.resolve("crypt.jcol"))));
+        assertEquals(9 * 2, bvh.triangleCount(), "the block and the crate (a block too) are gone");
+        medium =
+                NavMeshData.read(
+                        ByteBuffer.wrap(Files.readAllBytes(out.resolve("crypt.medium.jnav"))));
+        q = new NavMeshQuery(new NavMesh(medium), 512);
+        assertTrue(
+                q.findNearestPoly(6, 0, 6, 0.3f, 1, 0.3f, new QueryFilter(), p) != 0,
+                "walkable where the block stood");
     }
 }

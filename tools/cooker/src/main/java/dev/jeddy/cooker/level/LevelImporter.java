@@ -203,7 +203,15 @@ public final class LevelImporter implements Importer {
             return null;
         }
         GltfDocument doc = GltfDocument.read(gltf, ctx.readDependency(gltf), ctx::readDependency);
-        GltfImporter.Scene scene = GltfImporter.importScene(doc);
+        // The scene's own import settings (its .meta sidecar) apply here too, so a node excluded
+        // from the cooked scene is excluded from the level's collision and navmesh as well.
+        ImportSettings settings = ImportSettings.load(ctx.config().sourceRoot(), gltf);
+        ctx.dependOnSettings(settings);
+        GltfImporter.Scene scene =
+                GltfImporter.importScene(doc, settings.strings("excludeNodes", List.of()));
+        for (String w : scene.warnings()) {
+            ctx.warn(scenePath + ": " + w);
+        }
         for (String w : scene.warnings()) {
             ctx.warn(w);
         }

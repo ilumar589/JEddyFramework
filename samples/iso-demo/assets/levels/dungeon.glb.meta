@@ -1,0 +1,4 @@
+{
+  "excludeNodes": ["wall_doorway_1"],
+  "_comment": "The kit's doorway piece carries a closed door leaf as a child node; the crypt's doorways are open archways until doors become interactables (M23-05)."
+}

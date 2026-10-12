@@ -28,19 +28,21 @@ public final class ImportSettings {
     public static final String DIRECTORY_DEFAULTS = "_defaults.meta";
 
     /** No settings. */
-    public static final ImportSettings EMPTY = new ImportSettings(Map.of(), List.of());
+    public static final ImportSettings EMPTY = new ImportSettings(Map.of(), List.of(), List.of());
 
     private final Map<String, Object> values;
     private final List<Path> files;
+    private final List<Path> probed;
 
-    private ImportSettings(Map<String, Object> values, List<Path> files) {
+    private ImportSettings(Map<String, Object> values, List<Path> files, List<Path> probed) {
         this.values = values;
         this.files = files;
+        this.probed = probed;
     }
 
     /** Settings from a map (tests, defaults). */
     public static ImportSettings of(Map<String, Object> values) {
-        return new ImportSettings(new LinkedHashMap<>(values), List.of());
+        return new ImportSettings(new LinkedHashMap<>(values), List.of(), List.of());
     }
 
     /**
@@ -51,20 +53,23 @@ public final class ImportSettings {
     public static ImportSettings load(Path root, Path source) throws IOException {
         Map<String, Object> merged = new LinkedHashMap<>();
         List<Path> used = new ArrayList<>();
+        List<Path> probed = new ArrayList<>();
         Path dir = source.getParent();
         List<Path> chain = new ArrayList<>();
         for (Path d = dir; d != null && d.startsWith(root); d = d.getParent()) {
             chain.add(0, d);
         }
         for (Path d : chain) {
-            merge(d.resolve(DIRECTORY_DEFAULTS), merged, used);
+            merge(d.resolve(DIRECTORY_DEFAULTS), merged, used, probed);
         }
-        merge(source.resolveSibling(source.getFileName() + SIDECAR), merged, used);
-        return new ImportSettings(merged, List.copyOf(used));
+        merge(source.resolveSibling(source.getFileName() + SIDECAR), merged, used, probed);
+        return new ImportSettings(merged, List.copyOf(used), List.copyOf(probed));
     }
 
-    private static void merge(Path file, Map<String, Object> into, List<Path> used)
+    private static void merge(
+            Path file, Map<String, Object> into, List<Path> used, List<Path> probed)
             throws IOException {
+        probed.add(file);
         if (!Files.isRegularFile(file)) {
             return;
         }
@@ -79,6 +84,14 @@ public final class ImportSettings {
         }
         into.putAll(Json.asObject(parsed, file.toString()));
         used.add(file);
+    }
+
+    /**
+     * Every settings file that was looked for, present or not: a dependant records the absent ones
+     * too, so a sidecar that appears later cooks it again ({@link CookContext#dependOnSettings}).
+     */
+    public List<Path> probed() {
+        return probed;
     }
 
     /** Returns the settings files that contributed, nearest last. */
@@ -109,6 +122,25 @@ public final class ImportSettings {
     /** Returns a number setting. */
     public float number(String key, float fallback) {
         return (float) Json.number(values, key, fallback);
+    }
+
+    /** A list of strings, or {@code fallback} when absent (a single string counts as one). */
+    public List<String> strings(String key, List<String> fallback) {
+        Object v = values.get(key);
+        if (v == null) {
+            return fallback;
+        }
+        if (v instanceof String one) {
+            return List.of(one);
+        }
+        List<String> out = new ArrayList<>();
+        for (Object o : Json.asArray(v, key)) {
+            if (!(o instanceof String str)) {
+                throw new IllegalArgumentException(key + ": expected strings");
+            }
+            out.add(str);
+        }
+        return List.copyOf(out);
     }
 
     /** Returns a raw value (lists, objects), or {@code null}. */

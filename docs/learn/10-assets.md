@@ -106,7 +106,13 @@ each file:
 1. **Loads its settings** with [`ImportSettings.load`](../../tools/cooker/src/main/java/dev/jeddy/cooker/ImportSettings.java):
    a JSON object merged from `_defaults.meta` files in every directory from the source root down to
    the file (nearer wins), then the file's own `<name>.meta` sidecar. For example the demo's
-   `assets/env/sky.hdr.meta` is `{"size": 64, "samples": 64}`.
+   `assets/env/sky.hdr.meta` is `{"size": 64, "samples": 64}`, and `assets/levels/dungeon.glb.meta`
+   is `{"excludeNodes": ["wall_doorway_1"]}`: the kit builds its doorway piece with a closed door
+   leaf as a child node, and the crypt wants open archways, so the importer detaches that node and
+   everything under it (mesh, light, skin set to none; node indices stay valid for skins and
+   animations) before the scene, the collision and the navmesh are cooked. A pattern that matches
+   no node is reported, so a typo does not silently keep a door shut (D104). This was found when
+   the rules demo's party could not reach the skeletons: every doorway in the crypt was a door.
 2. **Picks an importer**: the `importer` setting if present (`"none"` skips the file), otherwise
    the first importer whose `accepts(path, settings)` returns true.
 3. **Collects claims**: an importer can say that a source *consumes* other files. A `.gltf` claims
@@ -197,6 +203,15 @@ A **hit** needs two things: an entry for the key, and every recorded dependency 
 recorded hash. The second check matters for a glTF with external images: the `.gltf` text did not
 change, but a texture it references did, so the key matches and the dependency hash does not.
 
+A dependency can also be recorded as **absent** (`CookContext.recordAbsentDependency`, hash `""`):
+the entry stays a hit only while the file keeps not existing. The level importer uses it for the
+import settings of the prefab scenes it loads (`dependOnSettings`: every `.meta` and
+`_defaults.meta` the settings *looked for*, present or not), so a sidecar written next to the
+kit *after* the level was first cooked still cooks the level again. That is the classic gap in
+build systems (make cannot see a header that did not exist when it last ran); recording the
+probe closes it. The one case it cannot cover is a cache written before the probe was recorded
+at all, which `--force` handles once.
+
 On a hit the outputs are restored from `objects/`. On a miss the importer runs and the cache stores
 the result. In both cases outputs are written **atomically** (a temporary sibling, then a move) and
 **only when their bytes differ** from what is on disk:
@@ -227,6 +242,7 @@ fail; outputs that a source no longer produces, and all outputs of deleted sourc
 | Nothing changed | hit, outputs already identical, nothing written (status `CACHED`) |
 | `rock.png.meta` changed `maxSize` | settings change the key: miss, recook |
 | A glTF's external `wood.png` changed | key hits, dependency hash differs: recook |
+| `dungeon.glb.meta` appears next to a kit a level uses | the level recorded the sidecar as absent: recook |
 | You undo that change | the old key and objects are still cached: instant hit |
 | `--force` | the cache is ignored |
 | `--prune` | entries and objects no source state uses are deleted |

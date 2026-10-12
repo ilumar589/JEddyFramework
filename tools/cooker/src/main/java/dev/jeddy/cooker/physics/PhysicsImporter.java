@@ -69,7 +69,10 @@ public final class PhysicsImporter implements Importer {
         }
         Path gltf = ctx.file().resolveSibling(scenePath).normalize();
         GltfDocument doc = GltfDocument.read(gltf, ctx.readDependency(gltf), ctx::readDependency);
-        GltfImporter.Scene scene = GltfImporter.importScene(doc);
+        ImportSettings settings = ImportSettings.load(ctx.config().sourceRoot(), gltf);
+        ctx.dependOnSettings(settings);
+        GltfImporter.Scene scene =
+                GltfImporter.importScene(doc, settings.strings("excludeNodes", List.of()));
         for (String w : scene.warnings()) {
             ctx.warn(w);
         }

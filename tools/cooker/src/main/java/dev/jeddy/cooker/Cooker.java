@@ -577,6 +577,12 @@ public final class Cooker implements AutoCloseable {
         for (Map.Entry<String, String> d : e.dependencies().entrySet()) {
             Path p = Path.of(d.getKey());
             Path file = p.isAbsolute() ? p : config.sourceRoot().resolve(d.getKey());
+            if (CookContext.ABSENT.equals(d.getValue())) {
+                if (Files.exists(file)) {
+                    return false; // a sidecar appeared
+                }
+                continue;
+            }
             if (!Files.isRegularFile(file)
                     || !CookCache.sha256(Files.readAllBytes(file)).equals(d.getValue())) {
                 return false;
