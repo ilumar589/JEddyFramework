@@ -151,16 +151,22 @@ static type `MindView`; the only subclass is `MindMut`, the method is `final`, s
 is monomorphic and C2 inlines it. After inlining and escape analysis, the view object does not
 exist in the compiled loop: `store` and `row` live in registers, and the body is the same
 `iaload`/`iastore` sequence a hand-written column loop produces. The JMH benchmark
-(`ComponentsBench`, §6) measures it: over 10,000 entities one tick costs **4 µs** as a
-hand-written SoA loop, **22 µs** through the generated loop, and **142 µs** as an object per
+(`ComponentsBench`, §6) measures it: over 10,000 entities one tick costs **4.8 µs** as a
+hand-written SoA loop, **6.5 µs** through the generated loop, and **142 µs** as an object per
 entity with a virtual `update()` — the `MonoBehaviour` shape — whose call site is megamorphic
 (three subclasses already defeat inline caching) and whose objects are scattered (CI's smoke
-run, 2026-10-12). The 18 µs between the first two is not the view: it is the *query*, about two
-nanoseconds a row for the entity indirection (`entityAt`, then the row), the `@Without` test
-(a sparse lookup), the size guard and the view's two field stores — the price of a sparse set
-over a dense array, and the same for every behaviour. The body itself compiles to the same
-instructions. Against the object shape the generated loop is six times faster, and the gap grows
-with the heap: scattered objects miss the cache more the more there are.
+run, 2026-10-12). The 1.7 µs between the first two is not the view: it is the *query*, a sixth
+of a nanosecond a row for the entity indirection (`entityAt`), the size guard and the view's two
+field stores; a loop with several required stores adds a sparse lookup (two loads and a
+compare) per extra store. The body itself compiles to the same instructions. Against the object
+shape the generated loop is twenty times faster, and the gap grows with the heap: scattered
+objects miss the cache more the more there are.
+
+The benchmark earned its place on the first run: the generated loop measured **22 µs**, five
+times the hand-written one, because the driving store looked its own entity up again (`indexOf`
+on the store the loop was already walking: a dependent chain of three loads per row). Skipping
+that lookup when one store drives — its row *is* the loop index — brought it to 6.5. Measure,
+then read the generated code.
 
 ### 2.5 Parallel behaviours and the dependency rule
 
@@ -486,10 +492,8 @@ again), so the old index-based code kept working.
   inline and on two job threads, 0 bytes.
 - `./gradlew :bench:jmh -Pjmh.includes=ComponentsBench`: 10,000 entities, one tick, three ways —
   `objectsWithVirtualUpdate` (an object per entity, megamorphic): 142 µs; `soaColumnsByHand`
-  (the lower bound): 4 µs; `generatedBehaviour` (the registry through the views): 22 µs, on
-  CI's smoke run. The difference between the last two is the query (§2.4), about two
-  nanoseconds a row; when one store drives a loop its own row is the loop index and that lookup
-  is skipped.
+  (the lower bound): 4.8 µs; `generatedBehaviour` (the registry through the views): 6.5 µs, on
+  CI's smoke run (22 µs before the driving store's redundant lookup was removed, §2.4).
 - What the registry allocates: at construction, the stores (`CAPACITY` rows each), one view per
   behaviour parameter, one set of views per job thread for each parallel behaviour, the job
   graphs. Nothing afterwards except growth past `CAPACITY`.

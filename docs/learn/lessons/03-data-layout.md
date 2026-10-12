@@ -114,16 +114,22 @@ It looks like an object per access. It is not, after the JIT:
 
 The benchmark `ComponentsBench` ([`bench/`](../../../bench/src/main/java/dev/jeddy/bench/ComponentsBench.java))
 has the three shapes over 10,000 entities: `objectsWithVirtualUpdate` (142 µs on CI's smoke
-run), `soaColumnsByHand` (4 µs) and `generatedBehaviour` (22 µs). The first is slow for two
+run), `soaColumnsByHand` (4.8 µs) and `generatedBehaviour` (6.5 µs). The first is slow for two
 reasons that compound: the objects are scattered (§2) and the call site sees three classes
 (`Warrior`, `Archer`, `Mage`), so the inline cache gives up (a *megamorphic* call: a type check
 that fails, then a vtable load and an indirect jump the branch predictor cannot learn). Between
-the last two lie 18 µs, about two nanoseconds a row: the entity indirection (`entityAt`, a load
-that the next loads depend on), the size guard, the view's two field stores, and in the demo's
-loops the membership tests of the other stores (`indexOf`: two loads and a compare each). That
+the last two lie 1.7 µs, a sixth of a nanosecond a row: the entity indirection (`entityAt`, a
+load the next loads depend on), the size guard and the view's two field stores; a loop over
+several stores adds a sparse lookup per extra store (`indexOf`: two loads and a compare). That
 is the price of a *sparse set* — rows reachable from an entity in $O(1)$ — over a dense array
 that is simply indexed, and it is the same whether the body is a view or hand-written. The body
-is free; the query is not, and it is two nanoseconds. Run it:
+is free; the query is nearly so.
+
+The first run of the benchmark read 22 µs, not 6.5: the generated loop looked the driving
+store's own entity up again, three dependent loads per row for an answer it already had (the
+loop index). A dependent chain is the expensive shape on a modern core — each load waits for
+the previous one, and the out-of-order engine cannot overlap them — which is why removing one
+lookup took away three quarters of the overhead. Run it:
 `./gradlew :bench:jmh -Pjmh.includes=ComponentsBench`.
 
 **What breaks the argument.** A view that *escapes* — stored in a field, passed to a method the
