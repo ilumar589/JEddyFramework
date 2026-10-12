@@ -358,26 +358,31 @@ purpose: a screenshot in the meta block, cross-level saves (a save names its lev
 ## 6. Dialogue and quest scripting
 
 **What.**
-- Branching conversations with conditions ("if Intelligence ≥ 14", "if the quest is at stage 3"),
-  skill checks and consequences (give an item, start a fight, set a flag).
+- Branching conversations with conditions ("if Strength ≥ 12", "if the quest is at stage 3"),
+  ability checks and consequences (give an item, start a fight, set a flag).
 - Quests with stages and journal entries.
 
-**Approach.**
-- Dialogue and quest graphs in a text format, cooked to a compact binary.
-- A small interpreter on the game thread: nodes, edges with conditions, actions.
-- Conditions and actions call into `rules` (or a stub until `rules` exists).
-- A dialogue window (needs some UI, or a simple overlay version first).
+**Approach (decided with the owner 2026-10-12; DESIGN §24).**
+- A **writer-facing text format**: `.dlg` per conversation (nodes, speaker lines, choices with
+  `if` and `check`, gotos, actions) and `.quest` files (stages with journal texts), readable in a
+  diff (D120). Not JSON graphs.
+- Conditions as a **tiny expression language** compiled by the cooker to stack-machine bytecode;
+  the game-thread interpreter allocates nothing (D121). Not operation rows, not a scripting
+  language.
+- A new `script` module (core and asset only) with one `ScriptHost` interface to the game
+  (D122); the demo's host maps checks onto the rules.
+- Cooked `.jdlg`/`.jquest` with validation at cook time (D123); `Conversation`, `Quests`,
+  `Flags` with `write`/`read` for M16's saves (D124).
+- The editor gets a Dialogue panel: a new multi-line text area, live errors, a preview over a
+  stub host; the node-graph view is M23's (D125).
 
-**Draft tasks.**
-- M13-01 Design.
-- M13-02 Source format and cooker.
-- M13-03 Interpreter, conditions and actions.
-- M13-04 Quest stages and journal.
-- M13-05 Demo: talk to a ghost in the crypt.
-- M13-06 Docs.
+**Tasks.** [TASKS.md M17](TASKS.md#m17-dialogue-and-quests-24): M17-01 design · M17-02 the
+compiler · M17-03 cooked formats and the cooker · M17-04 the runtime · M17-05 the text area ·
+M17-06 the Dialogue panel · M17-07 the demo's ghost · M17-08 docs (chapter 17, lesson L05 on
+grammars, parsers and a stack machine).
 
-**What you learn.** Graph data structures, interpreters, designing a data format for writers rather
-than programmers.
+**What you learn.** Graph data structures, interpreters (a grammar, a recursive-descent parser, a
+stack machine, with the bytes), designing a data format for writers rather than programmers.
 
 ---
 

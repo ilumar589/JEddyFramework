@@ -74,9 +74,10 @@
 | `animation` | `dev.jeddy.animation` | Skeletons, baked clips, per-instance animation state (clip, synchronized 1D blend, crossfade), job-parallel pose and skinning-palette evaluation | core, math, asset | Added in M12: characters move like characters. Like `physics`, it knows neither `render` nor `scene`; `app` feeds its palettes and joint matrices to renderables |
 | `ui` | `dev.jeddy.ui` | Immediate-mode user interface: element tree, flex layout, SDF text measurement, widgets, draw lists (no GL) | core, math, asset | Added in M13: game screens and the editor from one widget set, in pure Java (§18) |
 | `scene`* | `dev.jeddy.scene` | Entity handles, sparse-set component stores, SoA transform hierarchy | core, math | Gameplay needs one authoritative transform store. `app` sync/extract systems copy from it into render, physics and audio, which never depend on `scene` |
-| `editor` | `dev.jeddy.editor` | The editor as a library: level model and commands with undo, selection and gizmos, docked panels (outliner, inspector, asset browser, console) that any game can embed behind a key | app, ui, physics, asset, core, math | Added in M14: level editing and live inspection from the `ui` widgets, in pure Java (§19) |
+| `editor` | `dev.jeddy.editor` | The editor as a library: level model and commands with undo, selection and gizmos, docked panels (outliner, inspector, asset browser, console, dialogue) that any game can embed behind a key | app, ui, physics, asset, script, core, math | Added in M14: level editing and live inspection from the `ui` widgets, in pure Java (§19) |
 | `components` | `dev.jeddy.components` | Components and behaviours: the annotations, the store base (sparse set + SoA columns), the view base, the schedule executor on the job system, snapshot I/O; `tools/component-processor` generates the per-game code | scene, asset, core, math | Added in M22: a unified gameplay API without inheritance or reflection (§22) |
 | `save` | `dev.jeddy.save` | The save-game container: `.jsave` chunks with versions, the meta block, zstd and CRC-32C, the background job, slots and the user's save directory; knows no game system (each writes itself into `core.io.ByteWriter`) | core, compress | Added in M16: saves as the dynamic state only (§21) |
+| `script` | `dev.jeddy.script` | Dialogue and quests: the compiler of the `.dlg`/`.quest` text to a graph with bytecode conditions, the stack-machine interpreter, conversations, quests and journal, flags; reaches the game through `ScriptHost` | core, asset | Added in M17: the narrative layer as text for writers, bytecode for the game thread (§24) |
 | `rules` | `dev.jeddy.rules` | The d20 game-mechanics layer: creatures as SoA stats, typed modifiers with stacking, dice and checks, effects as data-driven operation lists, conditions with durations, encounters with initiative and an action economy, real time with pause and turn-based drivers, an event log | core, math, asset | Added in M15: a Pathfinder-1e-shaped core with original names and content, pure Java, deterministic (§20) |
 | `app`* | `dev.jeddy.app` | Application lifecycle, thread orchestration, main loop, world integration (scene→render, physics→scene, audio), settings, crash handling | everything above | Ties the leaf modules together so that they stay independent of each other |
 | `tools/cooker`* | `dev.jeddy.cooker` | Offline asset cooking: glTF, textures, materials, shaders, navmesh/BVH bake, levels, pak building, CLI and Gradle plugin | core, math, compress, asset, physics + libktx/meshoptimizer bindings | The offline half of "PBR asset pipeline" |
@@ -84,7 +85,7 @@
 | `tools/editor`* | `dev.jeddy.editortool` | The standalone level editor: opens a project (assets and cooked output), runs the `editor` library as its `Game` with the cooker's watch mode | editor, app, cooker | A tool, not a runtime module; games embed `editor` instead (§19) |
 | `natives/*`* | (resource jars) | Prebuilt shared libraries per OS/arch with SHA-256 manifest | none | Distribution |
 | `bench`* | none | JMH benchmarks for every hot path | all runtime modules | Required to enforce "performance is a must" |
-| `samples/iso-demo`* | `dev.jeddy.samples.iso` | Integration demo and perf scene | app, rules, components, save | Acceptance target; the only module that depends on `rules` (the editor edits rules content through `asset`'s `RulesSchema`, D97) and the first game of `components` (M22) |
+| `samples/iso-demo`* | `dev.jeddy.samples.iso` | Integration demo and perf scene | app, rules, components, save, script | Acceptance target; the only module that depends on `rules` (the editor edits rules content through `asset`'s `RulesSchema`, D97) and the first game of `components` (M22) |
 
 > `dev.jeddy` is the root package and Maven group (confirmed 2026-10-10).
 
@@ -118,6 +119,7 @@ graph TD
   animation[animation] --> math
   animation --> asset
   save[save] --> compress
+  script[script] --> asset
   rules[rules] --> asset
   rules --> math
   components[components] --> scene
@@ -138,6 +140,8 @@ graph TD
   isodemo --> rules
   isodemo --> components
   isodemo --> save
+  isodemo --> script
+  editor --> script
   cooker[tools/cooker*] --> asset
   cooker --> physics
 ```
@@ -635,7 +639,6 @@ JeddyFramework/
 ## 16. Future modules (not scheduled)
 - `animation` beyond M12 (§13.4): root-motion extraction, foot IK, additive layers, events, clip compression.
 - `rules`: Pathfinder-like stats, dice, conditions, initiative, turn-based combat flow.
-- `script`: dialogue and quest graphs.
 - `vfx`: authoring for GPU particles.
 - Tracy profiler integration, LZ4 for faster decompression if zstd becomes the bottleneck, BC6H through KTX v5.
 
@@ -750,6 +753,49 @@ Then the *draw list* is emitted in tree order (floating subtrees after the main 
 **Not an ECS framework.** No archetype chunks, no command buffers, no deferred structural changes (the backwards loop rule instead), no query objects at run time, no systems as objects: stores are sparse sets over the `World`'s entities (D4), behaviours are functions, the schedule is a `JobGraph` built once. It is the smallest data layout that is fast and readable, which is the owner's criterion for the whole engine.
 
 **Not in M22.** Components on prefab *nodes* below the root (rows attach to level objects); hot reload of behaviours (a Java change is a rebuild); editing rows of runtime-spawned entities in the inspector at play time (M23's play mode); the entity remapping of saves (M16); `Party` and `Combat` as components (see above).
+
+## 24. `script`: dialogue and quests, written as text, run as bytecode (M17)
+
+**Roles.** Branching conversations with conditions, skill checks and consequences, and quests with stages and journal entries — the narrative layer of a party CRPG — written by *writers* in a text format, compiled by the cooker into a compact graph with bytecode conditions, and run by a small interpreter on the game thread that reaches the rest of the game through one host interface. Decided with the owner on 2026-10-12: a writer-facing script format (not JSON graphs), a tiny expression language compiled to bytecode (not flat operation rows), and text editing in M17 with the node-graph panel left to M23. Section 23 stays reserved for the CRPG editor.
+
+**The script format (D120).** One `.dlg` file per conversation, indented, one statement per line, meant to read like a screenplay and diff in git:
+
+```
+dialogue ghost
+  title: The ghost of the crypt
+
+node start
+  ghost: Who disturbs my rest?
+  -> seen if quest(ghost) >= 1
+  -> intro
+
+node intro
+  ghost: You carry steel. Are you here to end me, or to listen?
+  choice "I came to listen." -> listen
+  choice "End you." if stat(str) >= 12 -> fight
+  choice "[Diplomacy] We mean no harm." check cha 12 -> calm else fight
+
+node listen
+  ghost: Then hear my tale. My bones lie under the altar, unburied.
+  set quest ghost 1
+  end
+```
+
+A `node` has a speaker line or several (`speaker: text`, the speaker a string id the game maps to a name and a portrait, `player:` for the party), **actions** (`set quest id stage`, `set flag id [true|false]`, `give item [n]`, `take item [n]`, `do name(args)`: the game's own hook), then either **choices** (`choice "text" [if expr] [check ability dc] -> target [else target]`) or **gotos** (`-> target [if expr]`, the first whose condition holds; `end` closes the conversation). A `.quest` file holds quests: `quest id`, `title:`, and `stage n [done|failed]: "journal text"`. Ids are words; strings are quoted; `#` starts a comment. The grammar is small enough to state in a page (chapter 17 §2) and parse by hand.
+
+**Expressions as bytecode (D121).** Conditions are expressions over `int` and `bool`: literals, `+ - * / %`, comparisons, `and or not`, parentheses, and **functions** that read the game: `stat(str)`, `level()`, `quest(id)` (the stage), `flag(id)`, `item(id)` (how many), `gold()`, `random(n)`, `check(ability, dc)` (rolls through the host). The cooker's compiler (`script.compile`, pure Java, also used by the editor for live validation) parses them by recursive descent and emits a **stack machine** program: `PUSH n`, `CALL fn argc`, the operators, `JUMP_IF_FALSE`/`JUMP_IF_TRUE` for short-circuit `and`/`or`, `RETURN`. The interpreter runs a program over an `int[]` stack with no allocation; `true` is 1. Strings in expressions (`quest("ghost")` or the bare `quest(ghost)`) are indices into the file's string table, interned by the host at bind time. Rejected: flat operation rows (every condition a `(kind, ref, op, value)` tuple, no `and`/`or` without more rows, unreadable in the script), and a general scripting language (Lua through FFM is a new native; a Java scripting engine is reflection and allocation).
+
+**One host interface (D122).** `script` depends on `core` and `asset` only. Everything a script reads or does goes through `ScriptHost`: `int stat(int ability)`, `int level()`, `boolean check(int ability, int dc)`, `int item(int id)`, `void give(int id, int n)`, `void take(...)`, `int gold()`, `void gold(int delta)`, `int random(int n)`, `void call(int name, int[] args, int argc)` for `do` statements, plus `speakerName(id)` for the window. The quests and flags live in the module (`Quests`, `Flags`) since every game has them the same way. The demo's `CryptHost` maps `stat` and `check` onto the rules (an ability check: `d20 + modifier ≥ dc`, since M15 has no skills), items onto the inventory and `call("startFight")` onto `Combat`. Rejected: calling `rules` directly from `script` (ties the narrative layer to one rulebook; the host is one small interface the components' singletons already showed works).
+
+**Cooked formats (D123).** `.jdlg` per dialogue ([formats/jdlg.md](formats/jdlg.md)): a header, a string table, the nodes (speaker, lines range, actions program, choices range, gotos range), the choices (text, condition program, check, target, else), the gotos, the lines, and one bytecode blob; `asset.format.DialogueData` reads it. `.jquest` per quest file ([formats/jquest.md](formats/jquest.md)): the quests with their stages and journal texts; `asset.format.QuestData`. Both are little-endian, versioned, sectioned like the engine's other formats (§10.1), and the cooker's `DialogueImporter`/`QuestImporter` validate ids (a goto to a node that does not exist, a quest stage that is not declared, an unknown function) with line and column.
+
+**The runtime (D124).** `Conversation` is the state of one dialogue in progress: the node, the line shown, the visible choices (conditions evaluated once when the node is entered, into an `int[]`), `choose(i)` (runs the check, follows the target or the `else`), `advance()` (the next line, or the gotos, or the choices); it runs actions when a node is entered and allocates nothing. `Quests` holds the stage per quest and the journal (the stage texts in order of reaching them); `Flags` the named booleans and counters. All three have `write`/`read` for M16's saves, including a conversation in progress. Nothing in `script` is per frame: a conversation advances on input.
+
+**The editor (D125).** The `editor` library gets a *Dialogue* panel: the script text in a new multi-line `ui` text area (`Widgets.textArea`: lines, a caret with Up/Down, selection, clipboard, scrolling), compiled on every change with the errors listed by line, and a **preview** that runs the conversation with a stub host (every check passes; quests and flags from a scratch table the panel edits) so a writer walks the branches without the game. The standalone tool opens `assets/dialogue/*.dlg` and `assets/quests/*.quest`; saving writes the text and the cooker's watch re-cooks. The node-graph view is M23's.
+
+**The demo (M17-07).** A ghost in the crypt: a placement with a `Talker` component (`@AssetRef("dialogue") int dialogue`) on the level, the adept's model, clicked to talk; the simulation pauses while the dialogue window (speaker, line, choices as buttons) is open; **J** opens the journal. The ghost asks to be buried: the party can promise (quest stage 1), fight it (`do startFight()`: the ghost joins the encounter) or talk it down with a Charisma check. Everything persists through F5/F9.
+
+**Not in M17.** The node-graph panel (M23); localization (one language; the string table is ready for more); voice and portraits beyond a name; a general scripting language; triggers that start dialogues from the level (M23's interactables); companions reacting to choices.
 
 ## 17. Decision log
 | Date | ID | Decision |
@@ -869,3 +915,9 @@ Then the *draw list* is emitted in tree order (floating subtrees after the main 
 | 2026-10-12 | D117 | Every chunk carries its own version and its reader keeps old versions readable with a `switch` beside the current code, with a fixture per old version under test; stores need none (D111). Rejected: a global save version (one bump invalidates every reader's test fixtures) and migration scripts run over files on disk (the player's files are never rewritten) |
 | 2026-10-12 | D118 | A save captures on the game thread between ticks into buffers kept from the previous save (no allocation after the first), hands the bytes to a job that compresses and writes on a worker thread parked between saves, through a temporary file moved over the slot atomically; the game polls the job. Rejected: writing on the game thread (a file write is milliseconds and unbounded), a thread per save (its object, stack and name allocate), a virtual thread as the worker (unparking one allocates a scheduler task: 24 B per save, measured), and a callback from the writer thread (the game thread owns its state) |
 | 2026-10-12 | D119 | Saves live in the user's data directory (`%APPDATA%\<game>\saves`, `$XDG_DATA_HOME/<game>/saves`), overridable by `jeddy.saves.dir`, as quick, auto and named slots listed from their meta blocks. Rejected: the cache directory (a cache may be cleared) and the game's install directory (not writable under Program Files) |
+| 2026-10-12 | D120 | Dialogue and quests are authored in a writer-facing text format (`.dlg`, `.quest`: nodes, speaker lines, choices with conditions and checks, gotos, actions; quests with stages and journal texts), compiled by the cooker (decided with the owner). Rejected: JSON graphs edited only in the editor (unreadable in diffs, a node panel before the format exists) and both at once (two sources of truth) |
+| 2026-10-12 | D121 | Conditions and actions are a tiny expression language compiled to stack-machine bytecode the game-thread interpreter runs without allocating (decided with the owner). Rejected: flat operation rows (no `and`/`or`, verbose for writers) and a general scripting language (a native or reflection) |
+| 2026-10-12 | D122 | `script` reaches the game through one `ScriptHost` interface (stats, checks, items, gold, random, a generic `call`); quests and flags live in the module. Rejected: a direct dependency on `rules` (one rulebook for every narrative) |
+| 2026-10-12 | D123 | Cooked `.jdlg` (nodes, choices, gotos, lines, one bytecode blob, a string table) and `.jquest`, read by `asset.format`; the cooker validates ids and functions with line and column. Rejected: shipping the text and parsing at run time (allocation, no validation before the player sees it) |
+| 2026-10-12 | D124 | `Conversation` evaluates a node's choices once on entry into an `int[]`, runs actions on entry, and advances on input; `Quests` and `Flags` are stores with `write`/`read` for saves. Rejected: evaluating conditions every frame (a `random` would flicker) |
+| 2026-10-12 | D125 | The editor gets a Dialogue panel with a multi-line text area, live compile errors and a preview over a stub host; the node-graph view waits for M23 (decided with the owner). Rejected: a minimal node panel in M17 (a large widget before the format has been used) |
