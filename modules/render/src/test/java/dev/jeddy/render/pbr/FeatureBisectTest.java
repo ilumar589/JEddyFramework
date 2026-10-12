@@ -169,6 +169,10 @@ class FeatureBisectTest {
             "static textured bc7 beside skinned textured bc7 (one frame)",
             "textured bc7, units unbound, then factor-only",
             "translucent factor-only, then opaque factor-only",
+            "textured made before frame 1, first drawn in frame 2",
+            "variant compiled before frame 1, new row+texture after",
+            "row+texture before frame 1, variant compiled after",
+            "new factor-only row after frame 1 (no new variant)",
         };
         for (int i = 0; i < names.length; i++) {
             float[] v = scenario(i);
@@ -188,23 +192,23 @@ class FeatureBisectTest {
             switch (which) {
                 case 0 -> {
                     float a = s.frame(s.sphere(0, plain, 0));
-                    float b = s.frame(s.sphere(0, s.textured(GL_RGBA8, 0), 0));
+                    float b = s.frame(s.sphere(0, s.textured(GL_RGBA8, true), 0));
                     return new float[] {a, b};
                 }
                 case 1 -> {
-                    float a = s.frame(s.sphere(0, s.textured(GL_RGBA8, 0), 0));
+                    float a = s.frame(s.sphere(0, s.textured(GL_RGBA8, true), 0));
                     float b = s.frame(s.sphere(0, plain, 0));
                     return new float[] {a, b};
                 }
                 case 2 -> {
-                    float a = s.frame(s.sphere(0, s.textured(BC7_SRGB, 0), 0));
+                    float a = s.frame(s.sphere(0, s.textured(BC7_SRGB, true), 0));
                     float b = s.frame(s.sphere(0, plain, 0));
                     return new float[] {a, b};
                 }
                 case 3 -> {
                     int m = -1;
                     for (int k = 0; k < 5; k++) {
-                        m = s.textured(BC7_SRGB, 0); // the fifth allocation grows the bucket
+                        m = s.textured(BC7_SRGB, true); // the fifth allocation grows the bucket
                     }
                     float a = s.frame(s.sphere(0, m, 0));
                     float b = s.frame(s.sphere(0, plain, 0));
@@ -212,26 +216,26 @@ class FeatureBisectTest {
                 }
                 case 4 -> {
                     int f = s.sphere(-0.8f, plain, 0);
-                    int t = s.sphere(0.8f, s.textured(BC7_SRGB, 0), 0);
+                    int t = s.sphere(0.8f, s.textured(BC7_SRGB, true), 0);
                     s.render();
                     return new float[] {s.lit(-0.8f), s.lit(0.8f)};
                 }
                 case 5 -> {
-                    int t = s.textured(BC7_SRGB, 0);
+                    int t = s.textured(BC7_SRGB, true);
                     s.sphere(-0.8f, t, RenderPacket.FLAG_STATIC);
                     s.skinnedSphere(0.8f, t);
                     s.render();
                     return new float[] {s.lit(-0.8f), s.lit(0.8f)};
                 }
                 case 6 -> {
-                    float a = s.frame(s.sphere(0, s.textured(BC7_SRGB, 0), 0));
+                    float a = s.frame(s.sphere(0, s.textured(BC7_SRGB, true), 0));
                     for (int u = 0; u < 5; u++) {
                         device.state().bindTexture(u, 0);
                     }
                     float b = s.frame(s.sphere(0, plain, 0));
                     return new float[] {a, b};
                 }
-                default -> {
+                case 7 -> {
                     MaterialSystem ms = s.renderer.materials();
                     int glass =
                             ms.add(
@@ -243,6 +247,30 @@ class FeatureBisectTest {
                     ms.compileBlocking(glass);
                     float a = s.frame(s.sphere(0, glass, 0));
                     float b = s.frame(s.sphere(0, plain, 0));
+                    return new float[] {a, b};
+                }
+                case 8 -> {
+                    int t = s.textured(GL_RGBA8, true);
+                    float a = s.frame(s.sphere(0, plain, 0));
+                    float b = s.frame(s.sphere(0, t, 0));
+                    return new float[] {a, b};
+                }
+                case 9 -> {
+                    s.textured(GL_RGBA8, true); // compiles the textured variants, unused
+                    float a = s.frame(s.sphere(0, plain, 0));
+                    float b = s.frame(s.sphere(0, s.textured(GL_RGBA8, true), 0));
+                    return new float[] {a, b};
+                }
+                case 10 -> {
+                    int t = s.textured(GL_RGBA8, false); // row and texture, not compiled
+                    float a = s.frame(s.sphere(0, plain, 0));
+                    s.renderer.materials().compileBlocking(t);
+                    float b = s.frame(s.sphere(0, t, 0));
+                    return new float[] {a, b};
+                }
+                default -> {
+                    float a = s.frame(s.sphere(0, plain, 0));
+                    float b = s.frame(s.sphere(0, s.plain(), 0));
                     return new float[] {a, b};
                 }
             }
@@ -306,8 +334,11 @@ class FeatureBisectTest {
             return m;
         }
 
-        /** A white 4x4 texture of {@code format} in its own array layer, on a new material. */
-        int textured(int format, int unused) {
+        /**
+         * A white 4x4 texture of {@code format} in its own array layer, on a new material, with its
+         * shader variants compiled when {@code compile}.
+         */
+        int textured(int format, boolean compile) {
             MaterialSystem ms = renderer.materials();
             int m = ms.add(new MaterialData.Builder().metallicRoughness(0, 0.6f).build());
             int ref = ms.arrays().allocate(format, 4, 4, 1);
@@ -325,8 +356,10 @@ class FeatureBisectTest {
                             texels.address(),
                             format == GL_RGBA8 ? 64 : 16);
             ms.setTexture(m, MaterialData.SLOT_BASE_COLOR, ref, false);
-            ms.compileBlocking(m);
-            ms.compileBlockingSkinned(m);
+            if (compile) {
+                ms.compileBlocking(m);
+                ms.compileBlockingSkinned(m);
+            }
             return m;
         }
 
