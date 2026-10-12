@@ -8,6 +8,7 @@ dependencies {
     implementation(project(":editor"))
     implementation(project(":rules"))
     implementation(project(":components"))
+    implementation(project(":save"))
     implementation(project(":gl"))
     // @Component records and @Behaviour classes become generated stores and the registry (§22).
     annotationProcessor(project(":component-processor"))

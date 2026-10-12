@@ -32,7 +32,7 @@ includeBuild("../..") {
     dependencySubstitution {
         for (name in listOf(
             "core", "math", "compress", "sdl", "gl", "window", "input", "render", "asset", "audio",
-            "physics", "animation", "ui", "scene", "app", "editor", "rules", "components",
+            "physics", "animation", "ui", "scene", "app", "editor", "rules", "components", "save",
             "component-processor", "testing", "cooker", "natives-linux-x64", "natives-windows-x64",
         )) {
             substitute(module("dev.jeddy:jeddy-$name")).using(project(":$name"))

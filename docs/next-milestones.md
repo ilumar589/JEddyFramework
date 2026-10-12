@@ -331,7 +331,8 @@ rebuilt from the rulebook, and the save holds what play changed.
   uncompressed meta block for the slot list, a zstd payload of tagged, versioned chunks; versions
   per chunk with a `switch` per old one (D117).
 - The capture runs on the game thread between ticks into buffers kept from the previous save;
-  compression and the file write run on a virtual thread with an atomic replace (D118).
+  compression and the file write run on a worker thread parked between saves, with an atomic
+  replace (D118).
 - Slots in the user's data directory: quick, auto and named (D119).
 
 **Tasks.** [TASKS.md M16](TASKS.md#m16-save-system-21): M16-01 design · M16-02 the stream and
