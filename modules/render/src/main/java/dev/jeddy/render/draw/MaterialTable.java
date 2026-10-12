@@ -1,5 +1,6 @@
 package dev.jeddy.render.draw;
 
+import dev.jeddy.render.gpu.FrameRing;
 import dev.jeddy.render.gpu.GpuBuffers;
 import dev.jeddy.render.gpu.GpuDevice;
 import dev.jeddy.render.shader.ProgramCache;
@@ -179,14 +180,20 @@ public final class MaterialTable implements AutoCloseable {
         return programs.get(slotDefinition[slot], slotMask[slot]);
     }
 
-    /** Uploads changed rows. Call before drawing. */
-    public void flush() {
+    /**
+     * Uploads changed rows through {@code ring} (a GPU-side copy ordered after the frames still
+     * reading the buffer; {@link FrameRing#upload}), or from the CPU when {@code ring} is null or
+     * full. Call before drawing.
+     */
+    public void flush(FrameRing ring) {
         if (dirtyTo < 0) {
             return;
         }
         long from = (long) dirtyFrom * FLOATS * 4;
         long length = (long) (dirtyTo - dirtyFrom + 1) * FLOATS * 4;
-        device.buffers().update(buffer, from, cpu.address() + from, length);
+        if (ring == null || !ring.upload(glBuffer(), from, cpu, from, length)) {
+            device.buffers().update(buffer, from, cpu.address() + from, length);
+        }
         dirtyFrom = Integer.MAX_VALUE;
         dirtyTo = -1;
     }
@@ -199,6 +206,14 @@ public final class MaterialTable implements AutoCloseable {
     /** Returns the bytes in use. */
     public long byteSize() {
         return (long) Math.max(1, count) * FLOATS * 4;
+    }
+
+    /**
+     * Returns the buffer's size: what to bind, so the bound range does not change as rows are added
+     * (a driver that resolves a range at bind time would keep reading the old extent).
+     */
+    public long bufferBytes() {
+        return cpu.byteSize();
     }
 
     private int slot(int definition, long mask, int textureSet) {

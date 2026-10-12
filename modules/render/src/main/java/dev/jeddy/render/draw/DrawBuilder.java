@@ -287,7 +287,7 @@ public final class DrawBuilder {
         }
         state.bindVertexArray(meshes.vertexArray());
         state.bindStorage(INSTANCE_BINDING, ring.glName(), instanceOffset, instanceBytes);
-        state.bindStorage(MATERIAL_BINDING, materials.glBuffer(), 0, materials.byteSize());
+        state.bindStorage(MATERIAL_BINDING, materials.glBuffer(), 0, materials.bufferBytes());
         state.bindDrawIndirect(ring.glName());
         for (int b = 0; b < batchCount; b++) {
             if (!binder.bind(state, batchSlot[b], batchPass[b] == PASS_TRANSLUCENT)) {

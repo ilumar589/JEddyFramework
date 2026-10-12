@@ -3,6 +3,7 @@ package dev.jeddy.render.light;
 import static dev.jeddy.gl.ffi.GL46.*;
 
 import dev.jeddy.core.handle.Handles;
+import dev.jeddy.render.gpu.FrameRing;
 import dev.jeddy.render.gpu.GpuBuffers;
 import dev.jeddy.render.gpu.GpuDevice;
 import dev.jeddy.render.gpu.GpuTextures;
@@ -44,6 +45,7 @@ public final class Environment implements AutoCloseable {
     private final MemorySegment uniformTexels = arena.allocate(6 * 8, 8); // one RGBA16F per face
     private final float[] uniformSh = new float[27];
     private final int shBuffer;
+    private boolean shDirty;
     private final int lut;
     private final int defaultCube;
     private final int cubeSampler;
@@ -138,7 +140,22 @@ public final class Environment implements AutoCloseable {
             sh.set(ValueLayout.JAVA_FLOAT, i * 16L + 8, c[i * 3 + 2]);
             sh.set(ValueLayout.JAVA_FLOAT, i * 16L + 12, 0f);
         }
-        device.buffers().update(shBuffer, 0, sh);
+        shDirty = true;
+    }
+
+    /**
+     * Uploads changed SH coefficients through the frame ring (a GPU-side copy, D103), or from the
+     * CPU when {@code ring} is null or full. The renderer calls it before binding.
+     */
+    public void flush(FrameRing ring) {
+        if (!shDirty) {
+            return;
+        }
+        if (ring == null
+                || !ring.upload(device.buffers().glName(shBuffer), 0, sh, 0, sh.byteSize())) {
+            device.buffers().update(shBuffer, 0, sh);
+        }
+        shDirty = false;
     }
 
     private void releaseCube() {

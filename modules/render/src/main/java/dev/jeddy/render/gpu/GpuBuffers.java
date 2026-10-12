@@ -128,7 +128,11 @@ public final class GpuBuffers {
 
     /**
      * Writes {@code length} bytes at native address {@code address} into the buffer at {@code
-     * offset} ({@link #DYNAMIC} buffers). Allocates nothing.
+     * offset} ({@link #DYNAMIC} buffers) with {@code glNamedBufferSubData}. Allocates nothing.
+     *
+     * <p>For a buffer the GPU has already read, prefer {@link FrameRing#upload}: a GPU-side copy
+     * ordered in the command stream. Intel's Windows driver dropped CPU writes into such buffers
+     * (D103); this call is for the first fill and as the fallback when a ring is full.
      */
     public void update(int handle, long offset, long address, long length) {
         int i = check(handle);

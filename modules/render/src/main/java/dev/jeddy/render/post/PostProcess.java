@@ -2,6 +2,7 @@ package dev.jeddy.render.post;
 
 import static dev.jeddy.gl.ffi.GL46.*;
 
+import dev.jeddy.render.gpu.FrameRing;
 import dev.jeddy.render.gpu.GpuBuffers;
 import dev.jeddy.render.gpu.GpuDevice;
 import dev.jeddy.render.gpu.GpuTextures;
@@ -156,6 +157,7 @@ public final class PostProcess implements AutoCloseable {
     private final int exposureBuffer;
     private final Arena arena = Arena.ofConfined();
     private final MemorySegment one = arena.allocate(4);
+    private boolean exposureDirty;
     private final int[] down = new int[MAX_BLOOM_LEVELS];
     private final int[] up = new int[MAX_BLOOM_LEVELS];
     private int hdr = -1;
@@ -195,6 +197,7 @@ public final class PostProcess implements AutoCloseable {
         linearClamp = device.samplers().get(SamplerDesc.LINEAR_CLAMP);
         exposureBuffer = device.buffers().create(EXPOSURE_BYTES, GpuBuffers.DYNAMIC, "exposure");
         setAutoExposure(config.autoExposure());
+        flushExposure(null); // the buffer is new: a CPU write is fine before any frame
     }
 
     /**
@@ -263,9 +266,25 @@ public final class PostProcess implements AutoCloseable {
      * Sets this frame's exposure compensation (a multiplier on top of the automatic exposure) and
      * the seconds since the previous frame (for adaptation). Call before the graph executes.
      */
-    public void prepare(float exposureCompensation, float elapsedSeconds) {
+    public void prepare(FrameRing ring, float exposureCompensation, float elapsedSeconds) {
         compensation = exposureCompensation;
         seconds = elapsedSeconds;
+        flushExposure(ring);
+    }
+
+    /**
+     * The manual-exposure flag reaches the buffer by a GPU-side copy once it has been used (D103).
+     */
+    private void flushExposure(FrameRing ring) {
+        if (!exposureDirty) {
+            return;
+        }
+        if (ring == null
+                || !ring.upload(
+                        device.buffers().glName(exposureBuffer), EXPOSURE_OFFSET, one, 0, 4)) {
+            device.buffers().update(exposureBuffer, EXPOSURE_OFFSET, one.address(), 4);
+        }
+        exposureDirty = false;
     }
 
     /** Selects the tone curve. */
@@ -290,7 +309,7 @@ public final class PostProcess implements AutoCloseable {
     public void setAutoExposure(AutoExposure value) {
         autoExposure = value;
         one.set(ValueLayout.JAVA_FLOAT, 0, value == null ? 1f : 0f);
-        device.buffers().update(exposureBuffer, EXPOSURE_OFFSET, one.address(), 4);
+        exposureDirty = true;
     }
 
     /** Snaps the automatic exposure to the next frame instead of adapting (camera cuts). */

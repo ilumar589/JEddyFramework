@@ -3,6 +3,7 @@ package dev.jeddy.render.material;
 import dev.jeddy.asset.format.MaterialData;
 import dev.jeddy.render.draw.DrawBuilder;
 import dev.jeddy.render.draw.MaterialTable;
+import dev.jeddy.render.gpu.FrameRing;
 import dev.jeddy.render.gpu.GpuDevice;
 import dev.jeddy.render.gpu.PipelineState;
 import dev.jeddy.render.gpu.SamplerDesc;
@@ -385,9 +386,17 @@ public final class MaterialSystem implements AutoCloseable {
         return setCount++;
     }
 
-    /** Uploads changed material rows. Call once per frame before drawing. */
+    /**
+     * Uploads changed material rows through the frame ring (a GPU-side copy, so rows added after
+     * the buffer was first used reach every driver, D103). Call once per frame before drawing.
+     */
+    public void flush(FrameRing ring) {
+        table.flush(ring);
+    }
+
+    /** {@link #flush(FrameRing)} from the CPU (tests). */
     public void flush() {
-        table.flush();
+        table.flush(null);
     }
 
     /** Forgets cached texture bindings (after other passes used units 0-4). */

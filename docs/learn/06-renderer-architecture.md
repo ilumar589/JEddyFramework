@@ -810,8 +810,14 @@ A batch binds one program and one set of textures, yet its instances may use hun
 materials. The material's *numbers* therefore live in a storage buffer, one row per material,
 indexed by the instance record's `data.x`.
 [`MaterialTable`](../../modules/render/src/main/java/dev/jeddy/render/draw/MaterialTable.java) keeps
-the rows in a native CPU copy and uploads the changed range in `flush()` (once per frame, from
-`SceneRenderer.render`) with `glNamedBufferSubData`. A row is `FLOATS = 32` floats (128 bytes, D41),
+the rows in a native CPU copy and uploads the changed range in `flush(ring)` (once per frame, from
+`SceneRenderer.render`) through the frame ring: the bytes are staged in the ring and copied by the
+GPU with `glCopyNamedBufferSubData` (`FrameRing.upload`). It used to be a `glNamedBufferSubData`
+from the CPU, and the first Intel Windows driver we ran on silently dropped those writes once the
+GPU had used the buffer, so every material loaded after the first frame read as zeros: black,
+mirror-smooth characters on a correct floor (D103, chapter 05's rule on changing buffers the GPU
+is reading). The whole buffer is bound, not the rows in use, so the bound range never changes as
+materials arrive. A row is `FLOATS = 32` floats (128 bytes, D41),
 in the layout of
 [`engine/material.glsl`](../../modules/render/src/main/resources/dev/jeddy/render/shaders/engine/material.glsl):
 
@@ -1167,7 +1173,8 @@ public void render(RenderPacket p) {
     if (sunShadows != null) {
         sunShadows.update(p, ring, lod);
     }
-    materials.flush();
+    materials.flush(ring);
+    environment.flush(ring);
     if (fogOfWar != null) {
         fogOfWar.update(p);
     }

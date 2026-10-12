@@ -352,6 +352,7 @@ CI renders with Mesa's llvmpipe, which is permissive. Real drivers differ; what 
 
 | Driver | Finding | What the engine does |
 |---|---|---|
+| Intel Graphics, Windows, 32.0.101.8331 | `glNamedBufferSubData` into a buffer the GPU has already read is silently dropped: every material row added after the first frame read as zeros (black, mirror-smooth characters on a correct floor), the light-cluster counter never reset, environment and exposure changes were lost. Found with `FeatureBisectTest`, whose draw-order rows failed only when a row was added after a frame | Buffers in flight are changed through the frame ring and a GPU-side copy (`FrameRing.upload`, D103); `glNamedBufferSubData` only fills new buffers |
 | Intel Graphics, Windows, 32.0.101.8331 | `glCopyImageSubData` returns `GL_INVALID_VALUE` and `glGetCompressedTextureSubImage` `GL_INVALID_OPERATION` for the mip levels of a block-compressed texture that are smaller than a block (2x2, 1x1), which the spec and Mesa allow. Growing a texture array lost those levels and, with them, the textures loaded afterwards (black characters, no UI) | `GpuTextures` keeps a CPU copy of those levels from the upload (16 bytes per level per layer) and `copyLayers` uploads them again instead of copying or reading back (D101) |
 
 Add a row when you run on new hardware (`-Djeddy.gl.debug=true` shows the driver's complaints).

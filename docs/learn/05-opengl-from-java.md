@@ -782,7 +782,7 @@ up front. The flags Jeddy uses:
 | Flags | Meaning | Jeddy |
 |---|---|---|
 | `0` | Only the GPU changes it (copies, clears, shader writes) | `StaticScene`'s item, bin and command buffers; `HelloTriangle`'s vertices |
-| `GL_DYNAMIC_STORAGE_BIT` | The CPU may update it with `glNamedBufferSubData` | `GpuBuffers.DYNAMIC`: mesh mega buffers, material table |
+| `GL_DYNAMIC_STORAGE_BIT` | The CPU may update it with `glNamedBufferSubData` | `GpuBuffers.DYNAMIC`: mesh mega buffers, material table. Used for the first fill and as a fallback; once the GPU has read a buffer, changes go through a ring and `glCopyNamedBufferSubData` (`FrameRing.upload`), because a driver may drop a CPU write into a buffer in flight (Intel did, D103) |
 | `GL_MAP_WRITE_BIT \| GL_MAP_PERSISTENT_BIT \| GL_MAP_COHERENT_BIT` | Mapped once into the CPU's address space, written directly, forever | `GpuBuffers.MAPPED`: `FrameRing`, `UploadRing` |
 
 [`GpuBuffers.create`](../../modules/render/src/main/java/dev/jeddy/render/gpu/GpuBuffers.java) turns

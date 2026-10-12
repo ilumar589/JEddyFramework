@@ -104,6 +104,28 @@ public final class FrameRing implements AutoCloseable {
         }
     }
 
+    /**
+     * Uploads {@code bytes} of {@code src} from {@code srcOffset} into the GL buffer {@code
+     * dstGlName} at {@code dstOffset} through this frame's region: the bytes are staged in the ring
+     * and copied by the GPU ({@code glCopyNamedBufferSubData}), so the write is ordered in the
+     * command stream after the frames still reading the buffer. This is how a buffer the GPU has
+     * already used must be changed: Intel's Windows driver ignored {@code glNamedBufferSubData} on
+     * such buffers (new material rows read as zeros, D103). Allocates nothing.
+     *
+     * @return {@code false} if the region is full; the caller keeps the data dirty for the next
+     *     frame
+     */
+    public boolean upload(
+            int dstGlName, long dstOffset, MemorySegment src, long srcOffset, long bytes) {
+        long at = allocate(bytes, 16);
+        if (at < 0) {
+            return false;
+        }
+        MemorySegment.copy(src, srcOffset, memory, at, bytes);
+        glCopyNamedBufferSubData(glName, dstGlName, at, dstOffset, bytes);
+        return true;
+    }
+
     /** Ends the frame: fences the region after the commands that read it. */
     public void endFrame() {
         fences[frame] = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);

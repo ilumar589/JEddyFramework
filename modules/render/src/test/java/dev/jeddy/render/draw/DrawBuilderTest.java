@@ -167,7 +167,7 @@ class DrawBuilderTest {
             row[0] = 0;
             row[1] = 1; // green, drawn at half brightness by the HALF variant
             int green = materials.add(flat, 1, row);
-            materials.flush();
+            materials.flush(null);
             assertEquals(2, materials.programSlots());
             for (int slot = 0; slot < 2; slot++) {
                 int program;

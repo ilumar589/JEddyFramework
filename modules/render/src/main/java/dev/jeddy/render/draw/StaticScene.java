@@ -463,7 +463,7 @@ public final class StaticScene implements AutoCloseable {
                 0,
                 (long) recordCount * DrawBuilder.INSTANCE_BYTES);
         state.bindStorage(
-                DrawBuilder.MATERIAL_BINDING, materials.glBuffer(), 0, materials.byteSize());
+                DrawBuilder.MATERIAL_BINDING, materials.glBuffer(), 0, materials.bufferBytes());
         state.bindDrawIndirect(commands);
         glBindBuffer(GL_PARAMETER_BUFFER, commands);
         for (int b = 0; b < batchCount; b++) {

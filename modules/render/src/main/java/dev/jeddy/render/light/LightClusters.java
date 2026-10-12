@@ -209,7 +209,10 @@ public final class LightClusters implements AutoCloseable {
         }
         header.set(ValueLayout.JAVA_INT, 0, 0);
         header.set(ValueLayout.JAVA_INT, 4, capacity);
-        device.buffers().update(itemsBuffer, 0, header);
+        // The item counter resets on the GPU, ordered after last frame's cull (D103).
+        if (!ring.upload(device.buffers().glName(itemsBuffer), 0, header, 0, header.byteSize())) {
+            device.buffers().update(itemsBuffer, 0, header);
+        }
         bind(state, ring);
         state.useProgram(programs.getBlocking(cullProgram, 0));
         glDispatchCompute(groups, 1, 1);

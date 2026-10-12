@@ -544,7 +544,8 @@ public final class SceneRenderer implements AutoCloseable {
         if (sunShadows != null) {
             sunShadows.update(p, ring, lod);
         }
-        materials.flush();
+        materials.flush(ring);
+        environment.flush(ring);
         if (fogOfWar != null) {
             fogOfWar.update(p);
         }
@@ -553,7 +554,7 @@ public final class SceneRenderer implements AutoCloseable {
             localShadows.update(p, ring, clusters.lightsOffset(), lod);
         }
         frameOffset = writeFrameConstants(p);
-        post.prepare(p.exposure, elapsed);
+        post.prepare(ring, p.exposure, elapsed);
         StateCache state = device.state();
         state.bindUniform(FRAME_BINDING, ring.glName(), frameOffset, FRAME_BYTES);
         materials.invalidateBindings();
