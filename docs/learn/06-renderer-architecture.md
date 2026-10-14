@@ -5034,7 +5034,7 @@ With the default configuration:
 | 3 | sun shadows | graphics (own framebuffers) | writes sun cascades | cascaded shadow maps; culls and draws the static scene's cascade views | [07](07-lighting-and-shadows.md) |
 | 4 | local shadows | graphics (own framebuffers) | writes shadow atlas | spot and point light shadows | [07](07-lighting-and-shadows.md) |
 | 5 | depth prepass | graphics | depth (cleared to 0) | opaque depth with the depth programs | §27.7 |
-| 6 | ao, ao blur | graphics | read depth, write half-resolution `GL_R8` | ambient occlusion (GTAO) | [08](08-effects-and-post.md) |
+| 6 | ao, ao blur | graphics | read depth, write half-resolution `GL_R8` | ambient occlusion (GTAO) | [07](07-lighting-and-shadows.md) |
 | 7 | opaque | graphics | hdr (cleared to black), depth read-only, reads clusters, shadows, AO | lit PBR, `GL_GEQUAL` without depth writes (D42) | §27.7, [07](07-lighting-and-shadows.md) |
 | 8 | sky | graphics | hdr, depth read-only | the environment where nothing was drawn | §27.7 |
 | 9 | transparent | graphics | hdr, depth read-only, reads clusters, shadows, AO | sorted translucent batches | §19.2 |
@@ -5595,8 +5595,10 @@ bits the record already carries, and skinned instances are never static.
   draws those lines after the scene. It writes two 16-byte vertices per line (position, plus the packed
   color stored as the bits of the fourth float) into the overlay ring and draws `GL_LINES` with an empty
   vertex array; the vertex shader fetches its vertex from a storage buffer by `gl_VertexID` — the same
-  "pull" idea as the instance records (§4.2). Lines before `debugOverlayStart` are depth-tested against
-  the scene; the rest (an editor's gizmo) are drawn on top.
+  "pull" idea as the instance records (§4.2). Lines before `debugOverlayStart` are meant to be
+  depth-tested against the scene and the rest (an editor's gizmo) drawn on top — but the lines are drawn
+  into the window's framebuffer, which has no depth buffer (D23), so in practice every line shows through
+  walls; chapter [08](08-effects-and-post.md), on debug drawing, explains the gap.
 - **[`Overlay`](../../modules/render/src/main/java/dev/jeddy/render/debug/Overlay.java)** draws screen
   text and rectangles as **one instanced draw**: each glyph is a quad whose record sits in a storage
   buffer, and the fragment shader tests the glyph's bit in a 5×7 font table that is itself a storage
