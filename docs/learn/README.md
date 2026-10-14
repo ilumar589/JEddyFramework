@@ -4,19 +4,28 @@ This guide explains everything built in milestones M0 to M16 and M22, so you can
 code and learn the 3D math and OpenGL behind it. From M13 on, each milestone ships with its own
 chapter, numbered after the milestone (22 was built before 16, which builds on it).
 
-Each chapter takes one part of the engine and follows the same path:
-1. **Concept.** The idea and the intuition behind it.
-2. **Math or API.** Derived step by step, with small numeric examples.
-3. **The real code.** A walkthrough with excerpts copied from the repository; file links sit next
-   to them.
-4. **Why it is built this way.** The performance reasons and the design decisions, with their
-   numbers (D1–D119) in [DESIGN.md](../DESIGN.md) §17.
-5. **Try it.** Tests to run, demo flags and experiments.
-6. **Exercises.** Each one has a hint, and most are checked by a test.
+Since 2026-10-14 every chapter is written like a chapter of a book on building the engine, for a
+reader who knows no math and no GPU programming beyond lesson [L00](lessons/00-foundations.md) (the
+owner's request of 2026-10-12). Each one takes one part of the engine and has three parts:
+1. **Part A — the ideas.** The concepts from zero; every formula the code uses derived from
+   definitions, step by step, with a worked numeric example; for every GPU feature, what the
+   pipeline stage, the driver and the hardware do, what memory it touches, what synchronization it
+   needs and what can go wrong.
+2. **Part B — building it.** "Step 1, Step 2, …" in the order you would write the code from empty
+   files, quoting the repository's real code (condensed excerpts say so), with what every method and
+   every non-obvious line does, and every decision with the alternatives that were rejected and its
+   number (D1–D119) in [DESIGN.md](../DESIGN.md) §17.
+3. **Part C — using it and proving it.** How the rest of the engine uses it, the tests walked
+   through, things to run with exact commands, measured numbers with their sources, and the known
+   problems in the code.
 
-**How to read it.** Keep the code open next to the chapter. When a chapter quotes a class, open
-the file and read the surrounding code too. The excerpts are short on purpose. Run the tests a
-chapter points to and change things: the exercises are designed for that.
+Then **exercises**, each with a hint and a full worked solution, and a **glossary**. Every code
+quote and number was checked against the repository by an independent reviewer.
+
+**How to read it.** Keep the code open next to the chapter, run the tests a chapter points to and
+change things: the exercises are designed for that. The chapters are long (3,500 to 14,000 lines);
+the Contents list at the top of each links every section. Chapter 11 is larger than GitHub's web
+view renders in full, so read it in a local checkout or an editor.
 
 **What you need.** Solid Java. No graphics background: the math starts at vectors, and OpenGL starts
 at "what is a vertex shader". If binary numbers, bit operations, caches or what a GPU does are new

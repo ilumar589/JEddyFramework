@@ -1484,8 +1484,8 @@ The meta block is, by design, a list of string pairs: the slot list can show any
 (such as `kills`) needs no format change, because a reader never needs to know an entry's type.
 Binary values would need a type per key. Text costs nothing at capture time because the game formats
 numbers into a kept `StringBuilder` (`append(long)` allocates nothing) and passes it as a
-`CharSequence` (§9.4); chapter 16 §5 tells how the first version, with `Long.toString`, cost 1,120
-bytes per autosave.
+`CharSequence` (§9.4); chapter [16](../16-saves.md) §19.1, on the pitfalls met on the way, tells how
+the first version, with `Long.toString`, cost 1,120 bytes per autosave.
 </details>
 
 **8. Attack the reader.** Write three hostile files — a string length larger than the file, a chunk
