@@ -93,11 +93,12 @@ public record GLCapabilities(
         if (v.contains("nvidia")) {
             return Driver.NVIDIA;
         }
-        if (v.contains("ati") || v.contains("amd")) {
-            return Driver.AMD;
-        }
         if (v.contains("intel")) {
             return Driver.INTEL;
+        }
+        // "ATI Technologies Inc." as a word, not a substring: "corporation" contains "ati".
+        if (v.contains("amd") || v.equals("ati") || v.startsWith("ati ")) {
+            return Driver.AMD;
         }
         return Driver.OTHER;
     }
