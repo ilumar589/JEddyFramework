@@ -676,7 +676,7 @@ way back into the code before a milestone. They come with the guide exercise tha
   - draw those batches with `glFrontFace(GL_CW)`;
   - prove it with a GPU test.
 
-  Background: [02 Math foundations, determinants](learn/02-math-foundations.md#determinants-and-mirroring).
+  Background: [02 Math foundations, determinants](learn/02-math-foundations.md#94-determinants-and-mirroring).
 - **Orthographic zoom.** In orthographic mode the wheel zoom changes `distance`, which has no
   visible effect. Make zoom work in both modes and keep `lodPixels` consistent. See
   [04, exercise 7](learn/04-cameras-and-projection.md#exercises).

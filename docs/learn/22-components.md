@@ -70,7 +70,7 @@ Put them in an object and 300 skeletons are 300 objects scattered over the heap;
 reads every `timer` touches 300 cache lines of 64 bytes to use four bytes from each. Put each
 field in its own array and the same tick reads $300 \times 4 = 1200$ bytes, nineteen lines,
 sequentially, which the prefetcher sees coming. That is the whole argument for **struct of
-arrays** (SoA, chapter 01 §4) and it is the layout the generated store uses: `MindStore` is
+arrays** (SoA, chapter 01 §7.1) and it is the layout the generated store uses: `MindStore` is
 seven arrays and nothing else.
 
 Which row is entity $e$'s? A **sparse set** (`core.collections.SparseSet`, D4) keeps two arrays:
@@ -175,7 +175,7 @@ then read the generated code.
 
 `@Parallel` turns a loop into a `JobKernel` over ranges of the driving store with one set of
 views per job thread, and consecutive parallel behaviours of a stage into one `JobGraph`
-(chapter 01 §4.5). The graph's edges come from what the parameters declare: a `Mut` is a write,
+(chapter 01 §14.1). The graph's edges come from what the parameters declare: a `Mut` is a write,
 a `View` (and `@Optional`, and `@Without`) a read. Behaviour $B$ depends on an earlier $A$ when
 
 $$W_A \cap (R_B \cup W_B) \neq \emptyset \quad\text{or}\quad R_A \cap W_B \neq \emptyset,$$

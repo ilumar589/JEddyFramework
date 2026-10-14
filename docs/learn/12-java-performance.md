@@ -1498,7 +1498,7 @@ in the same lap, and the per-slot sequence carries the release/acquire edge for 
 
 ### The triple buffer, again
 
-[01 Architecture](01-architecture.md#the-triple-buffer-handoff) walked through `TripleBuffer`. In
+[01 Architecture](01-architecture.md#10-step-1-the-triple-buffer-handoff) walked through `TripleBuffer`. In
 terms of this section: the producer's plain writes to the packet are ordered before its
 `getAndSet` on `latest` (a volatile read-modify-write), and the consumer's `getAndSet` is ordered
 before its plain reads of the packet. One atomic exchange per frame on each side is the entire
