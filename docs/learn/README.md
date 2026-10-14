@@ -73,19 +73,44 @@ solutions, and a glossary. Every milestone adds at least one lesson.
 | L03 | [Build a component store](lessons/03-data-layout.md) | A measured experiment on access order; what a Java object costs; AoS against SoA with the cache lines counted; handles and the handle pool; the sparse set; the store base class, the generated columns, flyweight views and the generated loop; what the JIT does to them; the benchmark; when a parallel loop pays | L00 §6, §8–9 |
 | L04 | [Build a save file format](lessons/04-binary-formats.md) | Byte order, floats as bits, UTF-8, alignment and padding, checksums from parity to CRC-32C, compression and versions; `ByteWriter`, `ByteReader` (and the three hostile-file gaps the lesson's review closed), `SaveWriter`, `SaveFile` encode and parse in the right order, the atomic replace, golden files; a real `.jsave` read byte by byte | L00 §3–8 |
 
-Planned next (one per milestone, in the order the milestones need them): a script compiler and a
-stack machine — grammars, recursive descent, bytecode (M17); two-bone IK and quaternion deltas,
-derived (M18); compute shaders, workgroups and atomics (M19); A* and admissible
-heuristics (M20); rendering for tools (M23). Standing requests from the owner for the GPU side, to be scheduled: the projection
-matrix and depth precision with numbers, the rendering equation to `pbr.frag` step by step,
-texture memory (mips, block compression bit layouts, bandwidth), the pipeline stage by stage.
+The five lessons are complete; there is no lesson for every chapter. A lesson exists where a topic is
+used by several chapters (GPU buffers in flight, probability, data layout, binary formats), so the
+chapters summarize it and link there instead of repeating it. Planned next, one per milestone as the
+milestones need them: a script compiler and a stack machine — grammars, recursive descent, bytecode
+(M17); two-bone IK and quaternion deltas, derived (M18); compute shaders, workgroups and atomics
+(M19); A* and admissible heuristics for the M20 milestone (chapter 11 already proves the engine's
+heuristic admissible and consistent); rendering for tools (M23). The owner's earlier requests
+for the GPU side are now covered in the chapters: depth precision with numbers in 04, the pipeline
+stage by stage in 05, the rendering equation to `pbr.frag` in 07, texture memory and block
+compression bit layouts in 10.
 
 ## Reading paths
 
-- **New to programming close to the machine:** lesson L00, then the lessons L01–L04 (each builds a
-  real part of the engine from empty files), then the chapters in order.
-- **Everything, in order:** 01 → 15, then 22, then 16 (it uses the stores of 22). Each chapter
-  links back to earlier ones when it builds on them.
+**Start here: everything, in one order.** Chapters are numbered after milestones, not in reading
+order (there is no 17–21 yet: those milestones are not built; 22 was built before 16, which uses
+it). Each lesson goes just before the first chapter that leans on it:
+
+1. Lesson [L00 Foundations](lessons/00-foundations.md) — the math notation, bits, memory, caches,
+   threads and what a GPU is. Everything else assumes it.
+2. Lesson [L03 Build a component store](lessons/03-data-layout.md) — handles and SoA stores, used
+   from chapter 01 on.
+3. [01 Architecture](01-architecture.md)
+4. [02 Math foundations](02-math-foundations.md), [03 Rotations](03-rotations-and-transforms.md),
+   [04 Cameras](04-cameras-and-projection.md)
+5. Lesson [L01 Build a frame ring](lessons/01-buffers-in-flight.md) — GPU buffers, fences and
+   barriers, used from chapter 05 on.
+6. [05 OpenGL from Java](05-opengl-from-java.md), [06 The renderer](06-renderer-architecture.md),
+   [07 Lighting](07-lighting-and-shadows.md), [08 Effects](08-effects-and-post.md),
+   [09 Animation](09-animation-and-skinning.md)
+7. Lesson [L04 Build a save file format](lessons/04-binary-formats.md) — byte order, checksums and
+   versions, used by every file format from chapter 10 on.
+8. [10 Assets](10-assets.md), [11 Physics](11-physics-navigation-crowds.md),
+   [12 Fast Java](12-java-performance.md), [13 The user interface](13-ui.md),
+   [14 The level editor](14-editor.md)
+9. Lesson [L02 Build the dice](lessons/02-dice-and-probability.md), then [15 Rules](15-rules.md)
+10. [22 Components](22-components.md), then [16 Saves](16-saves.md)
+
+The paths below are shorter routes through the same material for one interest.
 - **3D math:**
   1. 02 Math foundations
   2. 03 Rotations
